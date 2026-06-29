@@ -1,0 +1,11 @@
+*.egg-info
+.coverage
+.mypy_cache/
+.pytest_cache/
+.python-version
+.ropeproject
+.tox/
+__pycache__/
+build/
+dist/
+tmp/

@@ -1,0 +1,93 @@
+[project]
+name = "meta_agent"
+description = ""
+
+readme = "README.md"
+version = "0.1.0"
+requires-python = ">=3.14"
+license = { file = "LICENSE" }
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Intended Audience :: Developers",
+]
+keywords = ["meta_agent"]
+dependencies = [
+  "openjarvis",
+]
+
+[dependency-groups]
+dev = [
+  "black>=25.1.0",
+  "mypy>=1.18.1",
+  "ruff>=0.13.0",
+  "tox>=4.30.2",
+  "pytest>=8.4.2",
+]
+
+[project.urls]
+repository = "https://github.com/berquerant/meta_agent"
+
+[project.scripts]
+meta_agent = "meta_agent.cli:main"
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+openjarvis = { git = "https://github.com/open-jarvis/OpenJarvis.git", tag = "v1.0.2" }
+
+[tool.ruff]
+exclude = [
+  ".direnv",
+  ".eggs",
+  ".git",
+  ".git-rewrite",
+  ".mypy_cache",
+  ".pytype",
+  ".ruff_cache",
+  ".tox",
+  "__pypackages__",
+  "_build",
+  "build",
+  "dist",
+  ".ropeproject",
+  ".pytest_cache",
+  "__pycache__",
+  ".coverage",
+]
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+  "F", # pyflakes
+  "I", # isort
+  "E", # pycodestyle
+  "D", # pydocstyle
+  "W", # pycodestyle
+]
+ignore = [
+  "D100", # Missing docstring in public module
+  "D101", # Missing docstring in public class
+  "D102", # Missing docstring in public method
+  "D104", # Missing docstring in public package
+  "D105", # Missing docstring in magic method
+  "D107", # Missing docstring in __init__
+  "D203", # 1 blank line required before class docstring
+  "D212", # Multi-line docstring summary should start at the first line
+  "I001", # Import block is un-sorted or un-formatted
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = [
+  "F401", # Module imported but unused
+]
+"**/{tests,doc}/*" = ["D"]
+
+[tool.mypy]
+ignore_missing_imports = true
+show_error_context = true
+show_column_numbers = true
+pretty = true
+
+[tool.black]
+line-length = 120
