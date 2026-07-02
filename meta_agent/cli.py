@@ -3,7 +3,7 @@
 import argparse
 from os.path import expanduser
 
-from .asking import AskingRequest
+from .asking import AskingRequest, AskingRawRequest
 from .cmd import Cmd, ListOpts, InspectOpts
 from .gen import GenRequest
 
@@ -69,6 +69,11 @@ def chat_cmd(args):  # type: ignore[no-untyped-def]
     Cmd.chat_cmd(r)
 
 
+def raw_cmd(args):  # type: ignore[no-untyped-def]
+    """Run jarvis command."""
+    Cmd.raw_cmd(AskingRawRequest(jarvis=args.jarvis, args=args.reminder))
+
+
 def main() -> int:
     """Entry point of CLI."""
     p = argparse.ArgumentParser(
@@ -109,6 +114,11 @@ def main() -> int:
     ask.set_defaults(func=ask_cmd)
     add_chat_opts(ask)  # type: ignore[no-untyped-call]
     ask.add_argument("query", type=str)
+
+    raw = sp.add_parser("jarvis", help="Raw jarvis command")
+    raw.set_defaults(func=raw_cmd)
+    raw.add_argument("--jarvis", type=str, default="jarvis", help="jarvis executable")
+    raw.add_argument("reminder", nargs=argparse.REMAINDER, help="jarvis args")
 
     args = p.parse_args()
     args.func(args)

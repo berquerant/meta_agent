@@ -1,10 +1,23 @@
 import logging
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .api import inspect_recipe
 from .utils import json_dumps
+
+
+@dataclass
+class AskingRawRequest:
+    jarvis: str
+    args: list[str] = field(default_factory=list)
+
+    def run(self) -> None:
+        cmd = [self.jarvis] + self.args
+        logging.info("exec: %s", json_dumps(cmd))
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os.execvp(cmd[0], cmd)
 
 
 @dataclass

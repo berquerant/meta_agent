@@ -1,10 +1,10 @@
 from dataclasses import asdict, dataclass
+from typing import Any, Callable
 
 from .api import list_tools, list_agents, list_recipes, inspect_recipe, inspect_agent, inspect_tool
-from .utils import json_dumps, format_obj_list_into_text, format_obj_into_text
+from .asking import AskingRequest, AskingOpts, AskingRawRequest
 from .gen import generate_assistant, GenRequest
-from .asking import AskingRequest, AskingOpts
-from typing import Any, Callable
+from .utils import json_dumps, format_obj_list_into_text, format_obj_into_text
 
 
 def format_obj(x: dict[str, Any], out: str) -> str:
@@ -90,3 +90,7 @@ class Cmd:
     @staticmethod
     def chat_cmd(args: AskingRequest) -> None:
         AskingOpts.new(args).chat()
+
+    @staticmethod
+    def raw_cmd(args: AskingRawRequest) -> None:
+        args.run()
