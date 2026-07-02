@@ -87,20 +87,20 @@ def main() -> int:
     get.add_argument("resource_type", choices=["recipe", "agent", "tool"])
     get.add_argument("resource_name", nargs="?")
 
-    def add_chat_base_opts(x):  # type: ignore[no-untyped-def]
+    def add_chat_base_opts(x: argparse.ArgumentParser) -> None:
         x.add_argument("--engine", "-e", default="ollama", help="engine backend")
         x.add_argument("--model", "-m", default="gemma4:12b", help="model to use")
 
     gen = sp.add_parser("gen", help="Generate AI assistant recipe")
     gen.set_defaults(func=gen_cmd)
-    add_chat_base_opts(gen)  # type: ignore[no-untyped-call]
+    add_chat_base_opts(gen)
     # https://github.com/open-jarvis/OpenJarvis/blob/main/src/openjarvis/recipes/loader.py#L282
     gen.add_argument("--recipes", "-r", default=expanduser("~/.openjarvis/recipes"), help="recipes directory")
     gen.add_argument("query", type=str)
 
-    def add_chat_opts(x):  # type: ignore[no-untyped-def]
+    def add_chat_opts(x: argparse.ArgumentParser) -> None:
         x.add_argument("--recipe", "-r", required=True, type=str, help="recipe name")
-        add_chat_base_opts(x)  # type: ignore[no-untyped-call]
+        add_chat_base_opts(x)
         x.add_argument("--agent", "-a", type=str, help="agent type")
         x.add_argument("--tools", type=str, help="comma-separated tool names")
         x.add_argument("--system", type=str, help="custom system prompt")
@@ -108,11 +108,11 @@ def main() -> int:
 
     chat = sp.add_parser("chat", help="Start an interactive multi-turn chat session")
     chat.set_defaults(func=chat_cmd)
-    add_chat_opts(chat)  # type: ignore[no-untyped-call]
+    add_chat_opts(chat)
 
     ask = sp.add_parser("ask", help="Ask Jarvis a question")
     ask.set_defaults(func=ask_cmd)
-    add_chat_opts(ask)  # type: ignore[no-untyped-call]
+    add_chat_opts(ask)
     ask.add_argument("query", type=str)
 
     raw = sp.add_parser("jarvis", help="Raw jarvis command")
