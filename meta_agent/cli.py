@@ -104,7 +104,7 @@ def main() -> int:
         x.add_argument("--agent", "-a", type=str, help="agent type")
         x.add_argument("--tools", type=str, help="comma-separated tool names")
         x.add_argument("--system", type=str, help="custom system prompt")
-        x.add_argument("--jarvis", type=str, default="jarvis", help="jarvis executable")
+        x.add_argument("--jarvis", type=str, help="jarvis executable")
 
     chat = sp.add_parser("chat", help="Start an interactive multi-turn chat session")
     chat.set_defaults(func=chat_cmd)
@@ -117,7 +117,7 @@ def main() -> int:
 
     raw = sp.add_parser("jarvis", help="Raw jarvis command")
     raw.set_defaults(func=raw_cmd)
-    raw.add_argument("--jarvis", type=str, default="jarvis", help="jarvis executable")
+    raw.add_argument("--jarvis", type=str, help="jarvis executable")
     raw.add_argument("reminder", nargs=argparse.REMAINDER, help="jarvis args")
 
     args = p.parse_args()

@@ -9,11 +9,17 @@ from .utils import json_dumps
 
 @dataclass
 class AskingRawRequest:
-    jarvis: str
+    jarvis: str | None = None
     args: list[str] = field(default_factory=list)
 
+    @property
+    def __jarvis(self) -> list[str]:
+        if self.jarvis:
+            return [self.jarvis]
+        return ["uv", "run", "jarvis"]
+
     def run(self) -> None:
-        cmd = [self.jarvis] + self.args
+        cmd = self.__jarvis + self.args
         logging.info("exec: %s", json_dumps(cmd))
         sys.stdout.flush()
         sys.stderr.flush()
@@ -28,7 +34,7 @@ class AskingRequest:
     agent: str
     tools: str
     system: str
-    jarvis: str
+    jarvis: str | None = None
 
 
 @dataclass
@@ -38,7 +44,7 @@ class AskingOpts:
     agent: str
     system: str
     tools: str
-    jarvis: str
+    jarvis: str | None = None
 
     @staticmethod
     def new(req: AskingRequest) -> AskingOpts:
@@ -56,6 +62,12 @@ class AskingOpts:
             tools = ",".join(r.tools)
         system = req.system or r.system_prompt or ""
         return AskingOpts(engine=engine, model=model, agent=agent, tools=tools, system=system, jarvis=req.jarvis)
+
+    @property
+    def __jarvis(self) -> list[str]:
+        if self.jarvis:
+            return [self.jarvis]
+        return ["uv", "run", "jarvis"]
 
     def as_cli_ask_opts(self, query: str) -> list[str]:
         cmd = [
@@ -93,7 +105,7 @@ class AskingOpts:
         os.execvp(cmd[0], cmd)
 
     def ask(self, query: str) -> None:
-        self.__execvp([self.jarvis, "ask"] + self.as_cli_ask_opts(query))
+        self.__execvp(self.__jarvis + ["ask"] + self.as_cli_ask_opts(query))
 
     def chat(self) -> None:
-        self.__execvp([self.jarvis, "chat"] + self.as_cli_chat_opts())
+        self.__execvp(self.__jarvis + ["chat"] + self.as_cli_chat_opts())
