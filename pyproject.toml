@@ -18,7 +18,7 @@ dependencies = [
 [dependency-groups]
 dev = [
   "black>=25.1.0",
-  "mypy>=1.18.1",
+  "mypy>=2.3.0",
   "ruff>=0.13.0",
   "tox>=4.30.2",
   "pytest>=8.4.2",
