@@ -6,6 +6,7 @@ from os.path import expanduser
 from .asking import AskingRequest, AskingRawRequest
 from .cmd import Cmd, ListOpts, InspectOpts
 from .gen import GenRequest
+from .utils import read_file_or_stdin_or_str
 
 
 def get_resources(args):  # type: ignore[no-untyped-def]
@@ -74,6 +75,21 @@ def raw_cmd(args):  # type: ignore[no-untyped-def]
     Cmd.raw_cmd(AskingRawRequest(jarvis=args.jarvis, args=args.reminder))
 
 
+class QueryAction(argparse.Action):
+    """A custom action for query arguments."""
+
+    def __call__(self, parser, namespace, values, option_string=None):  # type: ignore[no-untyped-def]
+        match values:
+            case str():
+                v = read_file_or_stdin_or_str(values)
+                setattr(namespace, self.dest, v)
+            case list():
+                vs = [read_file_or_stdin_or_str(x) for x in values]
+                setattr(namespace, self.dest, vs)
+            case _:
+                raise Exception(f"Invalid query: {values}")
+
+
 def main() -> int:
     """Entry point of CLI."""
     p = argparse.ArgumentParser(
@@ -96,7 +112,7 @@ def main() -> int:
     add_chat_base_opts(gen)
     # https://github.com/open-jarvis/OpenJarvis/blob/main/src/openjarvis/recipes/loader.py#L282
     gen.add_argument("--recipes", "-r", default=expanduser("~/.openjarvis/recipes"), help="recipes directory")
-    gen.add_argument("query", type=str)
+    gen.add_argument("query", action=QueryAction)
 
     def add_chat_opts(x: argparse.ArgumentParser) -> None:
         x.add_argument("--recipe", "-r", required=True, type=str, help="recipe name")
@@ -113,7 +129,7 @@ def main() -> int:
     ask = sp.add_parser("ask", help="Ask Jarvis a question")
     ask.set_defaults(func=ask_cmd)
     add_chat_opts(ask)
-    ask.add_argument("query", type=str)
+    ask.add_argument("query", action=QueryAction)
 
     raw = sp.add_parser("jarvis", help="Raw jarvis command")
     raw.set_defaults(func=raw_cmd)

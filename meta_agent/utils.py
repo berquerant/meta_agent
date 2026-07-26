@@ -1,6 +1,20 @@
 import json
+import sys
 from datetime import datetime
 from typing import Any
+
+
+def read_file_or_stdin_or_str(s: str) -> str:
+    """Read a file if s is @xxx. Read stdin if s is @-. Otherwise return s."""
+    if s.startswith("@"):
+        t = s.removeprefix("@")
+        match t:
+            case "-":
+                return sys.stdin.read()
+            case _:
+                with open(t) as f:
+                    return f.read()
+    return s
 
 
 def json_dumps(x: Any) -> str:
