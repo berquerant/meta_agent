@@ -16,4 +16,9 @@ dev:
 install:
 	pip install .
 
-.PHONY: init check test ci dev install
+release:
+	@test -n "$(VERSION)" || (echo "Error: VERSION is required. Usage: make release VERSION=x.y.z [ARGS=...]" && exit 1)
+	uv run python scripts/release.py $(VERSION) $(ARGS)
+
+.PHONY: init check test ci dev install release
+

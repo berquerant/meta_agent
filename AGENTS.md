@@ -33,6 +33,7 @@ meta_agent/
 │   ├── gen.py         # Recipe generation logic and meta-agent prompt
 │   ├── tools.py       # Custom OpenJarvis tool registrations
 │   └── utils.py       # Shared utilities (formatting, file reading, etc.)
+├── scripts/           # Helper scripts (e.g. release.py)
 ├── tests/             # pytest test suite
 ├── pyproject.toml     # Project metadata and tool configuration
 ├── tox.ini            # Test/lint environment definitions
@@ -83,6 +84,18 @@ Tool settings live in `pyproject.toml` under `[tool.black]`, `[tool.ruff]`, and 
 Refer to those sections for the current line-length, rule selections, and per-file ignores.
 
 Always run `make check` before committing.
+
+## Releasing
+
+To release a new version (updates `pyproject.toml` and `uv.lock`, commits, tags, and pushes):
+
+```shell
+make release VERSION=X.Y.Z
+# or with optional flags:
+make release VERSION=X.Y.Z ARGS="--dry-run"
+# or directly via uv:
+uv run python scripts/release.py X.Y.Z
+```
 
 ## Architecture Notes
 
