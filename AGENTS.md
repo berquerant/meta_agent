@@ -33,7 +33,12 @@ meta_agent/
 │   ├── cmd.py         # High-level Cmd class wiring CLI args to api/gen
 │   ├── gen.py         # Recipe generation logic and meta-agent prompt
 │   ├── tools.py       # Custom OpenJarvis tool registrations
-│   ├── tui.py         # Textual-based interactive TUI
+│   ├── tui/           # Textual-based interactive TUI (package)
+│   │   ├── __init__.py    # re-exports run_tui
+│   │   ├── app.py         # MetaAgentTUI app + run_tui entry point
+│   │   ├── helpers.py     # sort / filter / markdown formatting helpers
+│   │   ├── screens.py     # GenerateScreen, ChatOptionsScreen
+│   │   └── widgets.py     # ResourceTab widget
 │   └── utils.py       # Shared utilities (formatting, file reading, etc.)
 ├── scripts/           # Helper scripts (e.g. release.py)
 ├── tests/             # pytest test suite
