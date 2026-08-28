@@ -19,7 +19,7 @@ from textual.widgets import (
     ListItem,
     ListView,
     LoadingIndicator,
-    MarkdownViewer,
+    Markdown,
     Select,
     Static,
     TabbedContent,
@@ -179,7 +179,7 @@ class ResourceTab(Vertical):
                 yield ListView(id=f"{tid}-list")
             with VerticalScroll(id=f"{tid}-detail"):
                 yield LoadingIndicator(id=f"{tid}-loading")
-                yield MarkdownViewer("", id=f"{tid}-markdown", show_table_of_contents=False)
+                yield Markdown("", id=f"{tid}-markdown")
                 if self._show_chat:
                     yield Button("Chat with this recipe", id=f"{tid}-chat-btn", variant="success")
 
@@ -228,7 +228,7 @@ class MetaAgentTUI(App[None]):
         overflow-x: hidden;
     }
 
-    MarkdownViewer {
+    Markdown {
         height: auto;
     }
 
@@ -481,7 +481,7 @@ class MetaAgentTUI(App[None]):
         r = self._displayed_recipes[idx]
         self._selected_recipe = r
         md = _recipe_markdown(r)
-        self.query_one("#recipes-markdown", MarkdownViewer).document.update(md)
+        self.query_one("#recipes-markdown", Markdown).update(md)
         self.query_one("#recipes-chat-btn", Button).display = True
 
     @on(ListView.Selected, "#agents-list")
@@ -492,7 +492,7 @@ class MetaAgentTUI(App[None]):
             return
         a = self._displayed_agents[idx]
         md = _agent_markdown(a)
-        self.query_one("#agents-markdown", MarkdownViewer).document.update(md)
+        self.query_one("#agents-markdown", Markdown).update(md)
 
     @on(ListView.Selected, "#tools-list")
     def on_tool_selected(self, event: ListView.Selected) -> None:
@@ -502,7 +502,7 @@ class MetaAgentTUI(App[None]):
             return
         t = self._displayed_tools[idx]
         md = _tool_markdown(t)
-        self.query_one("#tools-markdown", MarkdownViewer).document.update(md)
+        self.query_one("#tools-markdown", Markdown).update(md)
 
     # ------------------------------------------------------------------
     # Chat
