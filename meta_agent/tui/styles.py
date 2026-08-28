@@ -1,6 +1,15 @@
 """CSS styles for meta_agent TUI."""
 
 APP_CSS = """
+/* Toast Notification Positioning (Top-Right) */
+ToastRack {
+    dock: top;
+    align: right top;
+    margin-top: 1;
+    margin-right: 1;
+    margin-bottom: 0;
+}
+
 /* Toolbar */
 #recipes-toolbar, #agents-toolbar, #tools-toolbar {
     height: 3;
@@ -28,12 +37,26 @@ APP_CSS = """
     overflow-y: auto;
 }
 
-/* Detail pane */
-#recipes-detail, #agents-detail, #tools-detail {
+/* Main & Detail pane */
+#recipes-main-pane, #agents-main-pane, #tools-main-pane {
     width: 1fr;
+    height: 1fr;
+}
+#recipes-detail, #agents-detail, #tools-detail {
+    height: 1fr;
     padding: 1 2;
     overflow-y: auto;
     overflow-x: hidden;
+}
+#recipes-log-pane, #agents-log-pane, #tools-log-pane {
+    height: 8;
+    border-top: solid $primary;
+    background: $surface;
+    padding: 0 1;
+}
+.resource-log-title {
+    text-style: bold;
+    color: $accent;
 }
 
 Markdown {

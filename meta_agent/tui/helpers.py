@@ -189,11 +189,12 @@ def build_chat_prompt(
 class RecipeActionIntent:
     """Action intent parsed from user LLM query in the recipes tab."""
 
-    action: str  # "search" | "edit" | "delete" | "resume"
+    action: str  # "search" | "edit" | "delete" | "resume" | "generate"
     target: str | None = None
     instruction: str | None = None
     ranked_names: list[str] | None = None
     chat_file: str | None = None
+    generate_query: str | None = None
 
 
 def parse_recipe_action_intent(raw_response: str) -> RecipeActionIntent:
@@ -213,6 +214,8 @@ def parse_recipe_action_intent(raw_response: str) -> RecipeActionIntent:
                 action = "edit"
             elif action in ("resume", "restore", "continue", "history", "session"):
                 action = "resume"
+            elif action in ("generate", "gen", "create", "new", "build", "make"):
+                action = "generate"
             else:
                 action = "search"
 
@@ -222,6 +225,10 @@ def parse_recipe_action_intent(raw_response: str) -> RecipeActionIntent:
             chat_file_str = str(chat_file).strip() if chat_file else None
             instruction = data.get("instruction") or data.get("changes") or data.get("detail")
             instruction_str = str(instruction).strip() if instruction else None
+            gen_query = (
+                data.get("generate_query") or data.get("query") or data.get("prompt") or data.get("requirements")
+            )
+            gen_query_str = str(gen_query).strip() if gen_query else None
             ranked = data.get("ranked_names") or data.get("matches") or []
             ranked_list = [str(x).strip() for x in ranked if str(x).strip()] if isinstance(ranked, list) else []
 
@@ -231,6 +238,7 @@ def parse_recipe_action_intent(raw_response: str) -> RecipeActionIntent:
                 instruction=instruction_str,
                 ranked_names=ranked_list,
                 chat_file=chat_file_str,
+                generate_query=gen_query_str,
             )
         except Exception:
             pass

@@ -32,8 +32,8 @@ HELP_MARKDOWN = """
 |:---|:---|:---|
 | `Tab` / `Shift+Tab` | **Navigate** | Move focus between tabs, inputs, selects, and buttons |
 | `Up` / `Down` | **Select Item** | Move up/down through the items list; details update on selection |
-| `Enter` / `Space` | **Open / Focus** | Open dropdowns or trigger action buttons |
-| *LLM Search* | **Smart Action** | Natural language search, edit, delete, or resume chat (e.g. "resume last review") |
+| `Enter` | **Ask LLM / Open** | In search bar: submit query to Ask LLM; otherwise open/trigger |
+| *Ask LLM* | **Smart Action** | Natural language search, generate (e.g. "create pytest bot"), edit, delete, or resume |
 
 ---
 

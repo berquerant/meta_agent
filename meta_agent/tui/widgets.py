@@ -57,8 +57,8 @@ class ResourceTab(Vertical):
         """Build the resource tab layout."""
         tid = self._tab_id
         with Horizontal(id=f"{tid}-toolbar"):
-            yield Input(placeholder="Filter by name...", id=f"{tid}-search")
-            yield Button("LLM Search", id=f"{tid}-llm-btn", variant="default")
+            yield Input(placeholder="Search or ask LLM...", id=f"{tid}-search")
+            yield Button("Ask LLM", id=f"{tid}-llm-btn", variant="default")
             yield SearchableSelect(
                 [(label, val) for label, val in SORT_OPTIONS],
                 id=f"{tid}-sort",
@@ -68,14 +68,18 @@ class ResourceTab(Vertical):
         with Horizontal(id=f"{tid}-body"):
             with Vertical(id=f"{tid}-sidebar"):
                 yield ListView(id=f"{tid}-list")
-            with VerticalScroll(id=f"{tid}-detail"):
-                yield LoadingIndicator(id=f"{tid}-loading")
-                yield Markdown("", id=f"{tid}-markdown")
-                if self._show_chat:
-                    with Horizontal(id=f"{tid}-actions"):
-                        yield Button("Chat with this recipe  [c]", id=f"{tid}-chat-btn", variant="success")
-                        yield Button("Edit  [e]", id=f"{tid}-edit-btn", variant="default")
-                        yield Button("Delete  [d]", id=f"{tid}-delete-btn", variant="error")
+            with Vertical(id=f"{tid}-main-pane"):
+                with VerticalScroll(id=f"{tid}-detail"):
+                    yield LoadingIndicator(id=f"{tid}-loading")
+                    yield Markdown("", id=f"{tid}-markdown")
+                    if self._show_chat:
+                        with Horizontal(id=f"{tid}-actions"):
+                            yield Button("Chat with this recipe  [c]", id=f"{tid}-chat-btn", variant="success")
+                            yield Button("Edit  [e]", id=f"{tid}-edit-btn", variant="default")
+                            yield Button("Delete  [d]", id=f"{tid}-delete-btn", variant="error")
+                with Vertical(id=f"{tid}-log-pane"):
+                    yield Label("Activity / Event Logs", classes="resource-log-title")
+                    yield RichLog(id=f"{tid}-rich-log", highlight=True, markup=True)
 
 
 class GenerateTab(Vertical):

@@ -114,6 +114,11 @@ class MetaAgentTUI(App[None]):
             logging.getLogger().addHandler(self._app_log_handler)
             init_msg = f"Application initialized. Engine='{self._engine}', Model='{self._model}'"
             log_widget.write(f"[green]{init_msg}[/green]")
+            for tid in ("recipes", "agents", "tools"):
+                try:
+                    self.query_one(f"#{tid}-rich-log", RichLog).write(f"[green]{init_msg}[/green]")
+                except Exception:
+                    pass
             self._app_log_buffer.append(f"[{now_datetime_str()}] INFO: app - {init_msg}")
         except Exception:
             pass
@@ -260,20 +265,25 @@ class MetaAgentTUI(App[None]):
             self._render_tab(tid)
 
     # ------------------------------------------------------------------
-    # LLM Search
+    # Ask LLM (Search / Smart Actions / Generate)
     # ------------------------------------------------------------------
 
     @on(Button.Pressed, "#recipes-llm-btn")
     @on(Button.Pressed, "#agents-llm-btn")
     @on(Button.Pressed, "#tools-llm-btn")
-    def on_llm_search_pressed(self, event: Button.Pressed) -> None:
-        """Trigger LLM-based semantic search for active button's resource type."""
-        if not event.button.id:
+    @on(Input.Submitted, "#recipes-search")
+    @on(Input.Submitted, "#agents-search")
+    @on(Input.Submitted, "#tools-search")
+    def on_llm_search_pressed(self, event: Button.Pressed | Input.Submitted) -> None:
+        """Trigger LLM-based action / semantic search on button press or enter key."""
+        target_id = event.button.id if isinstance(event, Button.Pressed) else event.input.id
+        if not target_id:
             return
-        tid = event.button.id.removesuffix("-llm-btn")
+        tid = target_id.removesuffix("-llm-btn").removesuffix("-search")
         query = self.query_one(f"#{tid}-search", Input).value.strip()
         if not query:
             return
+        self.notify(f"🤖 [Ask LLM] Analyzing: '{query[:30]}...' with LLM", severity="information")
         items_map: dict[str, list[Any]] = {
             "recipes": self._recipes,
             "agents": self._agents,
@@ -308,6 +318,8 @@ class MetaAgentTUI(App[None]):
                 f"Available recipes:\n{catalogue}\n\n"
                 f"Exported past chat sessions:\n{chat_cat}\n\n"
                 "Determine the user's intent:\n"
+                "- If the user wants to CREATE, GENERATE, or BUILD a new assistant recipe, return JSON: "
+                '{"action": "generate", "generate_query": "<extracted_assistant_requirements>"}\n'
                 "- If the user wants to RESUME, RESTORE, or CONTINUE a previous chat session/topic, return JSON: "
                 '{"action": "resume", "chat_file": "<matched_file_name_or_keyword>", "recipe": "<recipe_name>"}\n'
                 "- If the user wants to DELETE or REMOVE a recipe, return JSON: "
@@ -332,14 +344,16 @@ class MetaAgentTUI(App[None]):
             ts = now_datetime_str()
             formatted_entry = f"[{ts}] {level}: {msg}"
             self._app_log_buffer.append(formatted_entry)
-            try:
-                log_widget = self.query_one("#app-rich-log", RichLog)
-                self.app.call_from_thread(
-                    log_widget.write,
-                    f"[dim]{ts}[/dim] [{color}]{msg}[/{color}]",
-                )
-            except Exception:
-                pass
+            log_line = f"[dim]{ts}[/dim] [{color}]{msg}[/{color}]"
+
+            def _write_all_logs() -> None:
+                for widget_id in ("#app-rich-log", "#recipes-rich-log", "#agents-rich-log", "#tools-rich-log"):
+                    try:
+                        self.query_one(widget_id, RichLog).write(log_line)
+                    except Exception:
+                        pass
+
+            self.app.call_from_thread(_write_all_logs)
 
         _log_app(f"LLM Search triggered for '{tid}' with query: '{query}'", "INFO", "cyan")
 
@@ -347,18 +361,64 @@ class MetaAgentTUI(App[None]):
         try:
             result = script.run(engine=self._engine, model=self._model)
             _log_app(f"LLM response received for '{tid}':\n{result.strip()}", "DEBUG", "dim")
-        except Exception as e:
-            _log_app(f"LLM Search failed for '{tid}': {e}", "ERROR", "bold red")
+        except Exception as exc:
+            err_msg = str(exc)
+            _log_app(f"LLM Search failed for '{tid}': {err_msg}", "ERROR", "bold red")
+
+            def _on_err(err: str = err_msg) -> None:
+                self.notify(f"❌ LLM request failed: {err}", severity="error")
+
+            self.app.call_from_thread(_on_err)
             return
 
         if tid == "recipes":
             intent = parse_recipe_action_intent(result)
             _log_app(
-                f"Parsed recipe intent: action='{intent.action}', target='{intent.target}', file='{intent.chat_file}'",
+                f"Parsed recipe intent: action='{intent.action}', target='{intent.target}', "
+                f"file='{intent.chat_file}', gen='{intent.generate_query}'",
                 "INFO",
                 "yellow",
             )
-            if intent.action == "resume":
+            if intent.action == "generate":
+                gen_req = intent.generate_query or query
+                _log_app(
+                    f"Intent matched recipe generation: '{gen_req}'. "
+                    "Switching to Generate tab and starting background generation.",
+                    "INFO",
+                    "green",
+                )
+
+                def _start_gen() -> None:
+                    self.clear_notifications()
+                    # Switch to Generate tab
+                    try:
+                        self.query_one(TabbedContent).active = "tab-generate"
+                    except Exception:
+                        pass
+
+                    self._gen_user_inputs.append(gen_req)
+                    self._gen_history_cursor = -1
+                    self._gen_current_draft = ""
+
+                    status_msg = "⏳ Generating assistant recipe (you can switch tabs anytime)..."
+                    self.query_one("#gen-status-bar", Static).update(status_msg)
+                    self.query_one("#gen-submit-btn", Button).disabled = True
+                    self.query_one("#gen-chat-btn", Button).display = False
+
+                    ts_now = now_datetime_str()
+                    gen_log = self.query_one("#gen-rich-log", RichLog)
+                    gen_log.write(f"[dim]{ts_now}[/dim] [cyan]> Generation started from Ask LLM: '{gen_req}'[/cyan]")
+
+                    self.run_worker(
+                        lambda: self._execute_recipe_generation(gen_req),
+                        thread=True,
+                        name=f"recipe_gen_{gen_req[:20]}",
+                    )
+
+                self.app.call_from_thread(_start_gen)
+                return
+
+            elif intent.action == "resume":
                 search_term = intent.chat_file or intent.target or query
                 _log_app(
                     f"Intent matched resume chat with term: '{search_term}'. Opening session picker.",
@@ -367,6 +427,7 @@ class MetaAgentTUI(App[None]):
                 )
 
                 def _open_resume() -> None:
+                    self.clear_notifications()
                     self.push_screen(ResumeChatScreen(self._export_dir, initial_filter=search_term))
 
                 self.app.call_from_thread(_open_resume)
@@ -377,15 +438,17 @@ class MetaAgentTUI(App[None]):
                 if not matched_recipe:
                     matched_recipe = next((r for r in self._recipes if intent.target.lower() in r.name.lower()), None)
 
-                if matched_recipe:
+                if matched_recipe is not None:
+                    target_rec = matched_recipe
                     _log_app(
-                        f"Intent matched delete target: '{matched_recipe.name}'. Opening delete confirmation.",
+                        f"Intent matched delete target: '{target_rec.name}'. Opening delete confirmation.",
                         "INFO",
                         "green",
                     )
 
-                    def _open_del() -> None:
-                        self._selected_recipe = matched_recipe
+                    def _open_del(rec: Recipe = target_rec) -> None:
+                        self.clear_notifications()
+                        self._selected_recipe = rec
                         self.action_delete_recipe()
 
                     self.app.call_from_thread(_open_del)
@@ -393,22 +456,44 @@ class MetaAgentTUI(App[None]):
                 else:
                     _log_app(f"Delete target '{intent.target}' not found in registered recipes.", "WARNING", "yellow")
 
+                    def _del_not_found(tgt: str = str(intent.target)) -> None:
+                        self.clear_notifications()
+                        self.notify(
+                            f"⚠️ Target recipe '{tgt}' to delete was not found",
+                            severity="warning",
+                            timeout=6.0,
+                        )
+
+                    self.app.call_from_thread(_del_not_found)
+
             elif intent.action == "edit" and intent.target:
                 matched_recipe = next((r for r in self._recipes if r.name == intent.target), None)
                 if not matched_recipe:
                     matched_recipe = next((r for r in self._recipes if intent.target.lower() in r.name.lower()), None)
 
-                if matched_recipe:
-                    _log_app(f"Intent matched edit target: '{matched_recipe.name}'. Opening editor.", "INFO", "green")
+                if matched_recipe is not None:
+                    target_rec = matched_recipe
+                    _log_app(f"Intent matched edit target: '{target_rec.name}'. Opening editor.", "INFO", "green")
 
-                    def _open_edit() -> None:
-                        self._selected_recipe = matched_recipe
+                    def _open_edit(rec: Recipe = target_rec) -> None:
+                        self.clear_notifications()
+                        self._selected_recipe = rec
                         self.action_edit_recipe()
 
                     self.app.call_from_thread(_open_edit)
                     return
                 else:
                     _log_app(f"Edit target '{intent.target}' not found in registered recipes.", "WARNING", "yellow")
+
+                    def _edit_not_found(tgt: str = str(intent.target)) -> None:
+                        self.clear_notifications()
+                        self.notify(
+                            f"⚠️ Target recipe '{tgt}' to edit was not found",
+                            severity="warning",
+                            timeout=6.0,
+                        )
+
+                    self.app.call_from_thread(_edit_not_found)
 
             # Default search flow for recipes
             ranked_names = intent.ranked_names or []
@@ -424,6 +509,7 @@ class MetaAgentTUI(App[None]):
                 ranked.append(name_to_item[name])
 
         def _update() -> None:
+            self.clear_notifications()
             if tid == "recipes":
                 self._displayed_recipes = ranked
             elif tid == "agents":
@@ -727,12 +813,13 @@ class MetaAgentTUI(App[None]):
 
     @on(Button.Pressed, "#app-log-clear-btn")
     def on_clear_app_logs(self) -> None:
-        """Clear the application log buffer and widget."""
+        """Clear the application log buffer and all log widgets."""
         self._app_log_buffer.clear()
-        try:
-            self.query_one("#app-rich-log", RichLog).clear()
-        except Exception:
-            pass
+        for widget_id in ("#app-rich-log", "#recipes-rich-log", "#agents-rich-log", "#tools-rich-log"):
+            try:
+                self.query_one(widget_id, RichLog).clear()
+            except Exception:
+                pass
         self.notify("Application logs cleared", severity="information")
 
     @on(Button.Pressed, "#app-log-export-btn")
