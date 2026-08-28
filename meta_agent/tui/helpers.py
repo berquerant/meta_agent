@@ -143,9 +143,16 @@ def format_command_preview(parts: list[str]) -> str:
 # ---------------------------------------------------------------------------
 
 
+def now_datetime_str() -> str:
+    """Return current date and time formatted as 'YYYY-MM-DD HH:MM:SS'."""
+    from datetime import datetime
+
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
 def build_chat_prompt(
     system_prompt: str | None,
-    history: list[tuple[str, str]],
+    history: list[tuple[str, str, str]],
     current_query: str,
 ) -> str:
     """
@@ -161,7 +168,7 @@ def build_chat_prompt(
     prior_turns = history[:-1] if history else []
     if prior_turns:
         prompt_parts.append("# Conversation History")
-        for role, text in prior_turns:
+        for role, text, _time in prior_turns:
             prompt_parts.append(f"<{role}>\n{text}\n</{role}>")
         prompt_parts.append(f"\n# Current User Query\n{current_query}")
     else:

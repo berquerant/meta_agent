@@ -14,7 +14,7 @@ from textual.widgets import Button, Footer, Header, Input, Label, Markdown, Rich
 
 from ...asking import AskingOpts
 from ...utils import get_default_export_dir, now_str
-from ..helpers import build_chat_prompt
+from ..helpers import build_chat_prompt, now_datetime_str
 from .help import HelpScreen
 
 
@@ -28,10 +28,11 @@ class RichLogHandler(logging.Handler):
         self._buffer = buffer
 
     def emit(self, record: logging.LogRecord) -> None:
-        """Format and write log record to RichLog and buffer with colored level tags."""
+        """Format and write log record to RichLog and buffer with colored level tags and timestamp."""
         try:
             msg = self.format(record)
-            self._buffer.append(f"{record.levelname}: {record.name} - {record.getMessage()}")
+            ts = now_datetime_str()
+            self._buffer.append(f"[{ts}] {record.levelname}: {record.name} - {record.getMessage()}")
             color = "white"
             if record.levelno >= logging.ERROR:
                 color = "bold red"
@@ -41,7 +42,7 @@ class RichLogHandler(logging.Handler):
                 color = "blue"
             self._rich_log.app.call_from_thread(
                 self._rich_log.write,
-                f"[{color}]{msg}[/{color}]",
+                f"[dim]{ts}[/dim] [{color}]{msg}[/{color}]",
             )
         except Exception:
             self.handleError(record)
@@ -64,7 +65,7 @@ class ChatScreen(Screen[None]):
         self._recipe_name = recipe_name
         self._opts = opts
         self._export_dir = export_dir or get_default_export_dir()
-        self._history: list[tuple[str, str]] = []  # (role, text) for display & prompt building
+        self._history: list[tuple[str, str, str]] = []  # (role, text, timestamp)
         self._user_inputs: list[str] = []  # past user inputs for up/down history traversal
         self._history_cursor: int = -1  # -1 indicates active/draft editing state
         self._current_draft: str = ""
@@ -171,8 +172,8 @@ class ChatScreen(Screen[None]):
                 f"- **Tools**: {self._opts.tools or 'none'}\n",
                 "---\n",
             ]
-            for role, text in self._history:
-                lines.append(f"## 👤 {role}\n{text}\n")
+            for role, text, ts in self._history:
+                lines.append(f"## 👤 {role} [{ts}]\n{text}\n")
 
             filepath.write_text("\n".join(lines), encoding="utf-8")
             self.notify(f"Chat exported to: {filepath}", severity="information")
@@ -251,26 +252,29 @@ class ChatScreen(Screen[None]):
         self._history_cursor = -1
         self._current_draft = ""
 
-        self._history.append(("User", text))
+        ts = now_datetime_str()
+        self._history.append(("User", text, ts))
         self._render_chat()
         self.query_one("#chat-status-bar", Static).update("⏳ Generating assistant response...")
         self.query_one("#chat-send-btn", Button).disabled = True
 
         log = self.query_one("#chat-rich-log", RichLog)
-        log.write(f"[cyan]> User prompt sent ({len(text)} chars)[/cyan]")
-        self._log_buffer.append(f"USER: {text}")
+        log.write(f"[dim]{ts}[/dim] [cyan]> User prompt sent ({len(text)} chars)[/cyan]")
+        self._log_buffer.append(f"[{ts}] USER: {text}")
         self._ask_agent(text)
 
     def _render_chat(self, streaming_response: str | None = None) -> None:
         """Render all messages in markdown, optionally including streaming response."""
         md_lines: list[str] = ["# Chat Session\n"]
-        for role, text in self._history:
+        for role, text, ts in self._history:
             if role == "User":
-                md_lines.append(f"### 👤 User\n{text}\n")
+                md_lines.append(f"### 👤 User <small style='color:gray;'>({ts})</small>\n{text}\n")
             else:
-                md_lines.append(f"### 🤖 Assistant\n{text}\n")
+                md_lines.append(f"### 🤖 Assistant <small style='color:gray;'>({ts})</small>\n{text}\n")
         if streaming_response is not None:
-            md_lines.append(f"### 🤖 Assistant\n{streaming_response} ▌\n")
+            curr_ts = now_datetime_str()
+            prefix = f"### 🤖 Assistant <small style='color:gray;'>({curr_ts})</small>\n"
+            md_lines.append(f"{prefix}{streaming_response} ▌\n")
 
         self.query_one("#chat-markdown", Markdown).update("\n".join(md_lines))
         scroll = self.query_one("#chat-messages", VerticalScroll)
@@ -287,10 +291,12 @@ class ChatScreen(Screen[None]):
         agent_mode = bool(self._opts.agent and self._opts.agent not in ("simple", "none", "direct"))
         agent_label = self._opts.agent if agent_mode else "direct engine"
 
-        self.app.call_from_thread(
-            log.write,
-            f"[yellow]Calling {agent_label} with '{self._opts.model}' (tools: {len(tools_list)})...[/yellow]",
+        ts_start = now_datetime_str()
+        log_msg = (
+            f"[dim]{ts_start}[/dim] [yellow]Calling {agent_label} with '{self._opts.model}' "
+            f"(tools: {len(tools_list)})...[/yellow]"
         )
+        self.app.call_from_thread(log.write, log_msg)
 
         full_query = build_chat_prompt(self._opts.system, self._history, query)
         j = Jarvis(model=self._opts.model, engine_key=self._opts.engine)
@@ -308,9 +314,10 @@ class ChatScreen(Screen[None]):
                     return "".join(parts)
 
                 content = asyncio.run(_run_stream())
+                ts_done = now_datetime_str()
                 self.app.call_from_thread(
                     log.write,
-                    "[green]✓ Direct engine streaming response completed.[/green]",
+                    f"[dim]{ts_done}[/dim] [green]✓ Direct engine streaming response completed.[/green]",
                 )
             else:
                 # Agent mode: run agent and report tools execution
@@ -325,25 +332,30 @@ class ChatScreen(Screen[None]):
                     tool_name = tr.get("tool_name", "unknown")
                     success = tr.get("success", True)
                     status_color = "green" if success else "red"
-                    self.app.call_from_thread(
-                        log.write,
-                        f"[{status_color}]Tool executed: {tool_name} (success={success})[/{status_color}]",
+                    ts_tr = now_datetime_str()
+                    tr_msg = (
+                        f"[dim]{ts_tr}[/dim] [{status_color}]Tool executed: "
+                        f"{tool_name} (success={success})[/{status_color}]"
                     )
+                    self.app.call_from_thread(log.write, tr_msg)
+                ts_done = now_datetime_str()
                 self.app.call_from_thread(
                     log.write,
-                    "[green]✓ Agent execution completed.[/green]",
+                    f"[dim]{ts_done}[/dim] [green]✓ Agent execution completed.[/green]",
                 )
         except Exception as e:
             content = f"⚠️ Error: {e}"
+            ts_err = now_datetime_str()
             self.app.call_from_thread(
                 log.write,
-                f"[bold red]✗ Execution failed: {e}[/bold red]",
+                f"[dim]{ts_err}[/dim] [bold red]✗ Execution failed: {e}[/bold red]",
             )
         finally:
             j.close()
 
         def _done() -> None:
-            self._history.append(("Assistant", content))
+            ts_resp = now_datetime_str()
+            self._history.append(("Assistant", content, ts_resp))
             self._render_chat()
             self.query_one("#chat-status-bar", Static).update("")
             self.query_one("#chat-send-btn", Button).disabled = False

@@ -30,6 +30,7 @@ from .helpers import (
     CTRL_C_TIMEOUT,
     agent_markdown,
     filter_items,
+    now_datetime_str,
     recipe_markdown,
     sort_items,
     tool_markdown,
@@ -433,8 +434,9 @@ class MetaAgentTUI(App[None]):
         self.query_one("#gen-submit-btn", Button).disabled = True
         self.query_one("#gen-chat-btn", Button).display = False
 
+        ts = now_datetime_str()
         log = self.query_one("#gen-rich-log", RichLog)
-        log.write(f"[cyan]> Generation started: '{query}'[/cyan]")
+        log.write(f"[dim]{ts}[/dim] [cyan]> Generation started: '{query}'[/cyan]")
 
         self.run_worker(
             lambda: self._execute_recipe_generation(query),
@@ -464,12 +466,13 @@ class MetaAgentTUI(App[None]):
             preview_md += "\n```\n"
 
             def _on_success() -> None:
+                ts_ok = now_datetime_str()
                 try:
                     self.query_one("#gen-markdown", Markdown).update(preview_md)
                     self.query_one("#gen-status-bar", Static).update(f"✅ Generated `{r.name}` successfully!")
                     self.query_one("#gen-submit-btn", Button).disabled = False
                     self.query_one("#gen-chat-btn", Button).display = True
-                    log.write(f"[bold green]✓ Successfully generated recipe: {r.name}[/bold green]")
+                    log.write(f"[dim]{ts_ok}[/dim] [bold green]✓ Successfully generated recipe: {r.name}[/bold green]")
                 except Exception:
                     pass
                 self.notify(f"Recipe generated: {r.name}", severity="information")
@@ -479,10 +482,11 @@ class MetaAgentTUI(App[None]):
         else:
 
             def _on_failure() -> None:
+                ts_fail = now_datetime_str()
                 try:
                     self.query_one("#gen-status-bar", Static).update(f"❌ Failed: {r.message}")
                     self.query_one("#gen-submit-btn", Button).disabled = False
-                    log.write(f"[bold red]✗ Generation failed: {r.message}[/bold red]")
+                    log.write(f"[dim]{ts_fail}[/dim] [bold red]✗ Generation failed: {r.message}[/bold red]")
                 except Exception:
                     pass
                 self.notify(f"Generation failed: {r.message}", severity="error")
