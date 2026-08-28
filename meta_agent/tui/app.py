@@ -35,7 +35,7 @@ from .helpers import (
     sort_items,
     tool_markdown,
 )
-from .screens import ChatOptionsScreen, DeleteRecipeScreen, HelpScreen
+from .screens import ChatOptionsScreen, DeleteRecipeScreen, EditRecipeScreen, HelpScreen
 from .styles import APP_CSS
 from .widgets import GenerateTab, ResourceTab
 
@@ -50,6 +50,7 @@ class MetaAgentTUI(App[None]):
         Binding("f1", "open_help", "Help", show=False),
         Binding("slash", "focus_search", "Search (/)", show=True),
         Binding("c", "chat_recipe", "Chat", show=True),
+        Binding("e", "edit_recipe", "Edit (e)", show=True),
         Binding("d", "delete_recipe", "Delete (d)", show=True),
         Binding("g", "open_generate", "Generate (g)", show=True),
         Binding("q", "quit", "Quit", show=True),
@@ -173,6 +174,7 @@ class MetaAgentTUI(App[None]):
             self._selected_recipe = None
             try:
                 self.query_one("#recipes-chat-btn", Button).display = False
+                self.query_one("#recipes-edit-btn", Button).display = False
                 self.query_one("#recipes-delete-btn", Button).display = False
             except Exception:
                 pass
@@ -322,6 +324,7 @@ class MetaAgentTUI(App[None]):
         self.query_one("#recipes-markdown", Markdown).update(md)
         try:
             self.query_one("#recipes-chat-btn", Button).display = True
+            self.query_one("#recipes-edit-btn", Button).display = True
             self.query_one("#recipes-delete-btn", Button).display = True
         except Exception:
             pass
@@ -369,8 +372,39 @@ class MetaAgentTUI(App[None]):
         self._open_chat_options()
 
     # ------------------------------------------------------------------
-    # Recipe Deletion
+    # Recipe Editing & Deletion
     # ------------------------------------------------------------------
+
+    def action_edit_recipe(self) -> None:
+        """Prompt to edit selected recipe via key binding or button."""
+        if self._selected_recipe is None:
+            self.notify("No recipe selected to edit", severity="warning")
+            return
+
+        recipe_name = self._selected_recipe.name
+        matched_files = find_recipe_files(recipe_name, self._recipes_dir)
+
+        if not matched_files:
+            self.notify(
+                f"No recipe file found in '{self._recipes_dir}' for '{recipe_name}'",
+                severity="warning",
+            )
+            return
+
+        def _on_edit_done(saved: bool | None) -> None:
+            if saved:
+                self.notify(f"Recipe '{recipe_name}' updated successfully", severity="information")
+                self._load_recipes()
+
+        self.push_screen(
+            EditRecipeScreen(recipe_name, matched_files),
+            _on_edit_done,
+        )
+
+    @on(Button.Pressed, "#recipes-edit-btn")
+    def on_edit_btn(self) -> None:
+        """Handle edit button in recipes tab."""
+        self.action_edit_recipe()
 
     def action_delete_recipe(self) -> None:
         """Prompt to delete selected recipe via key binding or button."""

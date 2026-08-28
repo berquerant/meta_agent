@@ -233,6 +233,9 @@ LoadingIndicator {
 #recipes-chat-btn {
     margin-right: 1;
 }
+#recipes-edit-btn {
+    margin-right: 1;
+}
 
 /* Help screen modal */
 #help-modal-container {
@@ -304,6 +307,67 @@ LoadingIndicator {
     align-horizontal: right;
 }
 #delete-modal-buttons Button {
+    margin-left: 1;
+}
+
+/* Edit recipe modal */
+#edit-modal-container {
+    width: 85%;
+    height: 85%;
+    background: $surface;
+    border: solid $primary;
+    padding: 1 2;
+    align: center middle;
+}
+#edit-modal-title {
+    text-style: bold;
+    color: $primary;
+    margin-bottom: 1;
+}
+#edit-modal-subtitle {
+    margin-bottom: 1;
+    color: $text;
+}
+#edit-file-path {
+    margin-bottom: 1;
+    color: $accent;
+}
+#edit-multi-body {
+    height: 1fr;
+    margin-bottom: 1;
+}
+#edit-file-list-pane {
+    width: 30%;
+    border-right: solid $primary;
+    padding-right: 1;
+}
+#edit-list-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+#edit-file-list {
+    height: 1fr;
+}
+#edit-editor-pane {
+    width: 70%;
+    margin-left: 1;
+    height: 1fr;
+}
+#edit-text-area {
+    height: 1fr;
+    border: solid $secondary;
+}
+#edit-status-bar {
+    height: 1;
+    margin-top: 1;
+    color: $error;
+}
+#edit-modal-buttons {
+    height: 3;
+    margin-top: 1;
+    align-horizontal: right;
+}
+#edit-modal-buttons Button {
     margin-left: 1;
 }
 """

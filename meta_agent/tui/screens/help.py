@@ -18,6 +18,7 @@ HELP_MARKDOWN = """
 | `?` / `F1` | **Help** | Open this keyboard shortcuts help modal |
 | `/` | **Search** | Focus the filter input for the currently active tab (Recipes / Agents / Tools) |
 | `c` | **Chat** | Open chat setup options for the selected recipe |
+| `e` | **Edit** | Edit selected recipe TOML file in interactive editor (`Ctrl+S` to save) |
 | `d` | **Delete** | Prompt to delete selected recipe file with preview/multi-choice selection |
 | `g` | **Generate** | Switch to the Generate tab to create a new assistant |
 | `q` | **Quit** | Exit the TUI application |

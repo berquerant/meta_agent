@@ -195,3 +195,27 @@ def delete_recipe_file(path: str) -> bool:
             logging.error("Failed to delete recipe file %s: %s", path, e)
             return False
     return False
+
+
+def save_recipe_file(path: str, content: str) -> tuple[bool, str]:
+    """
+    Validate TOML syntax and save content to the given file path.
+
+    Returns (success, error_message).
+    """
+    from pathlib import Path
+    import tomllib
+
+    try:
+        tomllib.loads(content)
+    except Exception as e:
+        return False, f"Invalid TOML syntax: {e}"
+
+    try:
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(content, encoding="utf-8")
+        return True, ""
+    except Exception as e:
+        logging.error("Failed to save recipe file %s: %s", path, e)
+        return False, f"Failed to write file: {e}"

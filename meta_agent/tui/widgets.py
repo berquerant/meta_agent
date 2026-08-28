@@ -74,6 +74,7 @@ class ResourceTab(Vertical):
                 if self._show_chat:
                     with Horizontal(id=f"{tid}-actions"):
                         yield Button("Chat with this recipe  [c]", id=f"{tid}-chat-btn", variant="success")
+                        yield Button("Edit  [e]", id=f"{tid}-edit-btn", variant="default")
                         yield Button("Delete  [d]", id=f"{tid}-delete-btn", variant="error")
 
 

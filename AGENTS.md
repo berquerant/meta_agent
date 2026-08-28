@@ -43,6 +43,7 @@ meta_agent/
 │   │   │   ├── chat.py         # ChatScreen (with dedicated log pane)
 │   │   │   ├── chat_options.py # ChatOptionsScreen (command preview & overrides)
 │   │   │   ├── delete_recipe.py # DeleteRecipeScreen (preview & duplicate file deletion)
+│   │   │   ├── edit_recipe.py   # EditRecipeScreen (in-TUI editor with syntax validation)
 │   │   │   ├── generate.py     # GenerateScreen
 │   │   │   └── help.py         # HelpScreen (shortcuts & guide modal)
 │   │   └── widgets.py     # ResourceTab, GenerateTab & SearchableSelect widgets
