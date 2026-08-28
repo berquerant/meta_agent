@@ -118,7 +118,7 @@ async def test_tui_edit_recipe_screen_save() -> None:
 
         app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
         async with app.run_test() as pilot:
-            screen = EditRecipeScreen(str(recipe_path), "test_bot")
+            screen = EditRecipeScreen("test_bot", [str(recipe_path)])
             app.push_screen(screen)
             await pilot.pause()
             assert isinstance(app.screen, EditRecipeScreen)
