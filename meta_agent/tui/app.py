@@ -289,11 +289,27 @@ class MetaAgentTUI(App[None]):
         catalogue = "\n".join(f"- {x.name}: {getattr(x, 'description', '')}" for x in items)
 
         if tid == "recipes":
+            # Collect brief summaries of exported chat sessions
+            chat_summaries: list[str] = []
+            exp_dir_p = Path(self._export_dir)
+            if exp_dir_p.is_dir():
+                for p in sorted(exp_dir_p.glob("chat_*.md"), key=lambda x: x.stat().st_mtime, reverse=True)[:10]:
+                    try:
+                        content_snip = p.read_text(encoding="utf-8")[:600]
+                        # Extract first user message or snippet
+                        chat_summaries.append(f"- File '{p.name}': {content_snip[:200].replace(chr(10), ' ')}")
+                    except Exception:
+                        pass
+            chat_cat = "\n".join(chat_summaries) if chat_summaries else "None"
+
             prompt = (
-                "You are an assistant managing AI recipes.\n"
+                "You are an assistant managing AI recipes and chat history.\n"
                 f"User request: {query}\n\n"
                 f"Available recipes:\n{catalogue}\n\n"
+                f"Exported past chat sessions:\n{chat_cat}\n\n"
                 "Determine the user's intent:\n"
+                "- If the user wants to RESUME, RESTORE, or CONTINUE a previous chat session/topic, return JSON: "
+                '{"action": "resume", "chat_file": "<matched_file_name_or_keyword>", "recipe": "<recipe_name>"}\n'
                 "- If the user wants to DELETE or REMOVE a recipe, return JSON: "
                 '{"action": "delete", "target": "<recipe_name>"}\n'
                 "- If the user wants to EDIT, UPDATE, or MODIFY a recipe, return JSON: "
@@ -337,8 +353,26 @@ class MetaAgentTUI(App[None]):
 
         if tid == "recipes":
             intent = parse_recipe_action_intent(result)
-            _log_app(f"Parsed recipe intent: action='{intent.action}', target='{intent.target}'", "INFO", "yellow")
-            if intent.action == "delete" and intent.target:
+            _log_app(
+                f"Parsed recipe intent: action='{intent.action}', target='{intent.target}', file='{intent.chat_file}'",
+                "INFO",
+                "yellow",
+            )
+            if intent.action == "resume":
+                search_term = intent.chat_file or intent.target or query
+                _log_app(
+                    f"Intent matched resume chat with term: '{search_term}'. Opening session picker.",
+                    "INFO",
+                    "green",
+                )
+
+                def _open_resume() -> None:
+                    self.push_screen(ResumeChatScreen(self._export_dir, initial_filter=search_term))
+
+                self.app.call_from_thread(_open_resume)
+                return
+
+            elif intent.action == "delete" and intent.target:
                 matched_recipe = next((r for r in self._recipes if r.name == intent.target), None)
                 if not matched_recipe:
                     matched_recipe = next((r for r in self._recipes if intent.target.lower() in r.name.lower()), None)
@@ -479,11 +513,6 @@ class MetaAgentTUI(App[None]):
     def action_resume_chat(self) -> None:
         """Open the resume chat session modal."""
         self.push_screen(ResumeChatScreen(self._export_dir))
-
-    @on(Button.Pressed, "#recipes-resume-btn")
-    def on_resume_btn(self) -> None:
-        """Open resume chat screen via button."""
-        self.action_resume_chat()
 
     # ------------------------------------------------------------------
     # Recipe Editing & Deletion

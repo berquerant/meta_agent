@@ -33,7 +33,7 @@ HELP_MARKDOWN = """
 | `Tab` / `Shift+Tab` | **Navigate** | Move focus between tabs, inputs, selects, and buttons |
 | `Up` / `Down` | **Select Item** | Move up/down through the items list; details update on selection |
 | `Enter` / `Space` | **Open / Focus** | Open dropdowns or trigger action buttons |
-| *LLM Search* | **Smart Action** | Natural language search, edit (e.g. "edit bot"), or delete (e.g. "delete bot") |
+| *LLM Search* | **Smart Action** | Natural language search, edit, delete, or resume chat (e.g. "resume last review") |
 
 ---
 

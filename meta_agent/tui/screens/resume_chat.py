@@ -23,10 +23,11 @@ class ResumeChatScreen(ModalScreen[bool]):
         Binding("escape", "dismiss_cancel", "Cancel", show=True),
     ]
 
-    def __init__(self, export_dir: str) -> None:
-        """Initialize with export directory."""
+    def __init__(self, export_dir: str, initial_filter: str = "") -> None:
+        """Initialize with export directory and optional initial search filter."""
         super().__init__()
         self._export_dir = export_dir
+        self._initial_filter = initial_filter
         self._all_files: list[Path] = []
         self._displayed_files: list[Path] = []
         self._selected_index: int = 0
@@ -34,6 +35,10 @@ class ResumeChatScreen(ModalScreen[bool]):
     def compose(self) -> ComposeResult:
         """Build the resume chat modal layout."""
         self._scan_files()
+        if self._initial_filter:
+            q = self._initial_filter.strip().lower()
+            self._displayed_files = [p for p in self._all_files if q in p.name.lower()] or list(self._all_files)
+
         with Vertical(id="resume-modal-container"):
             yield Label("📂 Resume Chat Session", id="resume-modal-title")
             yield Label("Select an exported chat session file, or enter a file path:", id="resume-modal-subtitle")
@@ -45,7 +50,11 @@ class ResumeChatScreen(ModalScreen[bool]):
             with Horizontal(id="resume-main-body"):
                 with Vertical(id="resume-file-list-pane"):
                     yield Label(f"Exported Sessions ({self._export_dir}):", id="resume-list-title")
-                    yield Input(placeholder="Filter files by name...  [/]", id="resume-filter-input")
+                    yield Input(
+                        value=self._initial_filter,
+                        placeholder="Filter files by name...  [/]",
+                        id="resume-filter-input",
+                    )
                     with ListView(id="resume-file-list"):
                         for p in self._displayed_files:
                             yield ListItem(Label(p.name))

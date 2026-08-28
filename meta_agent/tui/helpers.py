@@ -189,10 +189,11 @@ def build_chat_prompt(
 class RecipeActionIntent:
     """Action intent parsed from user LLM query in the recipes tab."""
 
-    action: str  # "search" | "edit" | "delete"
+    action: str  # "search" | "edit" | "delete" | "resume"
     target: str | None = None
     instruction: str | None = None
     ranked_names: list[str] | None = None
+    chat_file: str | None = None
 
 
 def parse_recipe_action_intent(raw_response: str) -> RecipeActionIntent:
@@ -210,11 +211,15 @@ def parse_recipe_action_intent(raw_response: str) -> RecipeActionIntent:
                 action = "delete"
             elif action in ("edit", "update", "modify"):
                 action = "edit"
+            elif action in ("resume", "restore", "continue", "history", "session"):
+                action = "resume"
             else:
                 action = "search"
 
             target = data.get("target") or data.get("recipe") or data.get("name")
             target_str = str(target).strip() if target else None
+            chat_file = data.get("chat_file") or data.get("file")
+            chat_file_str = str(chat_file).strip() if chat_file else None
             instruction = data.get("instruction") or data.get("changes") or data.get("detail")
             instruction_str = str(instruction).strip() if instruction else None
             ranked = data.get("ranked_names") or data.get("matches") or []
@@ -225,6 +230,7 @@ def parse_recipe_action_intent(raw_response: str) -> RecipeActionIntent:
                 target=target_str,
                 instruction=instruction_str,
                 ranked_names=ranked_list,
+                chat_file=chat_file_str,
             )
         except Exception:
             pass
