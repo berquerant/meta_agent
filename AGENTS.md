@@ -10,7 +10,7 @@ When you make structural changes to the project (adding/removing modules, comman
 
 **meta_agent** is a Python CLI tool that acts as a *meta-agent* — an AI-powered assistant that generates, manages, and executes AI assistant recipes using the [OpenJarvis](https://github.com/open-jarvis/OpenJarvis) framework.
 
-It exposes five sub-commands:
+It exposes six sub-commands:
 
 | Command   | Description                                              |
 |-----------|----------------------------------------------------------|
@@ -19,6 +19,7 @@ It exposes five sub-commands:
 | `chat`    | Start an interactive multi-turn chat session             |
 | `ask`     | Ask a single question using a recipe-configured agent    |
 | `jarvis`  | Pass raw arguments directly to the underlying jarvis CLI |
+| `tui`     | Launch an interactive terminal UI (Textual-based)        |
 
 ## Repository Layout
 
@@ -32,6 +33,7 @@ meta_agent/
 │   ├── cmd.py         # High-level Cmd class wiring CLI args to api/gen
 │   ├── gen.py         # Recipe generation logic and meta-agent prompt
 │   ├── tools.py       # Custom OpenJarvis tool registrations
+│   ├── tui.py         # Textual-based interactive TUI
 │   └── utils.py       # Shared utilities (formatting, file reading, etc.)
 ├── scripts/           # Helper scripts (e.g. release.py)
 ├── tests/             # pytest test suite

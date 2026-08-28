@@ -6,6 +6,7 @@ from os.path import expanduser
 from .asking import AskingRequest, AskingRawRequest
 from .cmd import Cmd, ListOpts, InspectOpts
 from .gen import GenRequest
+from .tui import run_tui
 from .utils import read_file_or_stdin_or_str
 
 
@@ -90,6 +91,11 @@ class QueryAction(argparse.Action):
                 raise Exception(f"Invalid query: {values}")
 
 
+def tui_cmd(args):  # type: ignore[no-untyped-def]
+    """Run TUI command."""
+    run_tui(engine=args.engine, model=args.model, recipes_dir=args.recipes)
+
+
 def main() -> int:
     """Entry point of CLI."""
     p = argparse.ArgumentParser(
@@ -135,6 +141,16 @@ def main() -> int:
     raw.set_defaults(func=raw_cmd)
     raw.add_argument("--jarvis", type=str, help="jarvis executable")
     raw.add_argument("reminder", nargs=argparse.REMAINDER, help="jarvis args")
+
+    tui = sp.add_parser("tui", help="Launch the interactive TUI")
+    tui.set_defaults(func=tui_cmd)
+    add_chat_base_opts(tui)
+    tui.add_argument(
+        "--recipes",
+        "-r",
+        default=expanduser("~/.openjarvis/recipes"),
+        help="recipes directory",
+    )
 
     args = p.parse_args()
     args.func(args)

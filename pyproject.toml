@@ -13,6 +13,7 @@ classifiers = [
 keywords = ["meta_agent"]
 dependencies = [
   "openjarvis",
+  "textual>=0.89.0",
 ]
 
 [dependency-groups]
