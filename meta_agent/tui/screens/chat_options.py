@@ -1,6 +1,5 @@
-"""ChatOptionsScreen for the TUI."""
+"""ChatOptionsScreen for reviewing and customizing recipe parameters before starting a chat session."""
 
-import shlex
 from typing import ClassVar
 
 from textual import events, on
@@ -10,9 +9,10 @@ from textual.containers import Horizontal, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Input, Label, Select, Static, TextArea
 
-from ...api import list_agents, list_tools, Recipe
+from ...api import Recipe
 from ...asking import AskingOpts
 from ...utils import copy_to_system_clipboard
+from ..helpers import build_chat_command_parts, fetch_runtime_options, format_command_preview
 from ..widgets import SearchableSelect
 from .chat import ChatScreen
 
@@ -32,38 +32,7 @@ class ChatOptionsScreen(Screen[None]):
         self._default_engine = default_engine
         self._default_model = default_model
         self._export_dir = export_dir
-
-        # Available options for dropdowns
-        from openjarvis import Jarvis
-
-        try:
-            j = Jarvis(engine_key=self._default_engine)
-            self._engine_options = [(e, e) for e in j.list_engines()]
-            self._model_options = [(m, m) for m in j.list_models()]
-            j.close()
-        except Exception:
-            self._engine_options = [
-                ("ollama", "ollama"),
-                ("vllm", "vllm"),
-                ("cloud", "cloud"),
-                ("litellm", "litellm"),
-                ("llamacpp", "llamacpp"),
-            ]
-            self._model_options = [(default_model, default_model)]
-
-        try:
-            self._agent_options = [(a.name, a.name) for a in list_agents()]
-        except Exception:
-            self._agent_options = [
-                ("orchestrator", "orchestrator"),
-                ("native_react", "native_react"),
-                ("simple", "simple"),
-            ]
-
-        try:
-            self._all_tools = [t.name for t in list_tools()]
-        except Exception:
-            self._all_tools = ["file_read", "file_write", "bash", "calculator", "think", "web_search"]
+        self._runtime_options = fetch_runtime_options(default_engine, default_model)
 
     def compose(self) -> ComposeResult:
         """Build the chat options layout with quick selects."""
@@ -74,16 +43,16 @@ class ChatOptionsScreen(Screen[None]):
         tools = ", ".join(r.tools) if r.tools else ""
         system = r.system_prompt or ""
 
-        # Ensure active values are represented in options list
-        engine_opts = list(self._engine_options)
+        # Ensure active recipe values exist in dropdown options
+        engine_opts = list(self._runtime_options.engines)
         if engine and not any(opt[1] == engine for opt in engine_opts):
             engine_opts.insert(0, (engine, engine))
 
-        model_opts = list(self._model_options)
+        model_opts = list(self._runtime_options.models)
         if model and not any(opt[1] == model for opt in model_opts):
             model_opts.insert(0, (model, model))
 
-        agent_opts = list(self._agent_options)
+        agent_opts = list(self._runtime_options.agents)
         if agent and not any(opt[1] == agent for opt in agent_opts):
             agent_opts.insert(0, (agent, agent))
 
@@ -109,7 +78,7 @@ class ChatOptionsScreen(Screen[None]):
             yield Label("Tools (Select to append or edit comma-separated):", classes="chat-opts-label")
             with Horizontal(classes="chat-opts-row"):
                 yield SearchableSelect(
-                    [(t, t) for t in self._all_tools],
+                    [(t, t) for t in self._runtime_options.tools],
                     id="chat-opts-tool-select",
                     prompt="Add tool...",
                     allow_blank=True,
@@ -173,81 +142,35 @@ class ChatOptionsScreen(Screen[None]):
                 tools_inp.value = ", ".join(current_tools)
 
     # ------------------------------------------------------------------
-    # Command preview & full command builder
+    # Command Preview & Execution Helpers
     # ------------------------------------------------------------------
 
-    def _build_cmd_parts(self, truncate_system: bool) -> list[str]:
-        """Build the command parts list."""
-        r = self._recipe
-        try:
-            engine = self.query_one("#chat-opts-engine", Input).value.strip()
-            model = self.query_one("#chat-opts-model", Input).value.strip()
-            agent = self.query_one("#chat-opts-agent", Input).value.strip()
-            tools = self.query_one("#chat-opts-tools", Input).value.strip()
-            system = self.query_one("#chat-opts-system", TextArea).text.strip()
-        except Exception:
-            return []
-
-        parts: list[str] = ["meta_agent", "chat", "--recipe", shlex.quote(r.name)]
-
-        rec_engine = r.engine_key or self._default_engine
-        if engine and engine != rec_engine:
-            parts.extend(["--engine", shlex.quote(engine)])
-
-        rec_model = r.model or self._default_model
-        if model and model != rec_model:
-            parts.extend(["--model", shlex.quote(model)])
-
-        rec_agent = r.agent_type or ""
-        if agent and agent != rec_agent:
-            parts.extend(["--agent", shlex.quote(agent)])
-
-        rec_tools = ", ".join(r.tools) if r.tools else ""
-        norm_tools = ",".join(t.strip() for t in tools.split(",") if t.strip())
-        norm_rec_tools = ",".join(t.strip() for t in rec_tools.split(",") if t.strip())
-        if tools and norm_tools != norm_rec_tools:
-            parts.extend(["--tools", shlex.quote(norm_tools)])
-
-        rec_system = (r.system_prompt or "").strip().replace("\r\n", "\n")
-        norm_system = system.strip().replace("\r\n", "\n")
-        if norm_system and norm_system != rec_system:
-            if truncate_system and len(norm_system) > 60:
-                display_system = norm_system[:60] + "..."
-            else:
-                display_system = norm_system
-            parts.extend(["--system", shlex.quote(display_system)])
-
-        return parts
-
-    def _build_cmd_preview(self) -> str:
-        """Build the meta_agent chat command string for display (truncated system)."""
-        parts = self._build_cmd_parts(truncate_system=True)
-        if not parts:
-            return ""
-
-        head = " ".join(parts[:4])
-        tail_items: list[str] = []
-        i = 4
-        while i < len(parts):
-            if i + 1 < len(parts):
-                tail_items.append(f"{parts[i]} {parts[i+1]}")
-                i += 2
-            else:
-                tail_items.append(parts[i])
-                i += 1
-
-        tail = " \\\n  ".join(tail_items)
-        return f"{head} \\\n  {tail}" if tail else head
-
-    def _build_full_cmd(self) -> str:
-        """Build the full meta_agent chat command string for clipboard without truncation."""
-        parts = self._build_cmd_parts(truncate_system=False)
-        return " ".join(parts)
+    def _get_current_inputs(self) -> tuple[str, str, str, str, str]:
+        """Read current user values from input widgets."""
+        return (
+            self.query_one("#chat-opts-engine", Input).value.strip(),
+            self.query_one("#chat-opts-model", Input).value.strip(),
+            self.query_one("#chat-opts-agent", Input).value.strip(),
+            self.query_one("#chat-opts-tools", Input).value.strip(),
+            self.query_one("#chat-opts-system", TextArea).text.strip(),
+        )
 
     def _update_cmd_preview(self) -> None:
         """Update the command preview Static widget."""
         try:
-            preview = self._build_cmd_preview()
+            engine, model, agent, tools, system = self._get_current_inputs()
+            parts = build_chat_command_parts(
+                recipe=self._recipe,
+                engine=engine,
+                model=model,
+                agent=agent,
+                tools=tools,
+                system=system,
+                default_engine=self._default_engine,
+                default_model=self._default_model,
+                truncate_system=True,
+            )
+            preview = format_command_preview(parts)
             self.query_one("#chat-opts-cmd", Static).update(preview)
         except Exception:
             pass
@@ -266,7 +189,7 @@ class ChatOptionsScreen(Screen[None]):
         self._update_cmd_preview()
 
     # ------------------------------------------------------------------
-    # Actions
+    # Screen Actions
     # ------------------------------------------------------------------
 
     def action_cancel(self) -> None:
@@ -284,8 +207,20 @@ class ChatOptionsScreen(Screen[None]):
         self._copy_command()
 
     def _copy_command(self) -> None:
-        """Copy full command to clipboard and notify."""
-        full_cmd = self._build_full_cmd()
+        """Copy full command (untruncated) to system clipboard and notify."""
+        engine, model, agent, tools, system = self._get_current_inputs()
+        parts = build_chat_command_parts(
+            recipe=self._recipe,
+            engine=engine,
+            model=model,
+            agent=agent,
+            tools=tools,
+            system=system,
+            default_engine=self._default_engine,
+            default_model=self._default_model,
+            truncate_system=False,
+        )
+        full_cmd = " ".join(parts)
         copied = copy_to_system_clipboard(full_cmd)
         if not copied:
             self.app.copy_to_clipboard(full_cmd)
@@ -302,12 +237,7 @@ class ChatOptionsScreen(Screen[None]):
 
     def _launch_chat(self) -> None:
         """Build AskingOpts and transition to ChatScreen."""
-        engine = self.query_one("#chat-opts-engine", Input).value.strip()
-        model = self.query_one("#chat-opts-model", Input).value.strip()
-        agent = self.query_one("#chat-opts-agent", Input).value.strip()
-        tools = self.query_one("#chat-opts-tools", Input).value.strip()
-        system = self.query_one("#chat-opts-system", TextArea).text.strip()
-
+        engine, model, agent, tools, system = self._get_current_inputs()
         opts = AskingOpts(
             engine=engine or self._default_engine,
             model=model or self._default_model,

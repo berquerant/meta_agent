@@ -1,4 +1,4 @@
-"""ChatScreen for interactive multi-turn chat inside the TUI."""
+"""ChatScreen for interactive multi-turn chat sessions inside the TUI with streaming and log capture."""
 
 import asyncio
 import logging
@@ -14,6 +14,7 @@ from textual.widgets import Button, Footer, Header, Input, Label, Markdown, Rich
 
 from ...asking import AskingOpts
 from ...utils import get_default_export_dir, now_str
+from ..helpers import build_chat_prompt
 
 
 class RichLogHandler(logging.Handler):
@@ -26,7 +27,7 @@ class RichLogHandler(logging.Handler):
         self._buffer = buffer
 
     def emit(self, record: logging.LogRecord) -> None:
-        """Format and write log record to RichLog and buffer."""
+        """Format and write log record to RichLog and buffer with colored level tags."""
         try:
             msg = self.format(record)
             self._buffer.append(f"{record.levelname}: {record.name} - {record.getMessage()}")
@@ -60,9 +61,9 @@ class ChatScreen(Screen[None]):
         self._recipe_name = recipe_name
         self._opts = opts
         self._export_dir = export_dir or get_default_export_dir()
-        self._history: list[tuple[str, str]] = []  # (role, text)
-        self._user_inputs: list[str] = []  # past user inputs for history traversal
-        self._history_cursor: int = -1
+        self._history: list[tuple[str, str]] = []  # (role, text) for display & prompt building
+        self._user_inputs: list[str] = []  # past user inputs for up/down history traversal
+        self._history_cursor: int = -1  # -1 indicates active/draft editing state
         self._current_draft: str = ""
         self._log_buffer: list[str] = []
         self._log_handler: RichLogHandler | None = None
@@ -197,7 +198,7 @@ class ChatScreen(Screen[None]):
             self.notify(f"Failed to export logs: {e}", severity="error")
 
     # ------------------------------------------------------------------
-    # Message Submission & Agent Interaction
+    # Message Submission, History Navigation & Agent Execution
     # ------------------------------------------------------------------
 
     def on_key(self, event: events.Key) -> None:
@@ -210,7 +211,6 @@ class ChatScreen(Screen[None]):
             event.prevent_default()
             event.stop()
             if self._history_cursor == -1:
-                # Save current draft before entering history
                 self._current_draft = inp.value
                 self._history_cursor = len(self._user_inputs) - 1
             elif self._history_cursor > 0:
@@ -227,7 +227,6 @@ class ChatScreen(Screen[None]):
                     self._history_cursor += 1
                     inp.value = self._user_inputs[self._history_cursor]
                 else:
-                    # Restored draft
                     self._history_cursor = -1
                     inp.value = self._current_draft
                 inp.cursor_position = len(inp.value)
@@ -278,32 +277,15 @@ class ChatScreen(Screen[None]):
         log = self.query_one("#chat-rich-log", RichLog)
         tools_list = [t.strip() for t in self._opts.tools.split(",") if t.strip()]
 
-        agent_mode = self._opts.agent and self._opts.agent not in ("simple", "none", "direct")
+        agent_mode = bool(self._opts.agent and self._opts.agent not in ("simple", "none", "direct"))
         agent_label = self._opts.agent if agent_mode else "direct engine"
 
         self.app.call_from_thread(
             log.write,
-            f"[yellow]Calling {agent_label} with '{self._opts.model}' " f"(tools: {len(tools_list)})...[/yellow]",
+            f"[yellow]Calling {agent_label} with '{self._opts.model}' (tools: {len(tools_list)})...[/yellow]",
         )
 
-        # Build query including system prompt and prior conversation history
-        prompt_parts: list[str] = []
-        if self._opts.system:
-            prompt_parts.append(f"# System Prompt\n{self._opts.system}\n")
-
-        prior_turns = self._history[:-1]
-        if prior_turns:
-            prompt_parts.append("# Conversation History")
-            for role, text in prior_turns:
-                prompt_parts.append(f"<{role}>\n{text}\n</{role}>")
-            prompt_parts.append(f"\n# Current User Query\n{query}")
-        else:
-            if not self._opts.system:
-                prompt_parts.append(query)
-            else:
-                prompt_parts.append(f"# User Query\n{query}")
-
-        full_query = "\n\n".join(prompt_parts)
+        full_query = build_chat_prompt(self._opts.system, self._history, query)
         j = Jarvis(model=self._opts.model, engine_key=self._opts.engine)
 
         content = ""
