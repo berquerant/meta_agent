@@ -241,9 +241,25 @@ class ChatScreen(Screen[None]):
             f"(tools: {len(tools_list)})...[/yellow]",
         )
 
-        full_query = query
-        if self._opts.system and len(self._history) <= 1:
-            full_query = f"{self._opts.system}\n\n# User Query\n{query}"
+        # Build query including system prompt and prior conversation history
+        prompt_parts: list[str] = []
+        if self._opts.system:
+            prompt_parts.append(f"# System Prompt\n{self._opts.system}\n")
+
+        # Include past turns (excluding the current latest user query which was just added)
+        prior_turns = self._history[:-1]
+        if prior_turns:
+            prompt_parts.append("# Conversation History")
+            for role, text in prior_turns:
+                prompt_parts.append(f"<{role}>\n{text}\n</{role}>")
+            prompt_parts.append(f"\n# Current User Query\n{query}")
+        else:
+            if not self._opts.system:
+                prompt_parts.append(query)
+            else:
+                prompt_parts.append(f"# User Query\n{query}")
+
+        full_query = "\n\n".join(prompt_parts)
 
         j = Jarvis(model=self._opts.model, engine_key=self._opts.engine)
         try:
