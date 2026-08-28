@@ -177,4 +177,22 @@ LoadingIndicator {
     width: 12;
     margin-left: 1;
 }
+
+/* Help screen modal */
+#help-modal-container {
+    width: 80%;
+    height: 80%;
+    background: $surface;
+    border: solid $accent;
+    padding: 1 2;
+    align: center middle;
+}
+#help-markdown-container {
+    height: 1fr;
+    margin-bottom: 1;
+}
+#help-close-btn {
+    width: 24;
+    align-horizontal: center;
+}
 """

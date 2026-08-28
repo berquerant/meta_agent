@@ -15,14 +15,17 @@ from ...utils import copy_to_system_clipboard
 from ..helpers import build_chat_command_parts, fetch_runtime_options, format_command_preview
 from ..widgets import SearchableSelect
 from .chat import ChatScreen
+from .help import HelpScreen
 
 
 class ChatOptionsScreen(Screen[None]):
     """Screen to review and override recipe settings before starting chat."""
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
-        Binding("escape", "cancel", "Cancel"),
-        Binding("c", "start_chat", "Start Chat"),
+        Binding("c", "start_chat", "Start Chat", show=True),
+        Binding("escape", "cancel", "Back", show=True),
+        Binding("question_mark", "open_help", "Help (?)", show=True),
+        Binding("f1", "open_help", "Help", show=False),
     ]
 
     def __init__(self, recipe: Recipe, default_engine: str, default_model: str, export_dir: str | None = None) -> None:
@@ -234,6 +237,10 @@ class ChatOptionsScreen(Screen[None]):
     def on_start_btn(self) -> None:
         """Handle start chat button."""
         self._launch_chat()
+
+    def action_open_help(self) -> None:
+        """Open the keyboard shortcuts help modal."""
+        self.app.push_screen(HelpScreen())
 
     def _launch_chat(self) -> None:
         """Build AskingOpts and transition to ChatScreen."""

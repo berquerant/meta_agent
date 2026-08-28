@@ -9,12 +9,16 @@ from textual.containers import VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Input, Label, Static
 
+from .help import HelpScreen
+
 
 class GenerateScreen(Screen[bool]):
     """Screen for generating a new assistant recipe."""
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
-        Binding("escape", "dismiss_screen", "Back"),
+        Binding("escape", "dismiss_screen", "Back", show=True),
+        Binding("question_mark", "open_help", "Help (?)", show=True),
+        Binding("f1", "open_help", "Help", show=False),
     ]
 
     def __init__(self, engine: str, model: str, recipes_dir: str) -> None:
@@ -38,6 +42,10 @@ class GenerateScreen(Screen[bool]):
     def action_dismiss_screen(self) -> None:
         """Dismiss screen without refreshing."""
         self.dismiss(False)
+
+    def action_open_help(self) -> None:
+        """Open the keyboard shortcuts help modal."""
+        self.app.push_screen(HelpScreen())
 
     @on(Button.Pressed, "#gen-btn")
     def on_gen_btn(self) -> None:

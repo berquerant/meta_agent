@@ -30,7 +30,7 @@ from .helpers import (
     sort_items,
     tool_markdown,
 )
-from .screens import ChatOptionsScreen, GenerateScreen
+from .screens import ChatOptionsScreen, GenerateScreen, HelpScreen
 from .styles import APP_CSS
 from .widgets import ResourceTab
 
@@ -41,11 +41,13 @@ class MetaAgentTUI(App[None]):
     CSS = APP_CSS
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
-        Binding("ctrl+c", "handle_ctrl_c", "Quit (×2)", show=True),
-        Binding("q", "quit", "Quit"),
-        Binding("g", "open_generate", "Generate"),
-        Binding("c", "chat_recipe", "Chat", show=True),
+        Binding("question_mark", "open_help", "Help (?)", show=True),
+        Binding("f1", "open_help", "Help", show=False),
         Binding("slash", "focus_search", "Search (/)", show=True),
+        Binding("c", "chat_recipe", "Chat", show=True),
+        Binding("g", "open_generate", "Generate", show=True),
+        Binding("q", "quit", "Quit", show=True),
+        Binding("ctrl+c", "handle_ctrl_c", "Quit (×2)", show=True),
     ]
 
     def __init__(self, engine: str, model: str, recipes_dir: str, export_dir: str | None = None) -> None:
@@ -333,6 +335,14 @@ class MetaAgentTUI(App[None]):
     def action_chat_recipe(self) -> None:
         """Launch chat options screen via key binding."""
         self._open_chat_options()
+
+    # ------------------------------------------------------------------
+    # Help Modal
+    # ------------------------------------------------------------------
+
+    def action_open_help(self) -> None:
+        """Open the comprehensive keyboard shortcuts help modal."""
+        self.push_screen(HelpScreen())
 
     # ------------------------------------------------------------------
     # Generate Recipe

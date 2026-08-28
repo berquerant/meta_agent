@@ -15,6 +15,7 @@ from textual.widgets import Button, Footer, Header, Input, Label, Markdown, Rich
 from ...asking import AskingOpts
 from ...utils import get_default_export_dir, now_str
 from ..helpers import build_chat_prompt
+from .help import HelpScreen
 
 
 class RichLogHandler(logging.Handler):
@@ -50,9 +51,11 @@ class ChatScreen(Screen[None]):
     """Screen for interactive multi-turn chat with dedicated log window and export inside TUI."""
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
-        Binding("escape", "dismiss_screen", "Back"),
-        Binding("ctrl+e", "export_chat", "Export Chat"),
-        Binding("ctrl+l", "export_logs", "Export Logs"),
+        Binding("escape", "dismiss_screen", "Back", show=True),
+        Binding("ctrl+e", "export_chat", "Export Chat", show=True),
+        Binding("ctrl+l", "export_logs", "Export Logs", show=True),
+        Binding("question_mark", "open_help", "Help (?)", show=True),
+        Binding("f1", "open_help", "Help", show=False),
     ]
 
     def __init__(self, recipe_name: str, opts: AskingOpts, export_dir: str | None = None) -> None:
@@ -125,6 +128,10 @@ class ChatScreen(Screen[None]):
     def action_dismiss_screen(self) -> None:
         """Dismiss chat screen."""
         self.dismiss()
+
+    def action_open_help(self) -> None:
+        """Open the keyboard shortcuts help modal."""
+        self.app.push_screen(HelpScreen())
 
     @on(Button.Pressed, "#chat-back-btn")
     def on_back_btn(self) -> None:

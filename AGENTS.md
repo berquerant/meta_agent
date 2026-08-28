@@ -42,8 +42,9 @@ meta_agent/
 │   │   │   ├── __init__.py
 │   │   │   ├── chat.py         # ChatScreen (with dedicated log pane)
 │   │   │   ├── chat_options.py # ChatOptionsScreen (command preview & overrides)
-│   │   │   └── generate.py     # GenerateScreen
-│   │   └── widgets.py     # ResourceTab widget
+│   │   │   ├── generate.py     # GenerateScreen
+│   │   │   └── help.py         # HelpScreen (shortcuts & guide modal)
+│   │   └── widgets.py     # ResourceTab & SearchableSelect widgets
 │   └── utils.py       # Shared utilities (formatting, file reading, etc.)
 ├── scripts/           # Helper scripts (e.g. release.py)
 ├── tests/             # pytest test suite
