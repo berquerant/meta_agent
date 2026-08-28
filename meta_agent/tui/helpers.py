@@ -70,16 +70,33 @@ def tool_markdown(t: Tool) -> str:
 # ---------------------------------------------------------------------------
 
 
+@dataclass
+class ChatCommandOptions:
+    """Options used to build the CLI invocation command for `meta_agent chat`."""
+
+    recipe: Recipe
+    engine: str = ""
+    model: str = ""
+    agent: str = ""
+    tools: str = ""
+    system: str = ""
+    default_engine: str = ""
+    default_model: str = ""
+    truncate_system: bool = False
+
+
 def build_chat_command_parts(
-    recipe: Recipe,
-    engine: str,
-    model: str,
-    agent: str,
-    tools: str,
-    system: str,
-    default_engine: str,
-    default_model: str,
+    recipe: Recipe | None = None,
+    engine: str = "",
+    model: str = "",
+    agent: str = "",
+    tools: str = "",
+    system: str = "",
+    default_engine: str = "",
+    default_model: str = "",
     truncate_system: bool = False,
+    *,
+    opts: ChatCommandOptions | None = None,
 ) -> list[str]:
     """
     Build the command parts list for running `meta_agent chat`.
@@ -87,30 +104,53 @@ def build_chat_command_parts(
     Only options that differ from recipe defaults or fallback defaults
     are explicitly included in the generated command flags.
     """
-    parts: list[str] = ["meta_agent", "chat", "--recipe", shlex.quote(recipe.name)]
+    if opts is not None:
+        rec = opts.recipe
+        eng = opts.engine
+        mod = opts.model
+        agt = opts.agent
+        tls = opts.tools
+        sys = opts.system
+        def_eng = opts.default_engine
+        def_mod = opts.default_model
+        trunc_sys = opts.truncate_system
+    else:
+        if recipe is None:
+            return []
+        rec = recipe
+        eng = engine
+        mod = model
+        agt = agent
+        tls = tools
+        sys = system
+        def_eng = default_engine
+        def_mod = default_model
+        trunc_sys = truncate_system
 
-    rec_engine = recipe.engine_key or default_engine
-    if engine and engine != rec_engine:
-        parts.extend(["--engine", shlex.quote(engine)])
+    parts: list[str] = ["meta_agent", "chat", "--recipe", shlex.quote(rec.name)]
 
-    rec_model = recipe.model or default_model
-    if model and model != rec_model:
-        parts.extend(["--model", shlex.quote(model)])
+    rec_engine = rec.engine_key or def_eng
+    if eng and eng != rec_engine:
+        parts.extend(["--engine", shlex.quote(eng)])
 
-    rec_agent = recipe.agent_type or ""
-    if agent and agent != rec_agent:
-        parts.extend(["--agent", shlex.quote(agent)])
+    rec_model = rec.model or def_mod
+    if mod and mod != rec_model:
+        parts.extend(["--model", shlex.quote(mod)])
 
-    rec_tools = ", ".join(recipe.tools) if recipe.tools else ""
-    norm_tools = ",".join(t.strip() for t in tools.split(",") if t.strip())
+    rec_agent = rec.agent_type or ""
+    if agt and agt != rec_agent:
+        parts.extend(["--agent", shlex.quote(agt)])
+
+    rec_tools = ", ".join(rec.tools) if rec.tools else ""
+    norm_tools = ",".join(t.strip() for t in tls.split(",") if t.strip())
     norm_rec_tools = ",".join(t.strip() for t in rec_tools.split(",") if t.strip())
-    if tools and norm_tools != norm_rec_tools:
+    if tls and norm_tools != norm_rec_tools:
         parts.extend(["--tools", shlex.quote(norm_tools)])
 
-    rec_system = (recipe.system_prompt or "").strip().replace("\r\n", "\n")
-    norm_system = system.strip().replace("\r\n", "\n")
+    rec_system = (rec.system_prompt or "").strip().replace("\r\n", "\n")
+    norm_system = sys.strip().replace("\r\n", "\n")
     if norm_system and norm_system != rec_system:
-        if truncate_system and len(norm_system) > 60:
+        if trunc_sys and len(norm_system) > 60:
             display_system = norm_system[:60] + "..."
         else:
             display_system = norm_system

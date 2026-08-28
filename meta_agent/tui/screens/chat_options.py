@@ -12,7 +12,12 @@ from textual.widgets import Button, Footer, Header, Input, Label, Select, Static
 from ...api import Recipe
 from ...asking import AskingOpts
 from ...utils import copy_to_system_clipboard
-from ..helpers import build_chat_command_parts, fetch_runtime_options, format_command_preview
+from ..helpers import (
+    build_chat_command_parts,
+    ChatCommandOptions,
+    fetch_runtime_options,
+    format_command_preview,
+)
 from ..widgets import SearchableSelect
 from .chat import ChatScreen
 from .help import HelpScreen
@@ -162,7 +167,7 @@ class ChatOptionsScreen(Screen[None]):
         """Update the command preview Static widget."""
         try:
             engine, model, agent, tools, system = self._get_current_inputs()
-            parts = build_chat_command_parts(
+            opts = ChatCommandOptions(
                 recipe=self._recipe,
                 engine=engine,
                 model=model,
@@ -173,6 +178,7 @@ class ChatOptionsScreen(Screen[None]):
                 default_model=self._default_model,
                 truncate_system=True,
             )
+            parts = build_chat_command_parts(opts=opts)
             preview = format_command_preview(parts)
             self.query_one("#chat-opts-cmd", Static).update(preview)
         except Exception:
