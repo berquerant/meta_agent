@@ -91,7 +91,7 @@ class QueryAction(argparse.Action):
                 raise Exception(f"Invalid query: {values}")
 
 
-def tui_cmd(args):  # type: ignore[no-untyped-def]
+def tui_cmd(args: argparse.Namespace) -> None:
     """Run TUI command."""
     run_tui(engine=args.engine, model=args.model, recipes_dir=args.recipes, export_dir=args.export_dir)
 

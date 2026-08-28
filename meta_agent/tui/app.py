@@ -132,34 +132,41 @@ class MetaAgentTUI(App[None]):
             lv.append(ListItem(Label(item.name)))
         self.query_one(f"#{tid}-loading", LoadingIndicator).display = False
 
-    def _render_recipes(self) -> None:
-        """Render the current (filtered + sorted) recipe list."""
-        sort_key = str(self.query_one("#recipes-sort", Select).value)
-        search = self.query_one("#recipes-search", Input).value
-        items = filter_items(self._recipes, search)
+    def _render_tab(self, tid: str) -> None:
+        """Render the current (filtered + sorted) resource list for a given tab."""
+        items_map: dict[str, list[Any]] = {
+            "recipes": self._recipes,
+            "agents": self._agents,
+            "tools": self._tools,
+        }
+        all_items = items_map.get(tid, [])
+        sort_key = str(self.query_one(f"#{tid}-sort", Select).value)
+        search = self.query_one(f"#{tid}-search", Input).value
+        items = filter_items(all_items, search)
         items = sort_items(items, sort_key)
-        self._displayed_recipes = items
-        self._render_list("recipes", items)
-        self._selected_recipe = None
-        self.query_one("#recipes-chat-btn", Button).display = False
+
+        if tid == "recipes":
+            self._displayed_recipes = items
+            self._selected_recipe = None
+            self.query_one("#recipes-chat-btn", Button).display = False
+        elif tid == "agents":
+            self._displayed_agents = items
+        elif tid == "tools":
+            self._displayed_tools = items
+
+        self._render_list(tid, items)
+
+    def _render_recipes(self) -> None:
+        """Render recipe list."""
+        self._render_tab("recipes")
 
     def _render_agents(self) -> None:
-        """Render the current (filtered + sorted) agent list."""
-        sort_key = str(self.query_one("#agents-sort", Select).value)
-        search = self.query_one("#agents-search", Input).value
-        items = filter_items(self._agents, search)
-        items = sort_items(items, sort_key)
-        self._displayed_agents = items
-        self._render_list("agents", items)
+        """Render agent list."""
+        self._render_tab("agents")
 
     def _render_tools(self) -> None:
-        """Render the current (filtered + sorted) tool list."""
-        sort_key = str(self.query_one("#tools-sort", Select).value)
-        search = self.query_one("#tools-search", Input).value
-        items = filter_items(self._tools, search)
-        items = sort_items(items, sort_key)
-        self._displayed_tools = items
-        self._render_list("tools", items)
+        """Render tool list."""
+        self._render_tab("tools")
 
     # ------------------------------------------------------------------
     # Search actions & events
@@ -173,7 +180,6 @@ class MetaAgentTUI(App[None]):
 
     def action_focus_search(self) -> None:
         """Focus the search input for the active tab (main screen only)."""
-        # Only focus search if on the main screen (no sub-screen pushed)
         if len(self.screen_stack) > 1:
             return
 
@@ -190,47 +196,35 @@ class MetaAgentTUI(App[None]):
             pass
 
     @on(Input.Changed, "#recipes-search")
-    def on_recipes_search_changed(self) -> None:
-        """Filter recipes on input change."""
-        self._render_recipes()
-
     @on(Input.Changed, "#agents-search")
-    def on_agents_search_changed(self) -> None:
-        """Filter agents on input change."""
-        self._render_agents()
-
     @on(Input.Changed, "#tools-search")
-    def on_tools_search_changed(self) -> None:
-        """Filter tools on input change."""
-        self._render_tools()
+    def on_search_changed(self, event: Input.Changed) -> None:
+        """Filter resources on input change."""
+        if event.input.id:
+            tid = event.input.id.removesuffix("-search")
+            self._render_tab(tid)
 
     # ------------------------------------------------------------------
     # LLM Search
     # ------------------------------------------------------------------
 
     @on(Button.Pressed, "#recipes-llm-btn")
-    def on_recipes_llm_search(self) -> None:
-        """Trigger LLM-based semantic search for recipes."""
-        query = self.query_one("#recipes-search", Input).value.strip()
-        if not query:
-            return
-        self._llm_search("recipes", query, self._recipes)
-
     @on(Button.Pressed, "#agents-llm-btn")
-    def on_agents_llm_search(self) -> None:
-        """Trigger LLM-based semantic search for agents."""
-        query = self.query_one("#agents-search", Input).value.strip()
-        if not query:
-            return
-        self._llm_search("agents", query, self._agents)
-
     @on(Button.Pressed, "#tools-llm-btn")
-    def on_tools_llm_search(self) -> None:
-        """Trigger LLM-based semantic search for tools."""
-        query = self.query_one("#tools-search", Input).value.strip()
+    def on_llm_search_pressed(self, event: Button.Pressed) -> None:
+        """Trigger LLM-based semantic search for active button's resource type."""
+        if not event.button.id:
+            return
+        tid = event.button.id.removesuffix("-llm-btn")
+        query = self.query_one(f"#{tid}-search", Input).value.strip()
         if not query:
             return
-        self._llm_search("tools", query, self._tools)
+        items_map: dict[str, list[Any]] = {
+            "recipes": self._recipes,
+            "agents": self._agents,
+            "tools": self._tools,
+        }
+        self._llm_search(tid, query, items_map.get(tid, []))
 
     @work(thread=True)
     def _llm_search(self, tid: str, query: str, items: list[Any]) -> None:
@@ -274,19 +268,13 @@ class MetaAgentTUI(App[None]):
     # ------------------------------------------------------------------
 
     @on(Select.Changed, "#recipes-sort")
-    def on_recipes_sort_changed(self) -> None:
-        """Re-sort and re-render recipes."""
-        self._render_recipes()
-
     @on(Select.Changed, "#agents-sort")
-    def on_agents_sort_changed(self) -> None:
-        """Re-sort and re-render agents."""
-        self._render_agents()
-
     @on(Select.Changed, "#tools-sort")
-    def on_tools_sort_changed(self) -> None:
-        """Re-sort and re-render tools."""
-        self._render_tools()
+    def on_sort_changed(self, event: Select.Changed) -> None:
+        """Re-sort and re-render resources for active select widget."""
+        if event.select.id:
+            tid = event.select.id.removesuffix("-sort")
+            self._render_tab(tid)
 
     # ------------------------------------------------------------------
     # Selection events

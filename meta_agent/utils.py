@@ -46,11 +46,13 @@ def copy_to_system_clipboard(text: str) -> bool:
     import subprocess
     import sys
 
+    timeout_sec = 2.0
+
     # macOS
     if sys.platform == "darwin" and shutil.which("pbcopy"):
         try:
             p = subprocess.Popen(["pbcopy"], stdin=subprocess.PIPE)
-            p.communicate(input=text.encode("utf-8"))
+            p.communicate(input=text.encode("utf-8"), timeout=timeout_sec)
             return p.returncode == 0
         except Exception:
             pass
@@ -59,7 +61,7 @@ def copy_to_system_clipboard(text: str) -> bool:
     if shutil.which("wl-copy"):
         try:
             p = subprocess.Popen(["wl-copy"], stdin=subprocess.PIPE)
-            p.communicate(input=text.encode("utf-8"))
+            p.communicate(input=text.encode("utf-8"), timeout=timeout_sec)
             return p.returncode == 0
         except Exception:
             pass
@@ -68,7 +70,7 @@ def copy_to_system_clipboard(text: str) -> bool:
     if shutil.which("xclip"):
         try:
             p = subprocess.Popen(["xclip", "-selection", "clipboard"], stdin=subprocess.PIPE)
-            p.communicate(input=text.encode("utf-8"))
+            p.communicate(input=text.encode("utf-8"), timeout=timeout_sec)
             return p.returncode == 0
         except Exception:
             pass
@@ -77,7 +79,7 @@ def copy_to_system_clipboard(text: str) -> bool:
     if shutil.which("xsel"):
         try:
             p = subprocess.Popen(["xsel", "--clipboard", "--input"], stdin=subprocess.PIPE)
-            p.communicate(input=text.encode("utf-8"))
+            p.communicate(input=text.encode("utf-8"), timeout=timeout_sec)
             return p.returncode == 0
         except Exception:
             pass
@@ -86,7 +88,7 @@ def copy_to_system_clipboard(text: str) -> bool:
     if sys.platform == "win32" and shutil.which("clip"):
         try:
             p = subprocess.Popen(["clip"], stdin=subprocess.PIPE)
-            p.communicate(input=text.encode("utf-16le"))
+            p.communicate(input=text.encode("utf-16le"), timeout=timeout_sec)
             return p.returncode == 0
         except Exception:
             pass
