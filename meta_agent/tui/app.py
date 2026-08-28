@@ -31,172 +31,21 @@ from .helpers import (
     tool_markdown,
 )
 from .screens import ChatOptionsScreen, GenerateScreen
+from .styles import APP_CSS
 from .widgets import ResourceTab
 
 
 class MetaAgentTUI(App[None]):
     """TUI application for meta_agent."""
 
-    CSS = """
-    /* Toolbar */
-    #recipes-toolbar, #agents-toolbar, #tools-toolbar {
-        height: 3;
-        padding: 0 1;
-    }
-    #recipes-search, #agents-search, #tools-search {
-        width: 1fr;
-    }
-    #recipes-llm-btn, #agents-llm-btn, #tools-llm-btn {
-        width: 14;
-    }
-    #recipes-sort, #agents-sort, #tools-sort {
-        width: 18;
-    }
-
-    /* Body */
-    #recipes-body, #agents-body, #tools-body {
-        height: 1fr;
-    }
-
-    /* Sidebar */
-    #recipes-sidebar, #agents-sidebar, #tools-sidebar {
-        width: 30;
-        border-right: solid $primary;
-        overflow-y: auto;
-    }
-
-    /* Detail pane */
-    #recipes-detail, #agents-detail, #tools-detail {
-        width: 1fr;
-        padding: 1 2;
-        overflow-y: auto;
-        overflow-x: hidden;
-    }
-
-    Markdown {
-        height: auto;
-    }
-
-    LoadingIndicator {
-        height: 3;
-    }
-
-    /* Chat button */
-    #recipes-chat-btn {
-        margin-top: 1;
-        display: none;
-    }
-
-    /* Generate screen */
-    #gen-title {
-        margin: 1 2;
-        text-style: bold;
-        color: $accent;
-    }
-    #gen-label {
-        margin: 0 2;
-    }
-    #gen-input {
-        margin: 0 2 1 2;
-    }
-    #gen-btn {
-        margin: 0 2;
-    }
-    #gen-status {
-        margin: 1 2;
-    }
-
-    /* Chat options screen */
-    #chat-opts-title {
-        margin: 1 2;
-        text-style: bold;
-        color: $accent;
-    }
-    .chat-opts-label {
-        margin: 1 2 0 2;
-    }
-    #chat-opts-engine, #chat-opts-model, #chat-opts-agent, #chat-opts-tools {
-        margin: 0 2;
-    }
-    #chat-opts-system {
-        margin: 0 2;
-        height: 8;
-    }
-    #chat-opts-cmd {
-        margin: 0 2 1 2;
-        padding: 1 2;
-        background: $surface;
-        border: solid $primary;
-        overflow-x: auto;
-        height: auto;
-    }
-    #chat-opts-buttons {
-        margin: 0 2 1 2;
-        height: 3;
-    }
-    #chat-opts-start {
-        margin-right: 1;
-    }
-
-    /* Chat screen */
-    #chat-screen-layout {
-        height: 1fr;
-    }
-    #chat-info-sidebar {
-        width: 32;
-        border-right: solid $primary;
-        padding: 1 2;
-        overflow-y: auto;
-    }
-    #chat-sidebar-title {
-        text-style: bold;
-        color: $accent;
-        margin-bottom: 1;
-    }
-    .chat-sidebar-item {
-        margin-bottom: 1;
-    }
-    #chat-sidebar-prompt {
-        height: 8;
-        border: solid $secondary;
-        padding: 0 1;
-        margin-bottom: 1;
-    }
-    #chat-back-btn {
-        margin-top: 1;
-    }
-    #chat-main-pane {
-        width: 1fr;
-        height: 1fr;
-        padding: 1 2;
-    }
-    #chat-messages {
-        height: 1fr;
-        border: solid $primary;
-        padding: 1 2;
-        margin-bottom: 1;
-        overflow-y: auto;
-    }
-    #chat-loading {
-        height: 1;
-    }
-    #chat-input-bar {
-        height: 3;
-    }
-    #chat-input {
-        width: 1fr;
-    }
-    #chat-send-btn {
-        width: 12;
-        margin-left: 1;
-    }
-    """
+    CSS = APP_CSS
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
         Binding("ctrl+c", "handle_ctrl_c", "Quit (×2)", show=True),
         Binding("q", "quit", "Quit"),
         Binding("g", "open_generate", "Generate"),
         Binding("c", "chat_recipe", "Chat", show=True),
+        Binding("slash", "focus_search", "Search (/)", show=True),
     ]
 
     def __init__(self, engine: str, model: str, recipes_dir: str) -> None:
@@ -312,8 +161,23 @@ class MetaAgentTUI(App[None]):
         self._render_list("tools", items)
 
     # ------------------------------------------------------------------
-    # Search events
+    # Search actions & events
     # ------------------------------------------------------------------
+
+    def action_focus_search(self) -> None:
+        """Focus the search input for the active tab."""
+        tabbed_content = self.query_one(TabbedContent)
+        active_tab = tabbed_content.active
+        tid = "recipes"
+        if active_tab == "tab-agents":
+            tid = "agents"
+        elif active_tab == "tab-tools":
+            tid = "tools"
+
+        try:
+            self.query_one(f"#{tid}-search", Input).focus()
+        except Exception:
+            pass
 
     @on(Input.Changed, "#recipes-search")
     def on_recipes_search_changed(self) -> None:
@@ -489,5 +353,13 @@ class MetaAgentTUI(App[None]):
 
 def run_tui(engine: str, model: str, recipes_dir: str) -> None:
     """Launch the TUI application."""
+    import logging
+
+    # Remove stream handlers to prevent stdout/stderr leakage onto Textual canvas
+    root_logger = logging.getLogger()
+    for h in list(root_logger.handlers):
+        if isinstance(h, logging.StreamHandler):
+            root_logger.removeHandler(h)
+
     app = MetaAgentTUI(engine=engine, model=model, recipes_dir=recipes_dir)
     app.run()

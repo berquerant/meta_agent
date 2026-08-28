@@ -37,7 +37,12 @@ meta_agent/
 │   │   ├── __init__.py    # re-exports run_tui
 │   │   ├── app.py         # MetaAgentTUI app + run_tui entry point
 │   │   ├── helpers.py     # sort / filter / markdown formatting helpers
-│   │   ├── screens.py     # GenerateScreen, ChatOptionsScreen
+│   │   ├── styles.py      # App CSS styles definition
+│   │   ├── screens/       # TUI screens package
+│   │   │   ├── __init__.py
+│   │   │   ├── chat.py         # ChatScreen (with dedicated log pane)
+│   │   │   ├── chat_options.py # ChatOptionsScreen (command preview & overrides)
+│   │   │   └── generate.py     # GenerateScreen
 │   │   └── widgets.py     # ResourceTab widget
 │   └── utils.py       # Shared utilities (formatting, file reading, etc.)
 ├── scripts/           # Helper scripts (e.g. release.py)
