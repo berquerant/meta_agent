@@ -137,6 +137,59 @@ class MetaAgentTUI(App[None]):
     #chat-opts-start {
         margin-right: 1;
     }
+
+    /* Chat screen */
+    #chat-screen-layout {
+        height: 1fr;
+    }
+    #chat-info-sidebar {
+        width: 32;
+        border-right: solid $primary;
+        padding: 1 2;
+        overflow-y: auto;
+    }
+    #chat-sidebar-title {
+        text-style: bold;
+        color: $accent;
+        margin-bottom: 1;
+    }
+    .chat-sidebar-item {
+        margin-bottom: 1;
+    }
+    #chat-sidebar-prompt {
+        height: 8;
+        border: solid $secondary;
+        padding: 0 1;
+        margin-bottom: 1;
+    }
+    #chat-back-btn {
+        margin-top: 1;
+    }
+    #chat-main-pane {
+        width: 1fr;
+        height: 1fr;
+        padding: 1 2;
+    }
+    #chat-messages {
+        height: 1fr;
+        border: solid $primary;
+        padding: 1 2;
+        margin-bottom: 1;
+        overflow-y: auto;
+    }
+    #chat-loading {
+        height: 1;
+    }
+    #chat-input-bar {
+        height: 3;
+    }
+    #chat-input {
+        width: 1fr;
+    }
+    #chat-send-btn {
+        width: 12;
+        margin-left: 1;
+    }
     """
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
