@@ -1,6 +1,7 @@
 """ChatScreen for interactive multi-turn chat inside the TUI."""
 
 import logging
+from pathlib import Path
 from typing import ClassVar
 
 from textual import on, work
@@ -11,20 +12,23 @@ from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Input, Label, Markdown, RichLog, Static
 
 from ...asking import AskingOpts
+from ...utils import get_default_export_dir, now_str
 
 
 class RichLogHandler(logging.Handler):
-    """Logging handler that redirects logs to a Textual RichLog widget."""
+    """Logging handler that redirects logs to a Textual RichLog widget and an in-memory buffer."""
 
-    def __init__(self, rich_log: RichLog) -> None:
-        """Initialize with target RichLog widget."""
+    def __init__(self, rich_log: RichLog, buffer: list[str]) -> None:
+        """Initialize with target RichLog widget and log buffer."""
         super().__init__()
         self._rich_log = rich_log
+        self._buffer = buffer
 
     def emit(self, record: logging.LogRecord) -> None:
-        """Format and write log record to RichLog."""
+        """Format and write log record to RichLog and buffer."""
         try:
             msg = self.format(record)
+            self._buffer.append(f"{record.levelname}: {record.name} - {record.getMessage()}")
             color = "white"
             if record.levelno >= logging.ERROR:
                 color = "bold red"
@@ -41,25 +45,29 @@ class RichLogHandler(logging.Handler):
 
 
 class ChatScreen(Screen[None]):
-    """Screen for interactive multi-turn chat with dedicated log window inside TUI."""
+    """Screen for interactive multi-turn chat with dedicated log window and export inside TUI."""
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
         Binding("escape", "dismiss_screen", "Back"),
+        Binding("ctrl+e", "export_chat", "Export Chat"),
+        Binding("ctrl+l", "export_logs", "Export Logs"),
     ]
 
-    def __init__(self, recipe_name: str, opts: AskingOpts) -> None:
-        """Initialize with recipe name and resolved asking options."""
+    def __init__(self, recipe_name: str, opts: AskingOpts, export_dir: str | None = None) -> None:
+        """Initialize with recipe name, resolved asking options, and export dir."""
         super().__init__()
         self._recipe_name = recipe_name
         self._opts = opts
+        self._export_dir = export_dir or get_default_export_dir()
         self._history: list[tuple[str, str]] = []  # (role, text)
+        self._log_buffer: list[str] = []
         self._log_handler: RichLogHandler | None = None
 
     def compose(self) -> ComposeResult:
-        """Build the chat screen layout."""
+        """Build the chat screen layout with draggable splitter and export buttons."""
         yield Header()
         with Horizontal(id="chat-screen-layout"):
-            # Left pane: Recipe/agent info summary
+            # Left pane: Recipe/agent info summary + Actions
             with Vertical(id="chat-info-sidebar"):
                 yield Label(f"Recipe: {self._recipe_name}", id="chat-sidebar-title")
                 yield Label(f"Engine: {self._opts.engine}", classes="chat-sidebar-item")
@@ -70,7 +78,10 @@ class ChatScreen(Screen[None]):
                 if self._opts.system:
                     yield Label("System Prompt:", classes="chat-sidebar-item")
                     yield VerticalScroll(Markdown(self._opts.system), id="chat-sidebar-prompt")
-                yield Button("Back  [Esc]", id="chat-back-btn", variant="default")
+                with Vertical(id="chat-sidebar-actions"):
+                    yield Button("Export Chat", id="chat-export-btn", variant="primary")
+                    yield Button("Export Logs", id="chat-export-logs-btn", variant="default")
+                    yield Button("Back  [Esc]", id="chat-back-btn", variant="default")
 
             # Right pane: Chat history + Dedicated Log View + Input area
             with Vertical(id="chat-main-pane"):
@@ -89,10 +100,12 @@ class ChatScreen(Screen[None]):
         """Configure initial widget state and hook logging."""
         self.query_one("#chat-input", Input).focus()
         log = self.query_one("#chat-rich-log", RichLog)
-        log.write("[green]System initialized. Ready for chat session.[/green]")
+        init_msg = "System initialized. Ready for chat session."
+        log.write(f"[green]{init_msg}[/green]")
+        self._log_buffer.append(f"INFO: system - {init_msg}")
 
         # Attach logging handler to capture httpx, openjarvis, and root logs
-        handler = RichLogHandler(log)
+        handler = RichLogHandler(log, self._log_buffer)
         formatter = logging.Formatter("%(levelname)s: %(name)s - %(message)s")
         handler.setFormatter(formatter)
         logging.getLogger().addHandler(handler)
@@ -113,6 +126,76 @@ class ChatScreen(Screen[None]):
         """Handle back button."""
         self.dismiss()
 
+    # ------------------------------------------------------------------
+    # Export Chat & Logs
+    # ------------------------------------------------------------------
+
+    def action_export_chat(self) -> None:
+        """Export chat conversation to markdown file."""
+        self._do_export_chat()
+
+    @on(Button.Pressed, "#chat-export-btn")
+    def on_export_chat_btn(self) -> None:
+        """Handle export chat button."""
+        self._do_export_chat()
+
+    def _do_export_chat(self) -> None:
+        """Save chat conversation history to file."""
+        if not self._history:
+            self.notify("Chat history is empty", severity="warning")
+            return
+
+        out_dir = Path(self._export_dir)
+        try:
+            out_dir.mkdir(parents=True, exist_ok=True)
+            filename = f"chat_{self._recipe_name}_{now_str()}.md"
+            filepath = out_dir / filename
+
+            lines: list[str] = [
+                f"# Chat Session: {self._recipe_name}\n",
+                f"- **Engine**: {self._opts.engine}",
+                f"- **Model**: {self._opts.model}",
+                f"- **Agent**: {self._opts.agent}",
+                f"- **Tools**: {self._opts.tools or 'none'}\n",
+                "---\n",
+            ]
+            for role, text in self._history:
+                lines.append(f"## 👤 {role}\n{text}\n")
+
+            filepath.write_text("\n".join(lines), encoding="utf-8")
+            self.notify(f"Chat exported to: {filepath}", severity="information")
+        except Exception as e:
+            self.notify(f"Failed to export chat: {e}", severity="error")
+
+    def action_export_logs(self) -> None:
+        """Export logs to log file."""
+        self._do_export_logs()
+
+    @on(Button.Pressed, "#chat-export-logs-btn")
+    def on_export_logs_btn(self) -> None:
+        """Handle export logs button."""
+        self._do_export_logs()
+
+    def _do_export_logs(self) -> None:
+        """Save log buffer to file."""
+        if not self._log_buffer:
+            self.notify("Log buffer is empty", severity="warning")
+            return
+
+        out_dir = Path(self._export_dir)
+        try:
+            out_dir.mkdir(parents=True, exist_ok=True)
+            filename = f"logs_{self._recipe_name}_{now_str()}.log"
+            filepath = out_dir / filename
+            filepath.write_text("\n".join(self._log_buffer), encoding="utf-8")
+            self.notify(f"Logs exported to: {filepath}", severity="information")
+        except Exception as e:
+            self.notify(f"Failed to export logs: {e}", severity="error")
+
+    # ------------------------------------------------------------------
+    # Message Submission & Agent Interaction
+    # ------------------------------------------------------------------
+
     @on(Button.Pressed, "#chat-send-btn")
     @on(Input.Submitted, "#chat-input")
     def on_submit(self) -> None:
@@ -129,6 +212,7 @@ class ChatScreen(Screen[None]):
 
         log = self.query_one("#chat-rich-log", RichLog)
         log.write(f"[cyan]> User prompt sent ({len(text)} chars)[/cyan]")
+        self._log_buffer.append(f"USER: {text}")
         self._ask_agent(text)
 
     def _render_chat(self) -> None:

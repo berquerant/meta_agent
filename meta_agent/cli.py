@@ -93,7 +93,7 @@ class QueryAction(argparse.Action):
 
 def tui_cmd(args):  # type: ignore[no-untyped-def]
     """Run TUI command."""
-    run_tui(engine=args.engine, model=args.model, recipes_dir=args.recipes)
+    run_tui(engine=args.engine, model=args.model, recipes_dir=args.recipes, export_dir=args.export_dir)
 
 
 def main() -> int:
@@ -150,6 +150,12 @@ def main() -> int:
         "-r",
         default=expanduser("~/.openjarvis/recipes"),
         help="recipes directory",
+    )
+    tui.add_argument(
+        "--export-dir",
+        "-d",
+        default=None,
+        help="directory to export chat sessions and logs (default: ~/Documents/meta_agent)",
     )
 
     args = p.parse_args()

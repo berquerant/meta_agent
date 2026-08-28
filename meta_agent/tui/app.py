@@ -48,12 +48,13 @@ class MetaAgentTUI(App[None]):
         Binding("slash", "focus_search", "Search (/)", show=True),
     ]
 
-    def __init__(self, engine: str, model: str, recipes_dir: str) -> None:
-        """Initialize the TUI with LLM settings."""
+    def __init__(self, engine: str, model: str, recipes_dir: str, export_dir: str | None = None) -> None:
+        """Initialize the TUI with LLM settings and export directory."""
         super().__init__()
         self._engine = engine
         self._model = model
         self._recipes_dir = recipes_dir
+        self._export_dir = export_dir
         self._recipes: list[Recipe] = []
         self._agents: list[Agent] = []
         self._tools: list[Tool] = []
@@ -323,7 +324,9 @@ class MetaAgentTUI(App[None]):
         if self._selected_recipe is None:
             self.notify("No recipe selected", severity="warning")
             return
-        self.push_screen(ChatOptionsScreen(self._selected_recipe, self._engine, self._model))
+        self.push_screen(
+            ChatOptionsScreen(self._selected_recipe, self._engine, self._model, export_dir=self._export_dir)
+        )
 
     @on(Button.Pressed, "#recipes-chat-btn")
     def on_chat_btn(self) -> None:
@@ -351,7 +354,7 @@ class MetaAgentTUI(App[None]):
             self._load_recipes()
 
 
-def run_tui(engine: str, model: str, recipes_dir: str) -> None:
+def run_tui(engine: str, model: str, recipes_dir: str, export_dir: str | None = None) -> None:
     """Launch the TUI application."""
     import logging
 
@@ -361,5 +364,5 @@ def run_tui(engine: str, model: str, recipes_dir: str) -> None:
         if isinstance(h, logging.StreamHandler):
             root_logger.removeHandler(h)
 
-    app = MetaAgentTUI(engine=engine, model=model, recipes_dir=recipes_dir)
+    app = MetaAgentTUI(engine=engine, model=model, recipes_dir=recipes_dir, export_dir=export_dir)
     app.run()
