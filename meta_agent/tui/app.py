@@ -30,6 +30,8 @@ from ..utils import get_default_export_dir, now_str
 from .helpers import (
     CTRL_C_TIMEOUT,
     agent_markdown,
+    build_recipe_action_prompt,
+    build_semantic_search_prompt,
     filter_items,
     now_datetime_str,
     parse_recipe_action_intent,
@@ -311,34 +313,9 @@ class MetaAgentTUI(App[None]):
                     except Exception:
                         pass
             chat_cat = "\n".join(chat_summaries) if chat_summaries else "None"
-
-            prompt = (
-                "You are an assistant managing AI recipes and chat history.\n"
-                f"User request: {query}\n\n"
-                f"Available recipes:\n{catalogue}\n\n"
-                f"Exported past chat sessions:\n{chat_cat}\n\n"
-                "Determine the user's intent:\n"
-                "- If the user wants to CREATE, GENERATE, or BUILD a new assistant recipe, return JSON: "
-                '{"action": "generate", "generate_query": "<extracted_assistant_requirements>"}\n'
-                "- If the user wants to RESUME, RESTORE, or CONTINUE a previous chat session/topic, return JSON: "
-                '{"action": "resume", "chat_file": "<matched_file_name_or_keyword>", "recipe": "<recipe_name>"}\n'
-                "- If the user wants to DELETE or REMOVE a recipe, return JSON: "
-                '{"action": "delete", "target": "<recipe_name>"}\n'
-                "- If the user wants to EDIT, UPDATE, or MODIFY a recipe, return JSON: "
-                '{"action": "edit", "target": "<recipe_name>", "instruction": "<edit details>"}\n'
-                "- If the user wants to SEARCH or FIND recipes, return JSON: "
-                '{"action": "search", "ranked_names": ["<matching_recipe_name_1>", "<matching_recipe_name_2>"]}\n\n'
-                "Output ONLY a valid JSON object matching one of the schemas above. No markdown fences, no explanation."
-            )
+            prompt = build_recipe_action_prompt(query, catalogue, chat_cat)
         else:
-            prompt = (
-                "You are a search assistant. The user is looking for items matching their query.\n"
-                f"Query: {query}\n\n"
-                f"Available items:\n{catalogue}\n\n"
-                "Reply with ONLY a newline-separated list of matching item names, "
-                "ordered by relevance (most relevant first). "
-                "Include only names that appear in the list above. No explanations."
-            )
+            prompt = build_semantic_search_prompt(query, catalogue)
 
         def _log_app(msg: str, level: str = "INFO", color: str = "white") -> None:
             ts = now_datetime_str()

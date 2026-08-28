@@ -197,6 +197,40 @@ class RecipeActionIntent:
     generate_query: str | None = None
 
 
+def build_recipe_action_prompt(query: str, catalogue: str, chat_catalogue: str) -> str:
+    """Construct LLM prompt for recipe action intent classification and ranking."""
+    return (
+        "You are an assistant managing AI recipes and chat history.\n"
+        f"User request: {query}\n\n"
+        f"Available recipes:\n{catalogue}\n\n"
+        f"Exported past chat sessions:\n{chat_catalogue}\n\n"
+        "Determine the user's intent:\n"
+        "- If the user wants to CREATE, GENERATE, or BUILD a new assistant recipe, return JSON: "
+        '{"action": "generate", "generate_query": "<extracted_assistant_requirements>"}\n'
+        "- If the user wants to RESUME, RESTORE, or CONTINUE a previous chat session/topic, return JSON: "
+        '{"action": "resume", "chat_file": "<matched_file_name_or_keyword>", "recipe": "<recipe_name>"}\n'
+        "- If the user wants to DELETE or REMOVE a recipe, return JSON: "
+        '{"action": "delete", "target": "<recipe_name>"}\n'
+        "- If the user wants to EDIT, UPDATE, or MODIFY a recipe, return JSON: "
+        '{"action": "edit", "target": "<recipe_name>", "instruction": "<edit details>"}\n'
+        "- If the user wants to SEARCH or FIND recipes, return JSON: "
+        '{"action": "search", "ranked_names": ["<matching_recipe_name_1>", "<matching_recipe_name_2>"]}\n\n'
+        "Output ONLY a valid JSON object matching one of the schemas above. No markdown fences, no explanation."
+    )
+
+
+def build_semantic_search_prompt(query: str, catalogue: str) -> str:
+    """Construct LLM prompt for standard item semantic search ranking."""
+    return (
+        "You are a search assistant. The user is looking for items matching their query.\n"
+        f"Query: {query}\n\n"
+        f"Available items:\n{catalogue}\n\n"
+        "Reply with ONLY a newline-separated list of matching item names, "
+        "ordered by relevance (most relevant first). "
+        "Include only names that appear in the list above. No explanations."
+    )
+
+
 def parse_recipe_action_intent(raw_response: str) -> RecipeActionIntent:
     """Parse JSON or structured text response from LLM recipe action prompt."""
     import json

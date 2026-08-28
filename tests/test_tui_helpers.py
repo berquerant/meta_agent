@@ -5,6 +5,8 @@ from meta_agent.api import Recipe
 from meta_agent.tui.helpers import (
     build_chat_command_parts,
     build_chat_prompt,
+    build_recipe_action_prompt,
+    build_semantic_search_prompt,
     filter_items,
     format_command_preview,
     parse_exported_chat_file,
@@ -104,6 +106,24 @@ class TestTUIHelpers(TestCase):
         self.assertIn("<User>\nHi\n</User>", p2)
         self.assertIn("<Assistant>\nHello there!\n</Assistant>", p2)
         self.assertIn("# Current User Query\nWhat can you do?", p2)
+
+    def test_prompt_builders(self) -> None:
+        rec_prompt = build_recipe_action_prompt(
+            query="find recipe",
+            catalogue="- bot: A bot",
+            chat_catalogue="- File 'chat_1.md': Test session",
+        )
+        self.assertIn("User request: find recipe", rec_prompt)
+        self.assertIn("- bot: A bot", rec_prompt)
+        self.assertIn("chat_1.md", rec_prompt)
+        self.assertIn('"action": "generate"', rec_prompt)
+
+        search_prompt = build_semantic_search_prompt(
+            query="find tool",
+            catalogue="- tool1: Description",
+        )
+        self.assertIn("Query: find tool", search_prompt)
+        self.assertIn("- tool1: Description", search_prompt)
 
     def test_parse_recipe_action_intent(self) -> None:
         # Generate intent
