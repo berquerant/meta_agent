@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+import time
 from dataclasses import asdict
 from typing import Any, ClassVar
 
@@ -24,10 +25,11 @@ from textual.widgets import (
     Static,
     TabbedContent,
     TabPane,
+    TextArea,
 )
 
 from .api import list_agents, list_recipes, list_tools, Agent, Recipe, Tool
-from .asking import AskingOpts, AskingRequest
+from .asking import AskingOpts
 from .cmd import format_obj
 
 # ---------------------------------------------------------------------------
@@ -40,6 +42,8 @@ _SORT_OPTIONS: list[tuple[str, str]] = [
 ]
 
 SortKey = str  # "alpha_asc" | "alpha_desc"
+
+_CTRL_C_TIMEOUT = 2.0  # seconds
 
 
 def _sort_items(items: list[Any], sort_key: SortKey) -> list[Any]:
@@ -79,6 +83,96 @@ def _agent_markdown(a: Agent) -> str:
 def _tool_markdown(t: Tool) -> str:
     """Format tool as markdown."""
     return _obj_to_markdown(asdict(t))
+
+
+# ---------------------------------------------------------------------------
+# Chat Options Screen (override engine/model/agent/tools/system before chat)
+# ---------------------------------------------------------------------------
+
+
+class ChatOptionsScreen(Screen[None]):
+    """Screen to review and override recipe settings before starting chat."""
+
+    BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
+        Binding("escape", "cancel", "Cancel"),
+        Binding("ctrl+s", "start_chat", "Start Chat"),
+    ]
+
+    def __init__(self, recipe: Recipe, default_engine: str, default_model: str) -> None:
+        """Initialize with recipe and TUI-level defaults."""
+        super().__init__()
+        self._recipe = recipe
+        self._default_engine = default_engine
+        self._default_model = default_model
+
+    def compose(self) -> ComposeResult:
+        """Build the chat options layout."""
+        r = self._recipe
+        engine = r.engine_key or self._default_engine
+        model = r.model or self._default_model
+        agent = r.agent_type or ""
+        tools = ", ".join(r.tools) if r.tools else ""
+        system = r.system_prompt or ""
+
+        yield Header()
+        with VerticalScroll():
+            yield Label(f"Chat with recipe: {r.name}", id="chat-opts-title")
+            yield Label("Engine:", classes="chat-opts-label")
+            yield Input(value=engine, id="chat-opts-engine")
+            yield Label("Model:", classes="chat-opts-label")
+            yield Input(value=model, id="chat-opts-model")
+            yield Label("Agent type:", classes="chat-opts-label")
+            yield Input(value=agent, id="chat-opts-agent")
+            yield Label("Tools (comma-separated):", classes="chat-opts-label")
+            yield Input(value=tools, id="chat-opts-tools")
+            yield Label("System prompt:", classes="chat-opts-label")
+            yield TextArea(system, id="chat-opts-system")
+            with Horizontal(id="chat-opts-buttons"):
+                yield Button("Start Chat  [Ctrl+S]", id="chat-opts-start", variant="success")
+                yield Button("Cancel  [Esc]", id="chat-opts-cancel", variant="default")
+            yield Static("", id="chat-opts-status")
+        yield Footer()
+
+    def action_cancel(self) -> None:
+        """Dismiss without starting chat."""
+        self.dismiss()
+
+    @on(Button.Pressed, "#chat-opts-cancel")
+    def on_cancel_btn(self) -> None:
+        """Handle cancel button."""
+        self.dismiss()
+
+    def action_start_chat(self) -> None:
+        """Collect inputs and launch jarvis chat."""
+        self._launch_chat()
+
+    @on(Button.Pressed, "#chat-opts-start")
+    def on_start_btn(self) -> None:
+        """Handle start chat button."""
+        self._launch_chat()
+
+    def _launch_chat(self) -> None:
+        """Build AskingOpts from form inputs and launch chat via app.suspend()."""
+        engine = self.query_one("#chat-opts-engine", Input).value.strip()
+        model = self.query_one("#chat-opts-model", Input).value.strip()
+        agent = self.query_one("#chat-opts-agent", Input).value.strip()
+        tools = self.query_one("#chat-opts-tools", Input).value.strip()
+        system = self.query_one("#chat-opts-system", TextArea).text.strip()
+
+        opts = AskingOpts(
+            engine=engine or self._default_engine,
+            model=model or self._default_model,
+            agent=agent or "orchestrator",
+            tools=tools,
+            system=system,
+            jarvis=None,
+        )
+        jarvis_cmd = ["uv", "run", "jarvis"]
+        cmd = jarvis_cmd + ["chat"] + opts.as_cli_chat_opts()
+        env = os.environ.copy()
+        self.dismiss()
+        with self.app.suspend():
+            subprocess.run(cmd, env=env)
 
 
 # ---------------------------------------------------------------------------
@@ -181,7 +275,7 @@ class ResourceTab(Vertical):
                 yield LoadingIndicator(id=f"{tid}-loading")
                 yield Markdown("", id=f"{tid}-markdown")
                 if self._show_chat:
-                    yield Button("Chat with this recipe", id=f"{tid}-chat-btn", variant="success")
+                    yield Button("Chat with this recipe  [c]", id=f"{tid}-chat-btn", variant="success")
 
 
 # ---------------------------------------------------------------------------
@@ -260,11 +354,40 @@ class MetaAgentTUI(App[None]):
         margin-top: 1;
         display: none;
     }
+
+    /* Chat options screen */
+    #chat-opts-title {
+        margin: 1 2;
+        text-style: bold;
+        color: $accent;
+    }
+    .chat-opts-label {
+        margin: 1 2 0 2;
+    }
+    #chat-opts-engine, #chat-opts-model, #chat-opts-agent, #chat-opts-tools {
+        margin: 0 2;
+    }
+    #chat-opts-system {
+        margin: 0 2;
+        height: 10;
+    }
+    #chat-opts-buttons {
+        margin: 1 2;
+        height: 3;
+    }
+    #chat-opts-start {
+        margin-right: 1;
+    }
+    #chat-opts-status {
+        margin: 0 2;
+    }
     """
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
+        Binding("ctrl+c", "handle_ctrl_c", "Quit (×2)", show=True),
         Binding("q", "quit", "Quit"),
-        Binding("g", "open_generate", "Generate Recipe"),
+        Binding("g", "open_generate", "Generate"),
+        Binding("c", "chat_recipe", "Chat", show=True),
     ]
 
     def __init__(self, engine: str, model: str, recipes_dir: str) -> None:
@@ -280,6 +403,7 @@ class MetaAgentTUI(App[None]):
         self._displayed_agents: list[Agent] = []
         self._displayed_tools: list[Tool] = []
         self._selected_recipe: Recipe | None = None
+        self._last_ctrl_c: float = 0.0
 
     def compose(self) -> ComposeResult:
         """Compose the main TUI layout."""
@@ -298,6 +422,19 @@ class MetaAgentTUI(App[None]):
         self._load_recipes()
         self._load_agents()
         self._load_tools()
+
+    # ------------------------------------------------------------------
+    # Ctrl+C double-press quit
+    # ------------------------------------------------------------------
+
+    def action_handle_ctrl_c(self) -> None:
+        """Quit on second Ctrl+C within timeout."""
+        now = time.monotonic()
+        if now - self._last_ctrl_c < _CTRL_C_TIMEOUT:
+            self.exit()
+        else:
+            self._last_ctrl_c = now
+            self.notify("Press Ctrl+C again to quit", severity="warning", timeout=_CTRL_C_TIMEOUT)
 
     # ------------------------------------------------------------------
     # Loading
@@ -508,34 +645,21 @@ class MetaAgentTUI(App[None]):
     # Chat
     # ------------------------------------------------------------------
 
+    def _open_chat_options(self) -> None:
+        """Open the chat options screen for the selected recipe."""
+        if self._selected_recipe is None:
+            self.notify("No recipe selected", severity="warning")
+            return
+        self.push_screen(ChatOptionsScreen(self._selected_recipe, self._engine, self._model))
+
     @on(Button.Pressed, "#recipes-chat-btn")
     def on_chat_btn(self) -> None:
-        """Launch jarvis chat for the selected recipe."""
-        if self._selected_recipe is None:
-            return
-        recipe = self._selected_recipe
-        req = AskingRequest(
-            recipe=recipe.name,
-            engine=self._engine,
-            model=self._model,
-            agent="",
-            tools="",
-            system="",
-            jarvis=None,
-        )
-        try:
-            opts = AskingOpts.new(req)
-        except Exception:
-            return
-        jarvis_bin = opts.jarvis or "jarvis"
-        if jarvis_bin == "jarvis":
-            jarvis_cmd = ["uv", "run", "jarvis"]
-        else:
-            jarvis_cmd = [jarvis_bin]
-        cmd = jarvis_cmd + ["chat"] + opts.as_cli_chat_opts()
-        env = os.environ.copy()
-        with self.suspend():
-            subprocess.run(cmd, env=env)
+        """Launch chat options screen via button."""
+        self._open_chat_options()
+
+    def action_chat_recipe(self) -> None:
+        """Launch chat options screen via key binding."""
+        self._open_chat_options()
 
     # ------------------------------------------------------------------
     # Generate Recipe

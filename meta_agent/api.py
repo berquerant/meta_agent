@@ -123,10 +123,27 @@ class Recipe:
     name: str
     description: str
     system_prompt: str
+    engine_key: str = ""
+    model: str = ""
+    agent_type: str = ""
+    tools: list[str] = field(default_factory=list)
+    version: str = ""
 
 
 def list_recipes() -> list[Recipe]:
     """List all recipes."""
     logging.debug("list recipes")
     recipes = discover_recipes()
-    return [Recipe(name=x.name, description=x.description, system_prompt=x.system_prompt) for x in recipes]
+    return [
+        Recipe(
+            name=x.name,
+            description=x.description or "",
+            system_prompt=x.system_prompt or "",
+            engine_key=x.engine_key or "",
+            model=x.model or "",
+            agent_type=x.agent_type or "",
+            tools=list(x.tools) if x.tools else [],
+            version=x.version or "",
+        )
+        for x in recipes
+    ]
