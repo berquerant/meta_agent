@@ -50,23 +50,71 @@ LoadingIndicator {
     display: none;
 }
 
-/* Generate screen */
-#gen-title {
-    margin: 1 2;
+/* Generate screen (2-pane layout) */
+#gen-screen-layout {
+    height: 1fr;
+}
+#gen-sidebar {
+    width: 32;
+    background: $surface;
+    border: solid $primary;
+    padding: 1;
+}
+#gen-sidebar-title {
     text-style: bold;
     color: $accent;
+    margin-bottom: 1;
 }
-#gen-label {
-    margin: 0 2;
+.gen-sidebar-item {
+    margin-bottom: 1;
+    color: $text;
+}
+#gen-sidebar-actions {
+    margin-top: 1;
+}
+#gen-sidebar-actions Button {
+    margin-bottom: 1;
+    width: 100%;
+}
+#gen-main-pane {
+    width: 1fr;
+    padding: 0 1;
+}
+#gen-preview-scroll {
+    height: 1fr;
+    border: solid $primary;
+    padding: 1 2;
+    margin-bottom: 1;
+    overflow-y: auto;
+}
+#gen-log-pane {
+    height: 8;
+    border: solid $warning;
+    padding: 0 1;
+    margin-bottom: 1;
+    background: $surface;
+}
+#gen-log-title {
+    text-style: bold;
+    color: $warning;
+}
+#gen-rich-log {
+    height: 1fr;
+}
+#gen-status-bar {
+    height: 1;
+    margin-bottom: 1;
+    color: $accent;
+}
+#gen-input-bar {
+    height: 3;
 }
 #gen-input {
-    margin: 0 2 1 2;
+    width: 1fr;
 }
-#gen-btn {
-    margin: 0 2;
-}
-#gen-status {
-    margin: 1 2;
+#gen-submit-btn {
+    width: 14;
+    margin-left: 1;
 }
 
 /* Chat options screen */

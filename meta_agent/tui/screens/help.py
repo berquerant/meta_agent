@@ -18,7 +18,7 @@ HELP_MARKDOWN = """
 | `?` / `F1` | **Help** | Open this keyboard shortcuts help modal |
 | `/` | **Search** | Focus the filter input for the currently active tab (Recipes / Agents / Tools) |
 | `c` | **Chat** | Open chat setup options for the selected recipe |
-| `g` | **Generate** | Open recipe generator modal to create a new assistant |
+| `g` | **Generate** | Switch to the Generate tab to create a new assistant |
 | `q` | **Quit** | Exit the TUI application |
 | `Ctrl+C` (×2) | **Quit (force)** | Double-press Ctrl+C within 2 seconds to quit anytime |
 
@@ -27,7 +27,7 @@ HELP_MARKDOWN = """
 ## 📋 Resource Lists & Navigation
 | Key | Action | Description |
 |:---|:---|:---|
-| `Tab` / `Shift+Tab` | **Navigate** | Move focus between Search input, Sort select, Resource list, and Chat button |
+| `Tab` / `Shift+Tab` | **Navigate** | Move focus between tabs, inputs, selects, and buttons |
 | `Up` / `Down` | **Select Item** | Move up/down through the items list; details update on selection |
 | `Enter` / `Space` | **Open / Focus** | Open dropdowns or trigger action buttons |
 
@@ -54,10 +54,12 @@ HELP_MARKDOWN = """
 
 ---
 
-## 🛠️ Recipe Generator Screen (`GenerateScreen`)
+## 🛠️ Recipe Generator Tab (`GenerateTab`)
 | Key | Action | Description |
 |:---|:---|:---|
-| `Enter` | **Generate** | Submit generation query |
+| `Enter` | **Generate** | Submit generation query in background worker |
+| `Up` / `Down` | **Input History** | Navigate through your past generation prompts |
+| *Button* | **Chat with Generated Recipe** | Start chat immediately with the generated recipe |
 | `Esc` | **Back** | Return to recipe list without saving |
 """
 

@@ -5,7 +5,7 @@ from typing import Any
 from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import Button, Input, ListView, LoadingIndicator, Markdown, Select
+from textual.widgets import Button, Input, Label, ListView, LoadingIndicator, Markdown, RichLog, Select, Static
 from textual.widgets._select import SelectOverlay
 
 from .helpers import SORT_OPTIONS
@@ -73,3 +73,46 @@ class ResourceTab(Vertical):
                 yield Markdown("", id=f"{tid}-markdown")
                 if self._show_chat:
                     yield Button("Chat with this recipe  [c]", id=f"{tid}-chat-btn", variant="success")
+
+
+class GenerateTab(Vertical):
+    """A tab panel for recipe generation with live logs, status, preview, and chat transition."""
+
+    def __init__(self, engine: str, model: str, recipes_dir: str) -> None:
+        """Initialize the generate tab."""
+        super().__init__()
+        self._engine = engine
+        self._model = model
+        self._recipes_dir = recipes_dir
+
+    def compose(self) -> ComposeResult:
+        """Build the 2-pane generate tab layout."""
+        with Horizontal(id="gen-screen-layout"):
+            # Left Sidebar: Config summary & Actions
+            with Vertical(id="gen-sidebar"):
+                yield Label("Recipe Generator", id="gen-sidebar-title")
+                yield Label(f"Engine: {self._engine}", classes="gen-sidebar-item")
+                yield Label(f"Model: {self._model}", classes="gen-sidebar-item")
+                yield Label(f"Output: {self._recipes_dir}", classes="gen-sidebar-item")
+                with Vertical(id="gen-sidebar-actions"):
+                    yield Button("Chat with Generated Recipe", id="gen-chat-btn", variant="success")
+
+            # Right Main Pane: Recipe Preview + RichLog + Input Bar
+            with Vertical(id="gen-main-pane"):
+                with VerticalScroll(id="gen-preview-scroll"):
+                    yield Markdown(
+                        "# Assistant Recipe Generator\n"
+                        "Describe the assistant you want to create below.\n"
+                        "The meta-agent will inspect available tools/agents and generate a complete TOML recipe.",
+                        id="gen-markdown",
+                    )
+                with Vertical(id="gen-log-pane"):
+                    yield Label("Generation / Meta-Agent Activity Logs", id="gen-log-title")
+                    yield RichLog(id="gen-rich-log", highlight=True, markup=True)
+                yield Static("", id="gen-status-bar")
+                with Horizontal(id="gen-input-bar"):
+                    yield Input(
+                        placeholder="e.g. A Python testing specialist that runs pytest and explains errors",
+                        id="gen-input",
+                    )
+                    yield Button("Generate", id="gen-submit-btn", variant="primary")

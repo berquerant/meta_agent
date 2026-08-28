@@ -1,9 +1,10 @@
 """Main TUI application for meta_agent."""
 
+from pathlib import Path
 import time
 from typing import Any, ClassVar
 
-from textual import on, work
+from textual import events, on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import (
@@ -16,12 +17,15 @@ from textual.widgets import (
     ListView,
     LoadingIndicator,
     Markdown,
+    RichLog,
     Select,
+    Static,
     TabbedContent,
     TabPane,
 )
 
 from ..api import list_agents, list_recipes, list_tools, Agent, Recipe, Tool
+from ..gen import generate_assistant, GenRequest
 from .helpers import (
     CTRL_C_TIMEOUT,
     agent_markdown,
@@ -30,9 +34,9 @@ from .helpers import (
     sort_items,
     tool_markdown,
 )
-from .screens import ChatOptionsScreen, GenerateScreen, HelpScreen
+from .screens import ChatOptionsScreen, HelpScreen
 from .styles import APP_CSS
-from .widgets import ResourceTab
+from .widgets import GenerateTab, ResourceTab
 
 
 class MetaAgentTUI(App[None]):
@@ -45,7 +49,7 @@ class MetaAgentTUI(App[None]):
         Binding("f1", "open_help", "Help", show=False),
         Binding("slash", "focus_search", "Search (/)", show=True),
         Binding("c", "chat_recipe", "Chat", show=True),
-        Binding("g", "open_generate", "Generate", show=True),
+        Binding("g", "open_generate", "Generate (g)", show=True),
         Binding("q", "quit", "Quit", show=True),
         Binding("ctrl+c", "handle_ctrl_c", "Quit (×2)", show=True),
     ]
@@ -66,6 +70,12 @@ class MetaAgentTUI(App[None]):
         self._selected_recipe: Recipe | None = None
         self._last_ctrl_c: float = 0.0
 
+        # Generate tab history state
+        self._gen_user_inputs: list[str] = []
+        self._gen_history_cursor: int = -1
+        self._gen_current_draft: str = ""
+        self._last_generated_recipe: str | None = None
+
     def compose(self) -> ComposeResult:
         """Compose the main TUI layout."""
         yield Header()
@@ -76,6 +86,8 @@ class MetaAgentTUI(App[None]):
                 yield ResourceTab("agents")
             with TabPane("Tools", id="tab-tools"):
                 yield ResourceTab("tools")
+            with TabPane("Generate", id="tab-generate"):
+                yield GenerateTab(self._engine, self._model, self._recipes_dir)
         yield Footer()
 
     def on_mount(self) -> None:
@@ -83,6 +95,10 @@ class MetaAgentTUI(App[None]):
         self._load_recipes()
         self._load_agents()
         self._load_tools()
+        try:
+            self.query_one("#gen-chat-btn", Button).display = False
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Ctrl+C double-press quit
@@ -142,15 +158,21 @@ class MetaAgentTUI(App[None]):
             "tools": self._tools,
         }
         all_items = items_map.get(tid, [])
-        sort_key = str(self.query_one(f"#{tid}-sort", Select).value)
-        search = self.query_one(f"#{tid}-search", Input).value
+        try:
+            sort_key = str(self.query_one(f"#{tid}-sort", Select).value)
+            search = self.query_one(f"#{tid}-search", Input).value
+        except Exception:
+            return
         items = filter_items(all_items, search)
         items = sort_items(items, sort_key)
 
         if tid == "recipes":
             self._displayed_recipes = items
             self._selected_recipe = None
-            self.query_one("#recipes-chat-btn", Button).display = False
+            try:
+                self.query_one("#recipes-chat-btn", Button).display = False
+            except Exception:
+                pass
         elif tid == "agents":
             self._displayed_agents = items
         elif tid == "tools":
@@ -188,6 +210,9 @@ class MetaAgentTUI(App[None]):
         try:
             tabbed_content = self.query_one(TabbedContent)
             active_tab = tabbed_content.active
+            if active_tab == "tab-generate":
+                self.query_one("#gen-input", Input).focus()
+                return
             tid = "recipes"
             if active_tab == "tab-agents":
                 tid = "agents"
@@ -315,7 +340,7 @@ class MetaAgentTUI(App[None]):
         self.query_one("#tools-markdown", Markdown).update(md)
 
     # ------------------------------------------------------------------
-    # Chat
+    # Chat Options & Launch
     # ------------------------------------------------------------------
 
     def _open_chat_options(self) -> None:
@@ -345,20 +370,134 @@ class MetaAgentTUI(App[None]):
         self.push_screen(HelpScreen())
 
     # ------------------------------------------------------------------
-    # Generate Recipe
+    # Generate Tab Events & Execution
     # ------------------------------------------------------------------
 
     def action_open_generate(self) -> None:
-        """Open the recipe generation screen."""
-        self.push_screen(
-            GenerateScreen(self._engine, self._model, self._recipes_dir),
-            self._on_generate_done,
+        """Switch to the Generate tab and focus the input field."""
+        try:
+            self.query_one(TabbedContent).active = "tab-generate"
+            self.query_one("#gen-input", Input).focus()
+        except Exception:
+            pass
+
+    def on_key(self, event: events.Key) -> None:
+        """Handle Up/Down arrow history navigation for the Generate tab input."""
+        try:
+            inp = self.query_one("#gen-input", Input)
+        except Exception:
+            return
+
+        if not inp.has_focus or not self._gen_user_inputs:
+            return
+
+        if event.key == "up":
+            event.prevent_default()
+            event.stop()
+            if self._gen_history_cursor == -1:
+                self._gen_current_draft = inp.value
+                self._gen_history_cursor = len(self._gen_user_inputs) - 1
+            elif self._gen_history_cursor > 0:
+                self._gen_history_cursor -= 1
+
+            inp.value = self._gen_user_inputs[self._gen_history_cursor]
+            inp.cursor_position = len(inp.value)
+
+        elif event.key == "down":
+            event.prevent_default()
+            event.stop()
+            if self._gen_history_cursor != -1:
+                if self._gen_history_cursor < len(self._gen_user_inputs) - 1:
+                    self._gen_history_cursor += 1
+                    inp.value = self._gen_user_inputs[self._gen_history_cursor]
+                else:
+                    self._gen_history_cursor = -1
+                    inp.value = self._gen_current_draft
+                inp.cursor_position = len(inp.value)
+
+    @on(Button.Pressed, "#gen-submit-btn")
+    @on(Input.Submitted, "#gen-input")
+    def on_gen_submit(self) -> None:
+        """Start recipe generation in a background worker."""
+        inp = self.query_one("#gen-input", Input)
+        query = inp.value.strip()
+        if not query:
+            return
+        inp.value = ""
+        self._gen_user_inputs.append(query)
+        self._gen_history_cursor = -1
+        self._gen_current_draft = ""
+
+        status_msg = "⏳ Generating assistant recipe (you can switch tabs anytime)..."
+        self.query_one("#gen-status-bar", Static).update(status_msg)
+        self.query_one("#gen-submit-btn", Button).disabled = True
+        self.query_one("#gen-chat-btn", Button).display = False
+
+        log = self.query_one("#gen-rich-log", RichLog)
+        log.write(f"[cyan]> Generation started: '{query}'[/cyan]")
+
+        self.run_worker(
+            lambda: self._execute_recipe_generation(query),
+            thread=True,
+            name=f"recipe_gen_{query[:20]}",
         )
 
-    def _on_generate_done(self, success: bool | None) -> None:
-        """Reload recipe list if generation succeeded."""
-        if success:
-            self._load_recipes()
+    def _execute_recipe_generation(self, query: str) -> None:
+        """Run recipe generation in background worker."""
+        log = self.query_one("#gen-rich-log", RichLog)
+        req = GenRequest(engine=self._engine, model=self._model, query=query, recipes_dir=self._recipes_dir)
+        r = generate_assistant(req)
+
+        if r.success:
+            self._last_generated_recipe = r.name
+            preview_md = (
+                f"# ✅ Recipe Generated: `{r.name}`\n\n"
+                f"- **Saved to**: `{r.path}`\n\n"
+                "### Recipe TOML Content:\n"
+                "```toml\n"
+            )
+            try:
+                content = Path(r.path).read_text(encoding="utf-8")
+                preview_md += content
+            except Exception:
+                preview_md += "# (Could not read generated file content)"
+            preview_md += "\n```\n"
+
+            def _on_success() -> None:
+                try:
+                    self.query_one("#gen-markdown", Markdown).update(preview_md)
+                    self.query_one("#gen-status-bar", Static).update(f"✅ Generated `{r.name}` successfully!")
+                    self.query_one("#gen-submit-btn", Button).disabled = False
+                    self.query_one("#gen-chat-btn", Button).display = True
+                    log.write(f"[bold green]✓ Successfully generated recipe: {r.name}[/bold green]")
+                except Exception:
+                    pass
+                self.notify(f"Recipe generated: {r.name}", severity="information")
+                self._load_recipes()
+
+            self.call_from_thread(_on_success)
+        else:
+
+            def _on_failure() -> None:
+                try:
+                    self.query_one("#gen-status-bar", Static).update(f"❌ Failed: {r.message}")
+                    self.query_one("#gen-submit-btn", Button).disabled = False
+                    log.write(f"[bold red]✗ Generation failed: {r.message}[/bold red]")
+                except Exception:
+                    pass
+                self.notify(f"Generation failed: {r.message}", severity="error")
+
+            self.call_from_thread(_on_failure)
+
+    @on(Button.Pressed, "#gen-chat-btn")
+    def on_gen_chat_btn(self) -> None:
+        """Launch chat options with the newly generated recipe."""
+        if not self._last_generated_recipe:
+            return
+        for r in self._recipes:
+            if r.name == self._last_generated_recipe:
+                self.push_screen(ChatOptionsScreen(r, self._engine, self._model, export_dir=self._export_dir))
+                return
 
 
 def run_tui(engine: str, model: str, recipes_dir: str, export_dir: str | None = None) -> None:
