@@ -123,10 +123,99 @@ class Recipe:
     name: str
     description: str
     system_prompt: str
+    engine_key: str = ""
+    model: str = ""
+    agent_type: str = ""
+    tools: list[str] = field(default_factory=list)
+    version: str = ""
 
 
 def list_recipes() -> list[Recipe]:
     """List all recipes."""
     logging.debug("list recipes")
     recipes = discover_recipes()
-    return [Recipe(name=x.name, description=x.description, system_prompt=x.system_prompt) for x in recipes]
+    return [
+        Recipe(
+            name=x.name,
+            description=x.description or "",
+            system_prompt=x.system_prompt or "",
+            engine_key=x.engine_key or "",
+            model=x.model or "",
+            agent_type=x.agent_type or "",
+            tools=list(x.tools) if x.tools else [],
+            version=x.version or "",
+        )
+        for x in recipes
+    ]
+
+
+def find_recipe_files(recipe_name: str, recipes_dir: str | None = None) -> list[str]:
+    """
+    Search for TOML recipe files in the specified directory matching recipe_name.
+
+    Matches either the recipe name declared in the TOML file or the filename stem.
+    """
+    from pathlib import Path
+    import tomllib
+
+    target_dir = Path(recipes_dir) if recipes_dir else Path.home() / ".openjarvis" / "recipes"
+    if not target_dir.is_dir():
+        return []
+
+    matched: list[str] = []
+    for toml_path in sorted(target_dir.glob("*.toml")):
+        # Check stem match
+        if toml_path.stem == recipe_name:
+            matched.append(str(toml_path))
+            continue
+
+        # Check name in TOML content
+        try:
+            with open(toml_path, "rb") as f:
+                data = tomllib.load(f)
+            r_name = data.get("recipe", {}).get("name")
+            if r_name == recipe_name:
+                matched.append(str(toml_path))
+        except Exception:
+            continue
+
+    return matched
+
+
+def delete_recipe_file(path: str) -> bool:
+    """Delete a recipe file at the given path."""
+    from pathlib import Path
+
+    p = Path(path)
+    if p.is_file():
+        try:
+            p.unlink()
+            return True
+        except Exception as e:
+            logging.error("Failed to delete recipe file %s: %s", path, e)
+            return False
+    return False
+
+
+def save_recipe_file(path: str, content: str) -> tuple[bool, str]:
+    """
+    Validate TOML syntax and save content to the given file path.
+
+    Returns (success, error_message).
+    """
+    from pathlib import Path
+    import tomllib
+
+    try:
+        tomllib.loads(content)
+    except Exception as e:
+        return False, f"Invalid TOML syntax: {e}"
+
+    try:
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(content, encoding="utf-8")
+        return True, ""
+    except Exception as e:
+        logging.error("Failed to save recipe file %s: %s", path, e)
+        return False, f"Failed to write file: {e}"

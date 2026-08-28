@@ -10,7 +10,7 @@ When you make structural changes to the project (adding/removing modules, comman
 
 **meta_agent** is a Python CLI tool that acts as a *meta-agent* — an AI-powered assistant that generates, manages, and executes AI assistant recipes using the [OpenJarvis](https://github.com/open-jarvis/OpenJarvis) framework.
 
-It exposes five sub-commands:
+It exposes six sub-commands:
 
 | Command   | Description                                              |
 |-----------|----------------------------------------------------------|
@@ -19,6 +19,7 @@ It exposes five sub-commands:
 | `chat`    | Start an interactive multi-turn chat session             |
 | `ask`     | Ask a single question using a recipe-configured agent    |
 | `jarvis`  | Pass raw arguments directly to the underlying jarvis CLI |
+| `tui`     | Launch an interactive terminal UI (Textual-based)        |
 
 ## Repository Layout
 
@@ -32,6 +33,21 @@ meta_agent/
 │   ├── cmd.py         # High-level Cmd class wiring CLI args to api/gen
 │   ├── gen.py         # Recipe generation logic and meta-agent prompt
 │   ├── tools.py       # Custom OpenJarvis tool registrations
+│   ├── tui/           # Textual-based interactive TUI (package)
+│   │   ├── __init__.py    # re-exports run_tui
+│   │   ├── app.py         # MetaAgentTUI app + run_tui entry point
+│   │   ├── helpers.py     # sort / filter / markdown formatting helpers
+│   │   ├── styles.py      # App CSS styles definition
+│   │   ├── screens/       # TUI screens package
+│   │   │   ├── __init__.py
+│   │   │   ├── chat.py         # ChatScreen (with dedicated log pane)
+│   │   │   ├── chat_options.py # ChatOptionsScreen (command preview & overrides)
+│   │   │   ├── delete_recipe.py # DeleteRecipeScreen (preview & duplicate file deletion)
+│   │   │   ├── edit_recipe.py   # EditRecipeScreen (in-TUI editor with syntax validation)
+│   │   │   ├── generate.py     # GenerateScreen
+│   │   │   ├── help.py         # HelpScreen (shortcuts & guide modal)
+│   │   │   └── resume_chat.py  # ResumeChatScreen (restore session from exported markdown)
+│   │   └── widgets.py     # ResourceTab, GenerateTab, LogTab & SearchableSelect widgets
 │   └── utils.py       # Shared utilities (formatting, file reading, etc.)
 ├── scripts/           # Helper scripts (e.g. release.py)
 ├── tests/             # pytest test suite
