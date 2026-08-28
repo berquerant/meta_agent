@@ -26,18 +26,21 @@ from textual.widgets import (
 
 from ..api import find_recipe_files, list_agents, list_recipes, list_tools, Agent, Recipe, Tool
 from ..gen import generate_assistant, GenRequest
+from ..utils import get_default_export_dir, now_str
 from .helpers import (
     CTRL_C_TIMEOUT,
     agent_markdown,
     filter_items,
     now_datetime_str,
+    parse_recipe_action_intent,
     recipe_markdown,
     sort_items,
     tool_markdown,
 )
 from .screens import ChatOptionsScreen, DeleteRecipeScreen, EditRecipeScreen, HelpScreen
+from .screens.chat import RichLogHandler
 from .styles import APP_CSS
-from .widgets import GenerateTab, ResourceTab
+from .widgets import GenerateTab, LogTab, ResourceTab
 
 
 class MetaAgentTUI(App[None]):
@@ -63,7 +66,7 @@ class MetaAgentTUI(App[None]):
         self._engine = engine
         self._model = model
         self._recipes_dir = recipes_dir
-        self._export_dir = export_dir
+        self._export_dir = export_dir or get_default_export_dir()
         self._recipes: list[Recipe] = []
         self._agents: list[Agent] = []
         self._tools: list[Tool] = []
@@ -79,6 +82,10 @@ class MetaAgentTUI(App[None]):
         self._gen_current_draft: str = ""
         self._last_generated_recipe: str | None = None
 
+        # App Log buffer and handler
+        self._app_log_buffer: list[str] = []
+        self._app_log_handler: RichLogHandler | None = None
+
     def compose(self) -> ComposeResult:
         """Compose the main TUI layout."""
         yield Header()
@@ -91,10 +98,25 @@ class MetaAgentTUI(App[None]):
                 yield ResourceTab("tools")
             with TabPane("Generate", id="tab-generate"):
                 yield GenerateTab(self._engine, self._model, self._recipes_dir)
+            with TabPane("Logs", id="tab-logs"):
+                yield LogTab()
         yield Footer()
 
     def on_mount(self) -> None:
-        """Load all resources after mounting."""
+        """Load all resources after mounting and attach app log handler."""
+        # Attach RichLogHandler to app logger and root logger
+        try:
+            log_widget = self.query_one("#app-rich-log", RichLog)
+            self._app_log_handler = RichLogHandler(log_widget, self._app_log_buffer)
+            import logging
+
+            logging.getLogger().addHandler(self._app_log_handler)
+            init_msg = f"Application initialized. Engine='{self._engine}', Model='{self._model}'"
+            log_widget.write(f"[green]{init_msg}[/green]")
+            self._app_log_buffer.append(f"[{now_datetime_str()}] INFO: app - {init_msg}")
+        except Exception:
+            pass
+
         self._load_recipes()
         self._load_agents()
         self._load_tools()
@@ -260,24 +282,106 @@ class MetaAgentTUI(App[None]):
 
     @work(thread=True)
     def _llm_search(self, tid: str, query: str, items: list[Any]) -> None:
-        """Run LLM semantic search in a background thread and re-render list."""
+        """Run LLM semantic action/search in a background thread."""
         from ..api import Script
 
         catalogue = "\n".join(f"- {x.name}: {getattr(x, 'description', '')}" for x in items)
-        prompt = (
-            "You are a search assistant. The user is looking for items matching their query.\n"
-            f"Query: {query}\n\n"
-            f"Available items:\n{catalogue}\n\n"
-            "Reply with ONLY a newline-separated list of matching item names, "
-            "ordered by relevance (most relevant first). "
-            "Include only names that appear in the list above. No explanations."
-        )
+
+        if tid == "recipes":
+            prompt = (
+                "You are an assistant managing AI recipes.\n"
+                f"User request: {query}\n\n"
+                f"Available recipes:\n{catalogue}\n\n"
+                "Determine the user's intent:\n"
+                "- If the user wants to DELETE or REMOVE a recipe, return JSON: "
+                '{"action": "delete", "target": "<recipe_name>"}\n'
+                "- If the user wants to EDIT, UPDATE, or MODIFY a recipe, return JSON: "
+                '{"action": "edit", "target": "<recipe_name>", "instruction": "<edit details>"}\n'
+                "- If the user wants to SEARCH or FIND recipes, return JSON: "
+                '{"action": "search", "ranked_names": ["<matching_recipe_name_1>", "<matching_recipe_name_2>"]}\n\n'
+                "Output ONLY a valid JSON object matching one of the schemas above. No markdown fences, no explanation."
+            )
+        else:
+            prompt = (
+                "You are a search assistant. The user is looking for items matching their query.\n"
+                f"Query: {query}\n\n"
+                f"Available items:\n{catalogue}\n\n"
+                "Reply with ONLY a newline-separated list of matching item names, "
+                "ordered by relevance (most relevant first). "
+                "Include only names that appear in the list above. No explanations."
+            )
+
+        def _log_app(msg: str, level: str = "INFO", color: str = "white") -> None:
+            ts = now_datetime_str()
+            formatted_entry = f"[{ts}] {level}: {msg}"
+            self._app_log_buffer.append(formatted_entry)
+            try:
+                log_widget = self.query_one("#app-rich-log", RichLog)
+                self.app.call_from_thread(
+                    log_widget.write,
+                    f"[dim]{ts}[/dim] [{color}]{msg}[/{color}]",
+                )
+            except Exception:
+                pass
+
+        _log_app(f"LLM Search triggered for '{tid}' with query: '{query}'", "INFO", "cyan")
+
         script = Script(agent="native_react", prompt=prompt, tools=[])
         try:
             result = script.run(engine=self._engine, model=self._model)
-        except Exception:
+            _log_app(f"LLM response received for '{tid}':\n{result.strip()}", "DEBUG", "dim")
+        except Exception as e:
+            _log_app(f"LLM Search failed for '{tid}': {e}", "ERROR", "bold red")
             return
-        ranked_names = [line.lstrip("- ").strip() for line in result.splitlines() if line.strip()]
+
+        if tid == "recipes":
+            intent = parse_recipe_action_intent(result)
+            _log_app(f"Parsed recipe intent: action='{intent.action}', target='{intent.target}'", "INFO", "yellow")
+            if intent.action == "delete" and intent.target:
+                matched_recipe = next((r for r in self._recipes if r.name == intent.target), None)
+                if not matched_recipe:
+                    matched_recipe = next((r for r in self._recipes if intent.target.lower() in r.name.lower()), None)
+
+                if matched_recipe:
+                    _log_app(
+                        f"Intent matched delete target: '{matched_recipe.name}'. Opening delete confirmation.",
+                        "INFO",
+                        "green",
+                    )
+
+                    def _open_del() -> None:
+                        self._selected_recipe = matched_recipe
+                        self.action_delete_recipe()
+
+                    self.app.call_from_thread(_open_del)
+                    return
+                else:
+                    _log_app(f"Delete target '{intent.target}' not found in registered recipes.", "WARNING", "yellow")
+
+            elif intent.action == "edit" and intent.target:
+                matched_recipe = next((r for r in self._recipes if r.name == intent.target), None)
+                if not matched_recipe:
+                    matched_recipe = next((r for r in self._recipes if intent.target.lower() in r.name.lower()), None)
+
+                if matched_recipe:
+                    _log_app(f"Intent matched edit target: '{matched_recipe.name}'. Opening editor.", "INFO", "green")
+
+                    def _open_edit() -> None:
+                        self._selected_recipe = matched_recipe
+                        self.action_edit_recipe()
+
+                    self.app.call_from_thread(_open_edit)
+                    return
+                else:
+                    _log_app(f"Edit target '{intent.target}' not found in registered recipes.", "WARNING", "yellow")
+
+            # Default search flow for recipes
+            ranked_names = intent.ranked_names or []
+        else:
+            ranked_names = [line.lstrip("- ").strip() for line in result.splitlines() if line.strip()]
+
+        _log_app(f"LLM Search returned {len(ranked_names)} matching candidates for '{tid}'.", "INFO", "green")
+
         name_to_item = {x.name: x for x in items}
         ranked: list[Any] = []
         for name in ranked_names:
@@ -577,6 +681,37 @@ class MetaAgentTUI(App[None]):
             if r.name == self._last_generated_recipe:
                 self.push_screen(ChatOptionsScreen(r, self._engine, self._model, export_dir=self._export_dir))
                 return
+
+    # ------------------------------------------------------------------
+    # App Log Tab Actions
+    # ------------------------------------------------------------------
+
+    @on(Button.Pressed, "#app-log-clear-btn")
+    def on_clear_app_logs(self) -> None:
+        """Clear the application log buffer and widget."""
+        self._app_log_buffer.clear()
+        try:
+            self.query_one("#app-rich-log", RichLog).clear()
+        except Exception:
+            pass
+        self.notify("Application logs cleared", severity="information")
+
+    @on(Button.Pressed, "#app-log-export-btn")
+    def on_export_app_logs(self) -> None:
+        """Export application logs to a file."""
+        if not self._app_log_buffer:
+            self.notify("Application log buffer is empty", severity="warning")
+            return
+
+        out_dir = Path(self._export_dir)
+        try:
+            out_dir.mkdir(parents=True, exist_ok=True)
+            filename = f"app_logs_{now_str()}.log"
+            filepath = out_dir / filename
+            filepath.write_text("\n".join(self._app_log_buffer), encoding="utf-8")
+            self.notify(f"App logs exported to: {filepath}", severity="information")
+        except Exception as e:
+            self.notify(f"Failed to export app logs: {e}", severity="error")
 
 
 def run_tui(engine: str, model: str, recipes_dir: str, export_dir: str | None = None) -> None:

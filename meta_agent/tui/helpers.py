@@ -181,6 +181,60 @@ def build_chat_prompt(
 
 
 # ---------------------------------------------------------------------------
+# Recipe Action Intent Helpers
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class RecipeActionIntent:
+    """Action intent parsed from user LLM query in the recipes tab."""
+
+    action: str  # "search" | "edit" | "delete"
+    target: str | None = None
+    instruction: str | None = None
+    ranked_names: list[str] | None = None
+
+
+def parse_recipe_action_intent(raw_response: str) -> RecipeActionIntent:
+    """Parse JSON or structured text response from LLM recipe action prompt."""
+    import json
+    import re
+
+    # Try extracting JSON object {...}
+    json_match = re.search(r"\{.*\}", raw_response, re.DOTALL)
+    if json_match:
+        try:
+            data = json.loads(json_match.group(0))
+            action = str(data.get("action", "search")).lower()
+            if action in ("delete", "remove", "del"):
+                action = "delete"
+            elif action in ("edit", "update", "modify"):
+                action = "edit"
+            else:
+                action = "search"
+
+            target = data.get("target") or data.get("recipe") or data.get("name")
+            target_str = str(target).strip() if target else None
+            instruction = data.get("instruction") or data.get("changes") or data.get("detail")
+            instruction_str = str(instruction).strip() if instruction else None
+            ranked = data.get("ranked_names") or data.get("matches") or []
+            ranked_list = [str(x).strip() for x in ranked if str(x).strip()] if isinstance(ranked, list) else []
+
+            return RecipeActionIntent(
+                action=action,
+                target=target_str,
+                instruction=instruction_str,
+                ranked_names=ranked_list,
+            )
+        except Exception:
+            pass
+
+    # Fallback to pure newline-separated list as search results
+    lines = [line.lstrip("- *").strip() for line in raw_response.splitlines() if line.strip()]
+    return RecipeActionIntent(action="search", ranked_names=lines)
+
+
+# ---------------------------------------------------------------------------
 # Runtime Options Discovery
 # ---------------------------------------------------------------------------
 

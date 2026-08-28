@@ -119,3 +119,16 @@ class GenerateTab(Vertical):
                         id="gen-input",
                     )
                     yield Button("Generate", id="gen-submit-btn", variant="primary")
+
+
+class LogTab(Vertical):
+    """A tab panel displaying application logs, search activity, and execution events."""
+
+    def compose(self) -> ComposeResult:
+        """Build the application log tab layout."""
+        with Horizontal(id="app-log-toolbar"):
+            yield Label("Application Activity & Event Logs", id="app-log-title")
+            yield Button("Clear Logs", id="app-log-clear-btn", variant="default")
+            yield Button("Export Logs", id="app-log-export-btn", variant="primary")
+        with Vertical(id="app-log-container"):
+            yield RichLog(id="app-rich-log", highlight=True, markup=True)

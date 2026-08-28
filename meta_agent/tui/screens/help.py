@@ -32,6 +32,7 @@ HELP_MARKDOWN = """
 | `Tab` / `Shift+Tab` | **Navigate** | Move focus between tabs, inputs, selects, and buttons |
 | `Up` / `Down` | **Select Item** | Move up/down through the items list; details update on selection |
 | `Enter` / `Space` | **Open / Focus** | Open dropdowns or trigger action buttons |
+| *LLM Search* | **Smart Action** | Natural language search, edit (e.g. "edit bot"), or delete (e.g. "delete bot") |
 
 ---
 
@@ -62,7 +63,14 @@ HELP_MARKDOWN = """
 | `Enter` | **Generate** | Submit generation query in background worker |
 | `Up` / `Down` | **Input History** | Navigate through your past generation prompts |
 | *Button* | **Chat with Generated Recipe** | Start chat immediately with the generated recipe |
-| `Esc` | **Back** | Return to recipe list without saving |
+
+---
+
+## 📜 Application Logs Tab (`LogTab`)
+| Key | Action | Description |
+|:---|:---|:---|
+| *Clear Logs* | **Clear** | Clear current application log buffer and view |
+| *Export Logs* | **Export** | Save complete application logs (including LLM Search actions) to file |
 """
 
 
