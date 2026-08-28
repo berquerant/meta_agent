@@ -165,17 +165,26 @@ class MetaAgentTUI(App[None]):
     # Search actions & events
     # ------------------------------------------------------------------
 
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        """Check if action is enabled; disables and hides search binding on sub-screens."""
+        if action == "focus_search" and len(self.screen_stack) > 1:
+            return False
+        return True
+
     def action_focus_search(self) -> None:
-        """Focus the search input for the active tab."""
-        tabbed_content = self.query_one(TabbedContent)
-        active_tab = tabbed_content.active
-        tid = "recipes"
-        if active_tab == "tab-agents":
-            tid = "agents"
-        elif active_tab == "tab-tools":
-            tid = "tools"
+        """Focus the search input for the active tab (main screen only)."""
+        # Only focus search if on the main screen (no sub-screen pushed)
+        if len(self.screen_stack) > 1:
+            return
 
         try:
+            tabbed_content = self.query_one(TabbedContent)
+            active_tab = tabbed_content.active
+            tid = "recipes"
+            if active_tab == "tab-agents":
+                tid = "agents"
+            elif active_tab == "tab-tools":
+                tid = "tools"
             self.query_one(f"#{tid}-search", Input).focus()
         except Exception:
             pass

@@ -22,7 +22,6 @@ class ChatOptionsScreen(Screen[None]):
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
         Binding("escape", "cancel", "Cancel"),
         Binding("c", "start_chat", "Start Chat"),
-        Binding("ctrl+c", "copy_cmd", "Copy Cmd", show=False),
     ]
 
     def __init__(self, recipe: Recipe, default_engine: str, default_model: str, export_dir: str | None = None) -> None:
