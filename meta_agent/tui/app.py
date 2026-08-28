@@ -24,7 +24,7 @@ from textual.widgets import (
     TabPane,
 )
 
-from ..api import list_agents, list_recipes, list_tools, Agent, Recipe, Tool
+from ..api import find_recipe_files, list_agents, list_recipes, list_tools, Agent, Recipe, Tool
 from ..gen import generate_assistant, GenRequest
 from .helpers import (
     CTRL_C_TIMEOUT,
@@ -35,7 +35,7 @@ from .helpers import (
     sort_items,
     tool_markdown,
 )
-from .screens import ChatOptionsScreen, HelpScreen
+from .screens import ChatOptionsScreen, DeleteRecipeScreen, HelpScreen
 from .styles import APP_CSS
 from .widgets import GenerateTab, ResourceTab
 
@@ -50,6 +50,7 @@ class MetaAgentTUI(App[None]):
         Binding("f1", "open_help", "Help", show=False),
         Binding("slash", "focus_search", "Search (/)", show=True),
         Binding("c", "chat_recipe", "Chat", show=True),
+        Binding("d", "delete_recipe", "Delete (d)", show=True),
         Binding("g", "open_generate", "Generate (g)", show=True),
         Binding("q", "quit", "Quit", show=True),
         Binding("ctrl+c", "handle_ctrl_c", "Quit (×2)", show=True),
@@ -172,6 +173,7 @@ class MetaAgentTUI(App[None]):
             self._selected_recipe = None
             try:
                 self.query_one("#recipes-chat-btn", Button).display = False
+                self.query_one("#recipes-delete-btn", Button).display = False
             except Exception:
                 pass
         elif tid == "agents":
@@ -318,7 +320,11 @@ class MetaAgentTUI(App[None]):
         self._selected_recipe = r
         md = recipe_markdown(r)
         self.query_one("#recipes-markdown", Markdown).update(md)
-        self.query_one("#recipes-chat-btn", Button).display = True
+        try:
+            self.query_one("#recipes-chat-btn", Button).display = True
+            self.query_one("#recipes-delete-btn", Button).display = True
+        except Exception:
+            pass
 
     @on(ListView.Selected, "#agents-list")
     def on_agent_selected(self, event: ListView.Selected) -> None:
@@ -361,6 +367,41 @@ class MetaAgentTUI(App[None]):
     def action_chat_recipe(self) -> None:
         """Launch chat options screen via key binding."""
         self._open_chat_options()
+
+    # ------------------------------------------------------------------
+    # Recipe Deletion
+    # ------------------------------------------------------------------
+
+    def action_delete_recipe(self) -> None:
+        """Prompt to delete selected recipe via key binding or button."""
+        if self._selected_recipe is None:
+            self.notify("No recipe selected to delete", severity="warning")
+            return
+
+        recipe_name = self._selected_recipe.name
+        matched_files = find_recipe_files(recipe_name, self._recipes_dir)
+
+        if not matched_files:
+            self.notify(
+                f"No recipe file found in '{self._recipes_dir}' for '{recipe_name}'",
+                severity="warning",
+            )
+            return
+
+        def _on_delete_done(deleted: bool | None) -> None:
+            if deleted:
+                self.notify(f"Deleted recipe: {recipe_name}", severity="information")
+                self._load_recipes()
+
+        self.push_screen(
+            DeleteRecipeScreen(recipe_name, matched_files),
+            _on_delete_done,
+        )
+
+    @on(Button.Pressed, "#recipes-delete-btn")
+    def on_delete_btn(self) -> None:
+        """Handle delete button in recipes tab."""
+        self.action_delete_recipe()
 
     # ------------------------------------------------------------------
     # Help Modal

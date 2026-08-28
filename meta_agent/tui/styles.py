@@ -226,6 +226,14 @@ LoadingIndicator {
     margin-left: 1;
 }
 
+#recipes-actions {
+    margin-top: 1;
+    height: 3;
+}
+#recipes-chat-btn {
+    margin-right: 1;
+}
+
 /* Help screen modal */
 #help-modal-container {
     width: 80%;
@@ -242,5 +250,60 @@ LoadingIndicator {
 #help-close-btn {
     width: 24;
     align-horizontal: center;
+}
+
+/* Delete confirmation modal */
+#delete-modal-container {
+    width: 75%;
+    height: 75%;
+    background: $surface;
+    border: solid $error;
+    padding: 1 2;
+    align: center middle;
+}
+#delete-modal-title {
+    text-style: bold;
+    color: $error;
+    margin-bottom: 1;
+}
+#delete-modal-subtitle {
+    margin-bottom: 1;
+    color: $text;
+}
+#delete-file-path {
+    margin-bottom: 1;
+    color: $accent;
+}
+#delete-multi-body {
+    height: 1fr;
+    margin-bottom: 1;
+}
+#delete-file-list-pane {
+    width: 35%;
+    border-right: solid $primary;
+    padding-right: 1;
+}
+#delete-list-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+#delete-file-list {
+    height: 1fr;
+}
+#delete-preview-box {
+    height: 1fr;
+    padding: 1;
+    border: solid $primary;
+    margin-left: 1;
+    background: $background;
+    overflow-y: auto;
+}
+#delete-modal-buttons {
+    height: 3;
+    margin-top: 1;
+    align-horizontal: right;
+}
+#delete-modal-buttons Button {
+    margin-left: 1;
 }
 """

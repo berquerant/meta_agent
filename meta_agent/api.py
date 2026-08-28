@@ -147,3 +147,51 @@ def list_recipes() -> list[Recipe]:
         )
         for x in recipes
     ]
+
+
+def find_recipe_files(recipe_name: str, recipes_dir: str | None = None) -> list[str]:
+    """
+    Search for TOML recipe files in the specified directory matching recipe_name.
+
+    Matches either the recipe name declared in the TOML file or the filename stem.
+    """
+    from pathlib import Path
+    import tomllib
+
+    target_dir = Path(recipes_dir) if recipes_dir else Path.home() / ".openjarvis" / "recipes"
+    if not target_dir.is_dir():
+        return []
+
+    matched: list[str] = []
+    for toml_path in sorted(target_dir.glob("*.toml")):
+        # Check stem match
+        if toml_path.stem == recipe_name:
+            matched.append(str(toml_path))
+            continue
+
+        # Check name in TOML content
+        try:
+            with open(toml_path, "rb") as f:
+                data = tomllib.load(f)
+            r_name = data.get("recipe", {}).get("name")
+            if r_name == recipe_name:
+                matched.append(str(toml_path))
+        except Exception:
+            continue
+
+    return matched
+
+
+def delete_recipe_file(path: str) -> bool:
+    """Delete a recipe file at the given path."""
+    from pathlib import Path
+
+    p = Path(path)
+    if p.is_file():
+        try:
+            p.unlink()
+            return True
+        except Exception as e:
+            logging.error("Failed to delete recipe file %s: %s", path, e)
+            return False
+    return False

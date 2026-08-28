@@ -72,7 +72,9 @@ class ResourceTab(Vertical):
                 yield LoadingIndicator(id=f"{tid}-loading")
                 yield Markdown("", id=f"{tid}-markdown")
                 if self._show_chat:
-                    yield Button("Chat with this recipe  [c]", id=f"{tid}-chat-btn", variant="success")
+                    with Horizontal(id=f"{tid}-actions"):
+                        yield Button("Chat with this recipe  [c]", id=f"{tid}-chat-btn", variant="success")
+                        yield Button("Delete  [d]", id=f"{tid}-delete-btn", variant="error")
 
 
 class GenerateTab(Vertical):
