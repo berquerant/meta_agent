@@ -3,16 +3,17 @@
 import shlex
 from typing import ClassVar
 
-from textual import on
+from textual import events, on
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, VerticalScroll
 from textual.screen import Screen
-from textual.widgets import Button, Footer, Header, Input, Label, Static, TextArea
+from textual.widgets import Button, Footer, Header, Input, Label, Select, Static, TextArea
 
-from ...api import Recipe
+from ...api import list_agents, list_tools, Recipe
 from ...asking import AskingOpts
 from ...utils import copy_to_system_clipboard
+from ..widgets import SearchableSelect
 from .chat import ChatScreen
 
 
@@ -32,30 +33,95 @@ class ChatOptionsScreen(Screen[None]):
         self._default_model = default_model
         self._export_dir = export_dir
 
+        # Available options for dropdowns
+        from openjarvis import Jarvis
+
+        try:
+            j = Jarvis(engine_key=self._default_engine)
+            self._engine_options = [(e, e) for e in j.list_engines()]
+            self._model_options = [(m, m) for m in j.list_models()]
+            j.close()
+        except Exception:
+            self._engine_options = [
+                ("ollama", "ollama"),
+                ("vllm", "vllm"),
+                ("cloud", "cloud"),
+                ("litellm", "litellm"),
+                ("llamacpp", "llamacpp"),
+            ]
+            self._model_options = [(default_model, default_model)]
+
+        try:
+            self._agent_options = [(a.name, a.name) for a in list_agents()]
+        except Exception:
+            self._agent_options = [
+                ("orchestrator", "orchestrator"),
+                ("native_react", "native_react"),
+                ("simple", "simple"),
+            ]
+
+        try:
+            self._all_tools = [t.name for t in list_tools()]
+        except Exception:
+            self._all_tools = ["file_read", "file_write", "bash", "calculator", "think", "web_search"]
+
     def compose(self) -> ComposeResult:
-        """Build the chat options layout."""
+        """Build the chat options layout with quick selects."""
         r = self._recipe
         engine = r.engine_key or self._default_engine
         model = r.model or self._default_model
-        agent = r.agent_type or ""
+        agent = r.agent_type or "orchestrator"
         tools = ", ".join(r.tools) if r.tools else ""
         system = r.system_prompt or ""
+
+        # Ensure active values are represented in options list
+        engine_opts = list(self._engine_options)
+        if engine and not any(opt[1] == engine for opt in engine_opts):
+            engine_opts.insert(0, (engine, engine))
+
+        model_opts = list(self._model_options)
+        if model and not any(opt[1] == model for opt in model_opts):
+            model_opts.insert(0, (model, model))
+
+        agent_opts = list(self._agent_options)
+        if agent and not any(opt[1] == agent for opt in agent_opts):
+            agent_opts.insert(0, (agent, agent))
 
         yield Header()
         with VerticalScroll():
             yield Label(f"Chat with recipe: {r.name}", id="chat-opts-title")
-            yield Label("Engine:", classes="chat-opts-label")
-            yield Input(value=engine, id="chat-opts-engine")
-            yield Label("Model:", classes="chat-opts-label")
-            yield Input(value=model, id="chat-opts-model")
-            yield Label("Agent type:", classes="chat-opts-label")
-            yield Input(value=agent, id="chat-opts-agent")
-            yield Label("Tools (comma-separated):", classes="chat-opts-label")
-            yield Input(value=tools, id="chat-opts-tools")
+
+            yield Label("Engine (Select preset or type custom):", classes="chat-opts-label")
+            with Horizontal(classes="chat-opts-row"):
+                yield SearchableSelect(engine_opts, value=engine, id="chat-opts-engine-select", allow_blank=True)
+                yield Input(value=engine, id="chat-opts-engine", placeholder="Engine name")
+
+            yield Label("Model (Select preset or type custom):", classes="chat-opts-label")
+            with Horizontal(classes="chat-opts-row"):
+                yield SearchableSelect(model_opts, value=model, id="chat-opts-model-select", allow_blank=True)
+                yield Input(value=model, id="chat-opts-model", placeholder="Model name")
+
+            yield Label("Agent type (Select preset or type custom):", classes="chat-opts-label")
+            with Horizontal(classes="chat-opts-row"):
+                yield SearchableSelect(agent_opts, value=agent, id="chat-opts-agent-select", allow_blank=True)
+                yield Input(value=agent, id="chat-opts-agent", placeholder="Agent name")
+
+            yield Label("Tools (Select to append or edit comma-separated):", classes="chat-opts-label")
+            with Horizontal(classes="chat-opts-row"):
+                yield SearchableSelect(
+                    [(t, t) for t in self._all_tools],
+                    id="chat-opts-tool-select",
+                    prompt="Add tool...",
+                    allow_blank=True,
+                )
+                yield Input(value=tools, id="chat-opts-tools", placeholder="e.g. file_read, think")
+
             yield Label("System prompt:", classes="chat-opts-label")
             yield TextArea(system, id="chat-opts-system")
+
             yield Label("Command that will be executed:", classes="chat-opts-label")
             yield Static("", id="chat-opts-cmd")
+
             with Horizontal(id="chat-opts-buttons"):
                 yield Button("Start Chat  [c]", id="chat-opts-start", variant="success")
                 yield Button("Copy Command", id="chat-opts-copy", variant="primary")
@@ -65,6 +131,46 @@ class ChatOptionsScreen(Screen[None]):
     def on_mount(self) -> None:
         """Populate the command preview after widgets are ready."""
         self._update_cmd_preview()
+
+    def on_key(self, event: events.Key) -> None:
+        """Open select overlay if slash key is pressed on a focused Select widget."""
+        if event.character == "/" and isinstance(self.focused, Select):
+            event.prevent_default()
+            event.stop()
+            self.focused.action_show_overlay()
+
+    # ------------------------------------------------------------------
+    # Select <-> Input Synchronization
+    # ------------------------------------------------------------------
+
+    @on(Select.Changed, "#chat-opts-engine-select")
+    def on_engine_select_changed(self, event: Select.Changed) -> None:
+        """Update engine input when select changed."""
+        if event.value is not Select.BLANK and event.value:
+            self.query_one("#chat-opts-engine", Input).value = str(event.value)
+
+    @on(Select.Changed, "#chat-opts-model-select")
+    def on_model_select_changed(self, event: Select.Changed) -> None:
+        """Update model input when select changed."""
+        if event.value is not Select.BLANK and event.value:
+            self.query_one("#chat-opts-model", Input).value = str(event.value)
+
+    @on(Select.Changed, "#chat-opts-agent-select")
+    def on_agent_select_changed(self, event: Select.Changed) -> None:
+        """Update agent input when select changed."""
+        if event.value is not Select.BLANK and event.value:
+            self.query_one("#chat-opts-agent", Input).value = str(event.value)
+
+    @on(Select.Changed, "#chat-opts-tool-select")
+    def on_tool_select_changed(self, event: Select.Changed) -> None:
+        """Append chosen tool to tools input."""
+        if event.value is not Select.BLANK and event.value:
+            tool_name = str(event.value)
+            tools_inp = self.query_one("#chat-opts-tools", Input)
+            current_tools = [t.strip() for t in tools_inp.value.split(",") if t.strip()]
+            if tool_name not in current_tools:
+                current_tools.append(tool_name)
+                tools_inp.value = ", ".join(current_tools)
 
     # ------------------------------------------------------------------
     # Command preview & full command builder
@@ -84,7 +190,6 @@ class ChatOptionsScreen(Screen[None]):
 
         parts: list[str] = ["meta_agent", "chat", "--recipe", shlex.quote(r.name)]
 
-        # Compare with recipe defaults and add option only if overridden
         rec_engine = r.engine_key or self._default_engine
         if engine and engine != rec_engine:
             parts.extend(["--engine", shlex.quote(engine)])
@@ -172,10 +277,6 @@ class ChatOptionsScreen(Screen[None]):
     def on_cancel_btn(self) -> None:
         """Handle cancel button."""
         self.dismiss()
-
-    def action_copy_cmd(self) -> None:
-        """Copy full untruncated command to clipboard."""
-        self._copy_command()
 
     @on(Button.Pressed, "#chat-opts-copy")
     def on_copy_btn(self) -> None:

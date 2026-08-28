@@ -78,8 +78,16 @@ LoadingIndicator {
 .chat-opts-label {
     margin: 1 2 0 2;
 }
-#chat-opts-engine, #chat-opts-model, #chat-opts-agent, #chat-opts-tools {
+.chat-opts-row {
     margin: 0 2;
+    height: 3;
+}
+.chat-opts-row Select {
+    width: 28;
+    margin-right: 1;
+}
+.chat-opts-row Input {
+    width: 1fr;
 }
 #chat-opts-system {
     margin: 0 2;

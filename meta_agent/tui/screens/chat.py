@@ -1,10 +1,11 @@
 """ChatScreen for interactive multi-turn chat inside the TUI."""
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import ClassVar
 
-from textual import on, work
+from textual import events, on, work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -60,11 +61,14 @@ class ChatScreen(Screen[None]):
         self._opts = opts
         self._export_dir = export_dir or get_default_export_dir()
         self._history: list[tuple[str, str]] = []  # (role, text)
+        self._user_inputs: list[str] = []  # past user inputs for history traversal
+        self._history_cursor: int = -1
+        self._current_draft: str = ""
         self._log_buffer: list[str] = []
         self._log_handler: RichLogHandler | None = None
 
     def compose(self) -> ComposeResult:
-        """Build the chat screen layout with draggable splitter and export buttons."""
+        """Build the chat screen layout with action buttons."""
         yield Header()
         with Horizontal(id="chat-screen-layout"):
             # Left pane: Recipe/agent info summary + Actions
@@ -72,7 +76,7 @@ class ChatScreen(Screen[None]):
                 yield Label(f"Recipe: {self._recipe_name}", id="chat-sidebar-title")
                 yield Label(f"Engine: {self._opts.engine}", classes="chat-sidebar-item")
                 yield Label(f"Model: {self._opts.model}", classes="chat-sidebar-item")
-                yield Label(f"Agent: {self._opts.agent}", classes="chat-sidebar-item")
+                yield Label(f"Agent: {self._opts.agent or 'direct engine'}", classes="chat-sidebar-item")
                 if self._opts.tools:
                     yield Label(f"Tools: {self._opts.tools}", classes="chat-sidebar-item")
                 if self._opts.system:
@@ -155,7 +159,7 @@ class ChatScreen(Screen[None]):
                 f"# Chat Session: {self._recipe_name}\n",
                 f"- **Engine**: {self._opts.engine}",
                 f"- **Model**: {self._opts.model}",
-                f"- **Agent**: {self._opts.agent}",
+                f"- **Agent**: {self._opts.agent or 'direct engine'}",
                 f"- **Tools**: {self._opts.tools or 'none'}\n",
                 "---\n",
             ]
@@ -196,6 +200,38 @@ class ChatScreen(Screen[None]):
     # Message Submission & Agent Interaction
     # ------------------------------------------------------------------
 
+    def on_key(self, event: events.Key) -> None:
+        """Handle Up/Down arrow navigation for chat input history."""
+        inp = self.query_one("#chat-input", Input)
+        if not inp.has_focus or not self._user_inputs:
+            return
+
+        if event.key == "up":
+            event.prevent_default()
+            event.stop()
+            if self._history_cursor == -1:
+                # Save current draft before entering history
+                self._current_draft = inp.value
+                self._history_cursor = len(self._user_inputs) - 1
+            elif self._history_cursor > 0:
+                self._history_cursor -= 1
+
+            inp.value = self._user_inputs[self._history_cursor]
+            inp.cursor_position = len(inp.value)
+
+        elif event.key == "down":
+            event.prevent_default()
+            event.stop()
+            if self._history_cursor != -1:
+                if self._history_cursor < len(self._user_inputs) - 1:
+                    self._history_cursor += 1
+                    inp.value = self._user_inputs[self._history_cursor]
+                else:
+                    # Restored draft
+                    self._history_cursor = -1
+                    inp.value = self._current_draft
+                inp.cursor_position = len(inp.value)
+
     @on(Button.Pressed, "#chat-send-btn")
     @on(Input.Submitted, "#chat-input")
     def on_submit(self) -> None:
@@ -205,6 +241,10 @@ class ChatScreen(Screen[None]):
         if not text:
             return
         inp.value = ""
+        self._user_inputs.append(text)
+        self._history_cursor = -1
+        self._current_draft = ""
+
         self._history.append(("User", text))
         self._render_chat()
         self.query_one("#chat-status-bar", Static).update("⏳ Generating assistant response...")
@@ -215,30 +255,35 @@ class ChatScreen(Screen[None]):
         self._log_buffer.append(f"USER: {text}")
         self._ask_agent(text)
 
-    def _render_chat(self) -> None:
-        """Render all messages in markdown."""
+    def _render_chat(self, streaming_response: str | None = None) -> None:
+        """Render all messages in markdown, optionally including streaming response."""
         md_lines: list[str] = ["# Chat Session\n"]
         for role, text in self._history:
             if role == "User":
                 md_lines.append(f"### 👤 User\n{text}\n")
             else:
                 md_lines.append(f"### 🤖 Assistant\n{text}\n")
+        if streaming_response is not None:
+            md_lines.append(f"### 🤖 Assistant\n{streaming_response} ▌\n")
+
         self.query_one("#chat-markdown", Markdown).update("\n".join(md_lines))
         scroll = self.query_one("#chat-messages", VerticalScroll)
         scroll.scroll_end(animate=False)
 
     @work(thread=True)
     def _ask_agent(self, query: str) -> None:
-        """Query Jarvis agent in a background thread."""
+        """Query Jarvis agent in a background thread with progressive/streaming updates."""
         from openjarvis import Jarvis
 
         log = self.query_one("#chat-rich-log", RichLog)
         tools_list = [t.strip() for t in self._opts.tools.split(",") if t.strip()]
 
+        agent_mode = self._opts.agent and self._opts.agent not in ("simple", "none", "direct")
+        agent_label = self._opts.agent if agent_mode else "direct engine"
+
         self.app.call_from_thread(
             log.write,
-            f"[yellow]Calling agent '{self._opts.agent}' with '{self._opts.model}' "
-            f"(tools: {len(tools_list)})...[/yellow]",
+            f"[yellow]Calling {agent_label} with '{self._opts.model}' " f"(tools: {len(tools_list)})...[/yellow]",
         )
 
         # Build query including system prompt and prior conversation history
@@ -246,7 +291,6 @@ class ChatScreen(Screen[None]):
         if self._opts.system:
             prompt_parts.append(f"# System Prompt\n{self._opts.system}\n")
 
-        # Include past turns (excluding the current latest user query which was just added)
         prior_turns = self._history[:-1]
         if prior_turns:
             prompt_parts.append("# Conversation History")
@@ -260,33 +304,51 @@ class ChatScreen(Screen[None]):
                 prompt_parts.append(f"# User Query\n{query}")
 
         full_query = "\n\n".join(prompt_parts)
-
         j = Jarvis(model=self._opts.model, engine_key=self._opts.engine)
+
+        content = ""
         try:
-            res = j.ask_full(
-                full_query,
-                agent=self._opts.agent or "orchestrator",
-                tools=tools_list,
-            )
-            content = str(res.get("content", ""))
-            tool_results = res.get("tool_results", [])
-            for tr in tool_results:
-                tool_name = tr.get("tool_name", "unknown")
-                success = tr.get("success", True)
-                status_color = "green" if success else "red"
+            if not agent_mode:
+                # Direct engine mode: streaming token response
+                async def _run_stream() -> str:
+                    parts: list[str] = []
+                    async for token in j.ask_stream(full_query):
+                        parts.append(token)
+                        curr_text = "".join(parts)
+                        self.app.call_from_thread(self._render_chat, curr_text)
+                    return "".join(parts)
+
+                content = asyncio.run(_run_stream())
                 self.app.call_from_thread(
                     log.write,
-                    f"[{status_color}]Tool executed: {tool_name} (success={success})[/{status_color}]",
+                    "[green]✓ Direct engine streaming response completed.[/green]",
                 )
-            self.app.call_from_thread(
-                log.write,
-                "[green]✓ Agent response successfully received.[/green]",
-            )
+            else:
+                # Agent mode: run agent and report tools execution
+                res = j.ask_full(
+                    full_query,
+                    agent=self._opts.agent or "orchestrator",
+                    tools=tools_list,
+                )
+                content = str(res.get("content", ""))
+                tool_results = res.get("tool_results", [])
+                for tr in tool_results:
+                    tool_name = tr.get("tool_name", "unknown")
+                    success = tr.get("success", True)
+                    status_color = "green" if success else "red"
+                    self.app.call_from_thread(
+                        log.write,
+                        f"[{status_color}]Tool executed: {tool_name} (success={success})[/{status_color}]",
+                    )
+                self.app.call_from_thread(
+                    log.write,
+                    "[green]✓ Agent execution completed.[/green]",
+                )
         except Exception as e:
             content = f"⚠️ Error: {e}"
             self.app.call_from_thread(
                 log.write,
-                f"[bold red]✗ Agent execution failed: {e}[/bold red]",
+                f"[bold red]✗ Execution failed: {e}[/bold red]",
             )
         finally:
             j.close()
