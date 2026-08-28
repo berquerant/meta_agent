@@ -37,7 +37,7 @@ from .helpers import (
     sort_items,
     tool_markdown,
 )
-from .screens import ChatOptionsScreen, DeleteRecipeScreen, EditRecipeScreen, HelpScreen
+from .screens import ChatOptionsScreen, DeleteRecipeScreen, EditRecipeScreen, HelpScreen, ResumeChatScreen
 from .screens.chat import RichLogHandler
 from .styles import APP_CSS
 from .widgets import GenerateTab, LogTab, ResourceTab
@@ -53,6 +53,7 @@ class MetaAgentTUI(App[None]):
         Binding("f1", "open_help", "Help", show=False),
         Binding("slash", "focus_search", "Search (/)", show=True),
         Binding("c", "chat_recipe", "Chat", show=True),
+        Binding("r", "resume_chat", "Resume Chat (r)", show=True),
         Binding("e", "edit_recipe", "Edit (e)", show=True),
         Binding("d", "delete_recipe", "Delete (d)", show=True),
         Binding("g", "open_generate", "Generate (g)", show=True),
@@ -474,6 +475,15 @@ class MetaAgentTUI(App[None]):
     def action_chat_recipe(self) -> None:
         """Launch chat options screen via key binding."""
         self._open_chat_options()
+
+    def action_resume_chat(self) -> None:
+        """Open the resume chat session modal."""
+        self.push_screen(ResumeChatScreen(self._export_dir))
+
+    @on(Button.Pressed, "#recipes-resume-btn")
+    def on_resume_btn(self) -> None:
+        """Open resume chat screen via button."""
+        self.action_resume_chat()
 
     # ------------------------------------------------------------------
     # Recipe Editing & Deletion

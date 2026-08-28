@@ -18,6 +18,7 @@ HELP_MARKDOWN = """
 | `?` / `F1` | **Help** | Open this keyboard shortcuts help modal |
 | `/` | **Search** | Focus the filter input for the currently active tab (Recipes / Agents / Tools) |
 | `c` | **Chat** | Open chat setup options for the selected recipe |
+| `r` | **Resume Chat** | Browse and restore previous chat session from exported markdown |
 | `e` | **Edit** | Edit selected recipe TOML file in interactive editor (`Ctrl+S` to save) |
 | `d` | **Delete** | Prompt to delete selected recipe file with preview/multi-choice selection |
 | `g` | **Generate** | Switch to the Generate tab to create a new assistant |
@@ -43,6 +44,16 @@ HELP_MARKDOWN = """
 | `/` | **Search Presets** | When focused on a dropdown (Engine/Model/Agent/Tools), open search popup |
 | `Esc` | **Cancel / Back** | Discard changes and return to main screen |
 | *Buttons* | **Copy Command** | Copy untruncated `meta_agent chat ...` command to system clipboard |
+
+---
+
+## 📂 Resume Chat Session Modal (`ResumeChatScreen`)
+| Key | Action | Description |
+|:---|:---|:---|
+| `/` | **Search Files** | Focus the filter input to quickly search exported sessions by name |
+| `Up` / `Down` | **Select File** | Navigate through exported sessions with real-time preview |
+| `Enter` | **Resume** | Restore session settings and messages to continue chat |
+| `Esc` | **Cancel** | Close modal and return to main screen |
 
 ---
 

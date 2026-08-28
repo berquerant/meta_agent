@@ -59,6 +59,8 @@ class ResourceTab(Vertical):
         with Horizontal(id=f"{tid}-toolbar"):
             yield Input(placeholder="Filter by name...", id=f"{tid}-search")
             yield Button("LLM Search", id=f"{tid}-llm-btn", variant="default")
+            if self._show_chat:
+                yield Button("Resume Chat [r]", id=f"{tid}-resume-btn", variant="default")
             yield SearchableSelect(
                 [(label, val) for label, val in SORT_OPTIONS],
                 id=f"{tid}-sort",

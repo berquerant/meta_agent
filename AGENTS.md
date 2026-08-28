@@ -45,8 +45,9 @@ meta_agent/
 │   │   │   ├── delete_recipe.py # DeleteRecipeScreen (preview & duplicate file deletion)
 │   │   │   ├── edit_recipe.py   # EditRecipeScreen (in-TUI editor with syntax validation)
 │   │   │   ├── generate.py     # GenerateScreen
-│   │   │   └── help.py         # HelpScreen (shortcuts & guide modal)
-│   │   └── widgets.py     # ResourceTab, GenerateTab & SearchableSelect widgets
+│   │   │   ├── help.py         # HelpScreen (shortcuts & guide modal)
+│   │   │   └── resume_chat.py  # ResumeChatScreen (restore session from exported markdown)
+│   │   └── widgets.py     # ResourceTab, GenerateTab, LogTab & SearchableSelect widgets
 │   └── utils.py       # Shared utilities (formatting, file reading, etc.)
 ├── scripts/           # Helper scripts (e.g. release.py)
 ├── tests/             # pytest test suite

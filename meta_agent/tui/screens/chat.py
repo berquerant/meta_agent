@@ -59,14 +59,20 @@ class ChatScreen(Screen[None]):
         Binding("f1", "open_help", "Help", show=False),
     ]
 
-    def __init__(self, recipe_name: str, opts: AskingOpts, export_dir: str | None = None) -> None:
+    def __init__(
+        self,
+        recipe_name: str,
+        opts: AskingOpts,
+        export_dir: str | None = None,
+        initial_history: list[tuple[str, str, str]] | None = None,
+    ) -> None:
         """Initialize with recipe name, resolved asking options, and export dir."""
         super().__init__()
         self._recipe_name = recipe_name
         self._opts = opts
         self._export_dir = export_dir or get_default_export_dir()
-        self._history: list[tuple[str, str, str]] = []  # (role, text, timestamp)
-        self._user_inputs: list[str] = []  # past user inputs for up/down history traversal
+        self._history: list[tuple[str, str, str]] = list(initial_history) if initial_history else []
+        self._user_inputs: list[str] = [text for role, text, _ts in self._history if role == "User"]
         self._history_cursor: int = -1  # -1 indicates active/draft editing state
         self._current_draft: str = ""
         self._log_buffer: list[str] = []
@@ -110,6 +116,9 @@ class ChatScreen(Screen[None]):
         self.query_one("#chat-input", Input).focus()
         log = self.query_one("#chat-rich-log", RichLog)
         init_msg = "System initialized. Ready for chat session."
+        if self._history:
+            init_msg = f"System initialized. Resumed previous session with {len(self._history)} messages."
+            self._render_chat()
         log.write(f"[green]{init_msg}[/green]")
         self._log_buffer.append(f"INFO: system - {init_msg}")
 
@@ -169,9 +178,11 @@ class ChatScreen(Screen[None]):
                 f"- **Engine**: {self._opts.engine}",
                 f"- **Model**: {self._opts.model}",
                 f"- **Agent**: {self._opts.agent or 'direct engine'}",
-                f"- **Tools**: {self._opts.tools or 'none'}\n",
-                "---\n",
+                f"- **Tools**: {self._opts.tools or 'none'}",
             ]
+            if self._opts.system:
+                lines.append(f"- **System**: {self._opts.system}")
+            lines.append("\n---\n")
             for role, text, ts in self._history:
                 lines.append(f"## 👤 {role} [{ts}]\n{text}\n")
 

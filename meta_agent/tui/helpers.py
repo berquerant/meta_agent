@@ -235,6 +235,73 @@ def parse_recipe_action_intent(raw_response: str) -> RecipeActionIntent:
 
 
 # ---------------------------------------------------------------------------
+# Exported Chat File Restoration
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class RestoredChatSession:
+    """Restored chat session configuration and message history from an exported Markdown file."""
+
+    recipe_name: str
+    engine: str
+    model: str
+    agent: str | None
+    tools: str | None
+    system: str | None
+    history: list[tuple[str, str, str]]  # (role, text, timestamp)
+
+
+def parse_exported_chat_file(content: str) -> RestoredChatSession | None:
+    """Parse an exported chat session markdown file into RestoredChatSession."""
+    import re
+
+    header_m = re.search(r"# Chat Session:\s*(.+)", content)
+    if not header_m:
+        return None
+
+    recipe_name = header_m.group(1).strip()
+
+    def _extract_field(field_name: str) -> str | None:
+        m = re.search(rf"- \*\*{field_name}\*\*:\s*(.+)", content)
+        if m:
+            val = m.group(1).strip()
+            if val.lower() in ("none", "direct engine", ""):
+                return None if field_name != "engine" and field_name != "model" else val
+            return val
+        return None
+
+    engine = _extract_field("Engine") or "ollama"
+    model = _extract_field("Model") or "gemma4:12b"
+    agent = _extract_field("Agent")
+    tools = _extract_field("Tools")
+    system = _extract_field("System")
+
+    # Extract conversation messages: ## 👤 User [timestamp] or ## 🤖 Assistant [timestamp]
+    msg_pattern = re.compile(
+        r"##\s*(?:👤|🤖)?\s*(User|Assistant)\s*(?:\[(.*?)\])?\n(.*?)(?=\n##\s*(?:👤|🤖)?\s*(?:User|Assistant)|\Z)",
+        re.DOTALL,
+    )
+    history: list[tuple[str, str, str]] = []
+    for m in msg_pattern.finditer(content):
+        role = m.group(1).strip()
+        ts = (m.group(2) or "").strip() or now_datetime_str()
+        text = m.group(3).strip()
+        if text:
+            history.append((role, text, ts))
+
+    return RestoredChatSession(
+        recipe_name=recipe_name,
+        engine=engine,
+        model=model,
+        agent=agent,
+        tools=tools,
+        system=system,
+        history=history,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Runtime Options Discovery
 # ---------------------------------------------------------------------------
 

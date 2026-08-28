@@ -6,6 +6,7 @@ from .delete_recipe import DeleteRecipeScreen
 from .edit_recipe import EditRecipeScreen
 from .generate import GenerateScreen
 from .help import HelpScreen
+from .resume_chat import ResumeChatScreen
 
 __all__ = [
     "ChatScreen",
@@ -14,4 +15,5 @@ __all__ = [
     "EditRecipeScreen",
     "GenerateScreen",
     "HelpScreen",
+    "ResumeChatScreen",
 ]

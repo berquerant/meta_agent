@@ -395,4 +395,72 @@ LoadingIndicator {
 #app-rich-log {
     height: 1fr;
 }
+
+/* Resume Chat Modal */
+#resume-modal-container {
+    width: 80%;
+    height: 80%;
+    background: $surface;
+    border: solid $accent;
+    padding: 1 2;
+    align: center middle;
+}
+#resume-modal-title {
+    text-style: bold;
+    color: $accent;
+    margin-bottom: 1;
+}
+#resume-modal-subtitle {
+    margin-bottom: 1;
+    color: $text;
+}
+#resume-manual-bar {
+    height: 3;
+    margin-bottom: 1;
+}
+#resume-path-input {
+    width: 1fr;
+}
+#resume-load-btn {
+    margin-left: 1;
+}
+#resume-main-body {
+    height: 1fr;
+    margin-bottom: 1;
+}
+#resume-file-list-pane {
+    width: 35%;
+    border-right: solid $primary;
+    padding-right: 1;
+}
+#resume-list-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+#resume-filter-input {
+    margin-bottom: 1;
+}
+#resume-file-list {
+    height: 1fr;
+}
+#resume-preview-box {
+    height: 1fr;
+    padding: 1;
+    border: solid $primary;
+    margin-left: 1;
+    background: $background;
+    overflow-y: auto;
+}
+#resume-status-bar {
+    height: 1;
+    color: $error;
+}
+#resume-modal-buttons {
+    height: 3;
+    margin-top: 1;
+    align-horizontal: right;
+}
+#resume-modal-buttons Button {
+    margin-left: 1;
+}
 """
