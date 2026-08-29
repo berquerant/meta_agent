@@ -32,6 +32,7 @@ meta_agent/
 │   ├── cli.py         # argparse entry point
 │   ├── cmd.py         # High-level Cmd class wiring CLI args to api/gen
 │   ├── gen.py         # Recipe generation logic and meta-agent prompt
+│   ├── llm.py         # LLM client abstraction interface & OpenJarvis wrapper
 │   ├── tools.py       # Custom OpenJarvis tool registrations
 │   ├── tui/           # Textual-based interactive TUI (package)
 │   │   ├── __init__.py    # re-exports run_tui

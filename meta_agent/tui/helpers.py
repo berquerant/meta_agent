@@ -423,14 +423,19 @@ class RuntimeOptions:
 
 
 def fetch_runtime_options(default_engine: str, default_model: str) -> RuntimeOptions:
-    """Query OpenJarvis and registries to discover available options with fallback defaults."""
-    from openjarvis import Jarvis
+    """Query LLM client and registries to discover available options with fallback defaults."""
+    from meta_agent.llm import get_llm_client
 
+    client = get_llm_client()
     try:
-        j = Jarvis(engine_key=default_engine)
-        engine_opts = [(e, e) for e in j.list_engines()]
-        model_opts = [(m, m) for m in j.list_models()]
-        j.close()
+        discovered_engines = client.list_engines(default_engine)
+        engine_opts = [(e, e) for e in discovered_engines] if discovered_engines else []
+        discovered_models = client.list_models(default_engine)
+        model_opts = [(m, m) for m in discovered_models] if discovered_models else []
+        if not engine_opts:
+            raise ValueError("No engines discovered")
+        if not model_opts:
+            model_opts = [(default_model, default_model)]
     except Exception:
         engine_opts = [
             ("ollama", "ollama"),

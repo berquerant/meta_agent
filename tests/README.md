@@ -9,6 +9,7 @@ This directory contains unit, integration, and UI tests for `meta_agent`.
 | [`test_tui_app.py`](test_tui_app.py) | `meta_agent.tui.app` | Verifies main TUI application lifecycle, tab navigation, shortcuts, fullscreen modes, and log management. |
 | [`test_tui_screens.py`](test_tui_screens.py) | `meta_agent.tui.screens.*` | Verifies modal screens (`HelpScreen`, `ChatOptionsScreen`, `EditRecipeScreen`, `DeleteRecipeScreen`, `ResumeChatScreen`, `ChatScreen`), validation, and dismiss workflows. |
 | [`test_tui_helpers.py`](test_tui_helpers.py) | `meta_agent.tui.helpers` | Table-driven tests for sorting, filtering, recipe matching, prompt construction, intent parsing, and input history. |
+| [`test_tui_e2e_llm.py`](test_tui_e2e_llm.py) | `meta_agent.tui.*` / `meta_agent.llm` | E2E workflows with mock LLM client (recipe generation, chat token streaming, agent mode, Ask LLM routing). |
 | [`test_recipe_ops.py`](test_recipe_ops.py) | `meta_agent.api` | Tests recipe file I/O, persistence, discovery, and file system safety. |
 | [`test_utils.py`](test_utils.py) | `meta_agent.utils` | Tests shared date formatting and text utility functions. |
 | [`test_meta_agent.py`](test_meta_agent.py) | `meta_agent` | Tests package initialization and top-level module imports. |
@@ -68,3 +69,16 @@ Table-driven tests using `@pytest.mark.parametrize` cover various input combinat
 | `test_build_chat_command_parts` | <ul><li>Recipe defaults (no extra flags added)</li><li>Single option override (e.g. `--engine cloud`)</li><li>Combined overrides (e.g. `--model`, `--agent`)</li></ul> | Ensures CLI invocation argument construction only appends flags that differ from recipe defaults. |
 | `test_parse_recipe_action_intent` | <ul><li>`generate`: Extracts generation prompt</li><li>`resume`: Extracts chat session file</li><li>`delete`: Extracts target recipe</li><li>`edit`: Extracts target recipe</li><li>`search`: Natural language ranked fallback</li></ul> | Verifies intent extraction from Ask LLM responses across structured JSON and fallback string formats. |
 | `test_input_history` | <ul><li>Adding entries and trimming beyond `max_size`</li><li>`previous()` navigation backwards through history</li><li>Clamping at the oldest entry</li><li>`next()` navigation restoring the draft</li><li>New append resetting cursor and draft</li><li>`clear()` resetting state</li></ul> | Ensures prompt history navigation acts reliably without losing draft text. |
+
+---
+
+### 4. E2E LLM Workflows (`test_tui_e2e_llm.py`)
+
+End-to-end integration tests using `MockLLMClient` verifying complete UI loops and asynchronous workers:
+
+| Test Function | Workflow / User Scenario | Assertions & Significance |
+|---|---|---|
+| `test_e2e_tui_generate_recipe_workflow` | <ul><li>Type prompt in `GenerateTab` & submit via `Ctrl+J`</li><li>`MockLLMClient` responds with valid TOML</li><li>Click `Chat with Recipe` button</li></ul> | Verifies full recipe creation pipeline: background thread execution, disk writing (`.toml`), preview display, and direct transition to `ChatOptionsScreen`. |
+| `test_e2e_tui_chat_streaming_workflow` | <ul><li>Open `ChatScreen` in direct engine mode</li><li>Submit user question</li><li>`MockLLMClient` streams tokens progressively</li></ul> | Validates real-time token streaming and assembly in `ChatScreen` markdown view and history capture without UI blocking. |
+| `test_e2e_tui_chat_agent_execution_workflow` | <ul><li>Open `ChatScreen` in agent mode (`orchestrator`) with tools</li><li>Submit agent task</li><li>`MockLLMClient` responds with final output</li></ul> | Verifies multi-turn agent execution, tools invocation logging, and assistant response capturing. |
+| `test_e2e_tui_ask_llm_action_workflow` | <ul><li>Type natural language query in `Recipes` tab</li><li>Click Ask LLM button</li><li>`MockLLMClient` returns JSON action intent</li></ul> | Verifies end-to-end semantic intent parsing, automatic switching to `GenerateTab`, and query pre-population. |

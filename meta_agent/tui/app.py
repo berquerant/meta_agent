@@ -804,6 +804,28 @@ class MetaAgentTUI(App[None]):
                 self.push_screen(ChatOptionsScreen(r, self._engine, self._model, export_dir=self._export_dir))
                 return
 
+        # Fallback: discover from recipes_dir
+        matched_files = find_recipe_files(self._last_generated_recipe, self._recipes_dir)
+        if matched_files:
+            try:
+                import tomllib
+
+                with open(matched_files[0], "rb") as f:
+                    data = tomllib.load(f)
+                r_dict = data.get("recipe", {})
+                rec = Recipe(
+                    name=r_dict.get("name", self._last_generated_recipe),
+                    description=r_dict.get("description", ""),
+                    system_prompt=r_dict.get("system", ""),
+                    engine_key=r_dict.get("engine", self._engine),
+                    model=r_dict.get("model", self._model),
+                    agent_type=r_dict.get("agent", "native_react"),
+                    tools=r_dict.get("tools", []),
+                )
+                self.push_screen(ChatOptionsScreen(rec, self._engine, self._model, export_dir=self._export_dir))
+            except Exception:
+                pass
+
     # ------------------------------------------------------------------
     # App Log Tab Actions
     # ------------------------------------------------------------------

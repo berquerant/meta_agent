@@ -1,6 +1,5 @@
 """ChatScreen for interactive multi-turn chat sessions inside the TUI with streaming and log capture."""
 
-import asyncio
 import logging
 from pathlib import Path
 from typing import ClassVar
@@ -407,9 +406,7 @@ class ChatScreen(Screen[None]):
 
     @work(thread=True)
     def _ask_agent(self, query: str) -> None:
-        """Query Jarvis agent in a background thread with progressive/streaming updates."""
-        from openjarvis import Jarvis
-
+        """Query LLM agent in a background thread with progressive/streaming updates."""
         log = self.query_one("#chat-rich-log", RichLog)
         tools_list = [t.strip() for t in self._opts.tools.split(",") if t.strip()]
 
@@ -424,45 +421,39 @@ class ChatScreen(Screen[None]):
         self.app.call_from_thread(log.write, log_msg)
 
         full_query = build_chat_prompt(self._opts.system, self._history, query)
-        j = Jarvis(model=self._opts.model, engine_key=self._opts.engine)
+        from meta_agent.llm import get_llm_client
 
+        client = get_llm_client()
         content = ""
         try:
             if not agent_mode:
                 # Direct engine mode: streaming token response
-                async def _run_stream() -> str:
-                    parts: list[str] = []
-                    async for token in j.ask_stream(full_query):
-                        parts.append(token)
-                        curr_text = "".join(parts)
-                        self.app.call_from_thread(self._render_chat, curr_text)
-                    return "".join(parts)
-
-                content = asyncio.run(_run_stream())
+                parts: list[str] = []
+                for token in client.ask_stream(
+                    full_query,
+                    agent=None,
+                    tools=[],
+                    engine=self._opts.engine,
+                    model=self._opts.model,
+                ):
+                    parts.append(token)
+                    curr_text = "".join(parts)
+                    self.app.call_from_thread(self._render_chat, curr_text)
+                content = "".join(parts)
                 ts_done = now_datetime_str()
                 self.app.call_from_thread(
                     log.write,
                     f"[dim]{ts_done}[/dim] [green]✓ Direct engine streaming response completed.[/green]",
                 )
             else:
-                # Agent mode: run agent and report tools execution
-                res = j.ask_full(
+                # Agent mode: run agent
+                content = client.ask(
                     full_query,
                     agent=self._opts.agent or "orchestrator",
                     tools=tools_list,
+                    engine=self._opts.engine,
+                    model=self._opts.model,
                 )
-                content = str(res.get("content", ""))
-                tool_results = res.get("tool_results", [])
-                for tr in tool_results:
-                    tool_name = tr.get("tool_name", "unknown")
-                    success = tr.get("success", True)
-                    status_color = "green" if success else "red"
-                    ts_tr = now_datetime_str()
-                    tr_msg = (
-                        f"[dim]{ts_tr}[/dim] [{status_color}]Tool executed: "
-                        f"{tool_name} (success={success})[/{status_color}]"
-                    )
-                    self.app.call_from_thread(log.write, tr_msg)
                 ts_done = now_datetime_str()
                 self.app.call_from_thread(
                     log.write,
@@ -475,8 +466,6 @@ class ChatScreen(Screen[None]):
                 log.write,
                 f"[dim]{ts_err}[/dim] [bold red]✗ Execution failed: {e}[/bold red]",
             )
-        finally:
-            j.close()
 
         def _done() -> None:
             ts_resp = now_datetime_str()
