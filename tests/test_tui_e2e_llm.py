@@ -101,8 +101,7 @@ async def test_e2e_tui_generate_recipe_workflow() -> None:
         app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
         async with app.run_test() as pilot:
             # Switch to GenerateTab
-            tabs = app.query_one(TabbedContent)
-            tabs.active = "tab-generate"
+            app.action_open_generate()
             await pilot.pause()
 
             # Enter generation prompt in TextArea and submit

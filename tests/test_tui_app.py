@@ -2,7 +2,7 @@ from pathlib import Path
 import tempfile
 
 import pytest
-from textual.widgets import Button, TabbedContent, TextArea
+from textual.widgets import Button, ListView, TabbedContent, TextArea
 
 from meta_agent.api import Recipe
 from meta_agent.tui.app import MetaAgentTUI
@@ -21,14 +21,15 @@ async def test_tui_app_tabs_and_search_focus() -> None:
         async with app.run_test() as pilot:
             tabs = app.query_one(TabbedContent)
             assert tabs.active == "tab-recipes"
+            assert app.query_one("#recipes-search", TextArea).has_focus
 
             # Switch to agents tab
-            tabs.active = "tab-agents"
+            await pilot.click(tabs.get_tab("tab-agents"))
             await pilot.pause()
             assert tabs.active == "tab-agents"
 
-            # Press '/' to focus search TextArea in agents tab
-            await pilot.press("slash")
+            # Press 'ctrl+f' to focus search TextArea in agents tab
+            await pilot.press("ctrl+f")
             await pilot.pause()
             assert app.query_one("#agents-search", TextArea).has_focus
 
@@ -51,8 +52,8 @@ async def test_tui_dropdown_search_overlay() -> None:
             await pilot.pause()
             assert not select.expanded
 
-            # Press '/' to open the dropdown overlay
-            await pilot.press("slash")
+            # Press 'ctrl+f' to open the dropdown overlay
+            await pilot.press("ctrl+f")
             await pilot.pause()
             assert select.expanded
 
@@ -72,26 +73,26 @@ async def test_tui_dropdown_search_overlay() -> None:
 
 
 @pytest.mark.anyio
-async def test_tui_fullscreen_toggle_resource_tabs() -> None:
-    """Test toggling fullscreen for detail and log panes via m and l keys in resource tabs."""
+async def test_tui_fullscreen_maximize_and_restore() -> None:
+    """Test maximizing detail and log panes via shortcuts, mouse clicks, and restoring with Esc."""
     with tempfile.TemporaryDirectory() as tmpdir:
         app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
         async with app.run_test() as pilot:
             # Default state: not maximized
             assert app._maximized_pane is None
 
-            # Toggle detail fullscreen via 'm' key on recipes tab
-            await pilot.press("m")
+            # Toggle detail fullscreen via 'ctrl+b' key on recipes tab
+            await pilot.press("ctrl+b")
             await pilot.pause()
             assert app._maximized_pane == "recipes-detail"
 
-            # Press 'm' again to restore
-            await pilot.press("m")
+            # Press 'ctrl+b' again to restore
+            await pilot.press("ctrl+b")
             await pilot.pause()
             assert app._maximized_pane is None
 
-            # Toggle log fullscreen via 'l' key
-            await pilot.press("l")
+            # Toggle log fullscreen via 'ctrl+l' key
+            await pilot.press("ctrl+l")
             await pilot.pause()
             assert app._maximized_pane == "recipes-log"
 
@@ -105,8 +106,8 @@ async def test_tui_fullscreen_toggle_resource_tabs() -> None:
             await pilot.pause()
             assert app._maximized_pane == "recipes-log"
 
-            # Switch to detail via 'm' key directly
-            await pilot.press("m")
+            # Switch to detail via 'ctrl+b' key directly
+            await pilot.press("ctrl+b")
             await pilot.pause()
             assert app._maximized_pane == "recipes-detail"
 
@@ -208,15 +209,15 @@ async def test_tui_log_tab_clear_and_export() -> None:
         async with app.run_test() as pilot:
             # Switch to log tab
             tabs = app.query_one(TabbedContent)
-            tabs.active = "tab-logs"
+            await pilot.click(tabs.get_tab("tab-logs"))
             await pilot.pause()
 
             # Populate log buffer
             app._app_log_buffer.append("INFO: test log message 1")
             app._app_log_buffer.append("INFO: test log message 2")
 
-            # Maximize log tab via 'l' key
-            await pilot.press("l")
+            # Maximize log tab via 'ctrl+l' key
+            await pilot.press("ctrl+l")
             await pilot.pause()
             assert app._maximized_pane == "app-log"
 
@@ -235,6 +236,46 @@ async def test_tui_log_tab_clear_and_export() -> None:
             await pilot.click("#app-log-clear-btn")
             await pilot.pause()
             assert len(app._app_log_buffer) == 0
+
+
+@pytest.mark.anyio
+async def test_tui_shortcuts_and_escape_while_input_focused() -> None:
+    """Test global shortcuts (Ctrl+G, Ctrl+H, Escape) trigger directly even when TextArea is focused."""
+    from meta_agent.tui.screens.help import HelpScreen
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        async with app.run_test() as pilot:
+            search_ta = app.query_one("#recipes-search", TextArea)
+            search_ta.focus()
+            await pilot.pause()
+            assert search_ta.has_focus
+
+            # Press Escape while focused: unfocuses TextArea
+            await pilot.press("escape")
+            await pilot.pause()
+            assert not search_ta.has_focus
+
+            # Focus search again and press Ctrl+G (switches to GenerateTab directly)
+            search_ta.focus()
+            await pilot.pause()
+            await pilot.press("ctrl+g")
+            await pilot.pause()
+            tabs = app.query_one(TabbedContent)
+            assert tabs.active == "tab-generate"
+
+            # Focus gen-input and press Ctrl+H (opens HelpScreen directly)
+            gen_input = app.query_one("#gen-input", TextArea)
+            gen_input.focus()
+            await pilot.pause()
+            await pilot.press("ctrl+h")
+            await pilot.pause()
+            assert isinstance(app.screen, HelpScreen)
+
+            # Press Escape from HelpScreen (closes HelpScreen)
+            await pilot.press("escape")
+            await pilot.pause()
+            assert not isinstance(app.screen, HelpScreen)
 
 
 @pytest.mark.anyio
@@ -322,3 +363,30 @@ async def test_tui_ctrl_c_double_press_logic() -> None:
             # Second Ctrl+C immediately: triggers exit
             app.action_handle_ctrl_c()
             await pilot.pause()
+
+
+@pytest.mark.anyio
+async def test_tui_list_focus_auto_selects_first_item() -> None:
+    """Test focusing on recipes list automatically selects first element when elements exist."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            lv = app.query_one("#recipes-list", ListView)
+            assert app._selected_recipe is None
+
+            # Focus the list view (as if navigated via Tab)
+            lv.focus()
+            await pilot.pause()
+
+            # First element should be auto-selected and index set to 0
+            assert lv.index == 0
+            assert app._selected_recipe is not None
+            assert app.query_one("#recipes-chat-btn", Button).display
+
+            # Navigating down updates selection in real time
+            if len(app._displayed_recipes) > 1:
+                await pilot.press("down")
+                await pilot.pause()
+                assert lv.index == 1
+                assert app._selected_recipe == app._displayed_recipes[1]

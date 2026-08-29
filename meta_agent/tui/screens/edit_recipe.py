@@ -17,8 +17,8 @@ class EditRecipeScreen(ModalScreen[bool]):
     """Modal dialog to view and edit recipe TOML files with syntax validation."""
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
-        Binding("ctrl+s", "save_recipe", "Save (Ctrl+S)", show=True),
-        Binding("escape", "dismiss_cancel", "Cancel", show=True),
+        Binding("ctrl+s", "save_recipe", "Save (Ctrl+S)", show=True, priority=True),
+        Binding("escape", "dismiss_cancel", "Cancel (Esc)", show=True, priority=True),
     ]
 
     def __init__(self, recipe_name: str, file_paths: list[str]) -> None:

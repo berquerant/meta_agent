@@ -17,7 +17,7 @@ class DeleteRecipeScreen(ModalScreen[bool]):
     """Modal dialog to preview and select recipe files for deletion."""
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
-        Binding("escape", "dismiss_cancel", "Cancel", show=True),
+        Binding("escape", "dismiss_cancel", "Cancel (Esc)", show=True, priority=True),
     ]
 
     def __init__(self, recipe_name: str, file_paths: list[str]) -> None:

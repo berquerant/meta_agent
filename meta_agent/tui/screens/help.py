@@ -15,17 +15,17 @@ HELP_MARKDOWN = """
 ## 🌐 Global & Main Screen Shortcuts
 | Key | Action | Description |
 |:---|:---|:---|
-| `?` / `F1` | **Help** | Open this keyboard shortcuts help modal |
-| `/` | **Search** | Focus the filter input for the currently active tab (Recipes / Agents / Tools) |
-| `m` | **Maximize Detail** | Toggle fullscreen for details or preview pane (`Esc` to restore) |
-| `l` | **Maximize Logs** | Toggle fullscreen for activity / execution logs (`Esc` to restore) |
-| `c` | **Chat** | Open chat setup options for the selected recipe |
-| `r` | **Resume Chat** | Browse and restore previous chat session from exported markdown |
-| `e` | **Edit** | Edit selected recipe TOML file in interactive editor (`Ctrl+S` to save) |
-| `d` | **Delete** | Prompt to delete selected recipe file with preview/multi-choice selection |
-| `g` | **Generate** | Switch to the Generate tab to create a new assistant |
-| `q` | **Quit** | Exit the TUI application |
-| `Ctrl+C` (×2) | **Quit (force)** | Double-press Ctrl+C within 2 seconds to quit anytime |
+| `Ctrl+H` / `?` / `F1` | **Help** | Open this keyboard shortcuts help modal |
+| `Ctrl+F` | **Search** | Focus the search input for active tab |
+| `Ctrl+B` | **Maximize Detail** | Toggle fullscreen for details or preview pane (`Esc` to restore) |
+| `Ctrl+L` | **Maximize Logs** | Toggle fullscreen for activity / execution logs (`Esc` to restore) |
+| `Ctrl+C` | **Chat** | Open chat setup options for the selected recipe |
+| `Ctrl+R` | **Resume Chat** | Browse and restore previous chat session from exported markdown |
+| `Ctrl+E` | **Edit** | Edit selected recipe TOML file in interactive editor (`Ctrl+S` to save) |
+| `Ctrl+D` | **Delete** | Prompt to delete selected recipe file with preview/multi-choice selection |
+| `Ctrl+G` | **Generate** | Switch to the Generate tab to create a new assistant |
+| `Ctrl+Q` | **Quit** | Exit the TUI application directly |
+| `Esc` | **Back / Blur** | Exit fullscreen, defocus search input, or return to list navigation |
 
 ---
 
@@ -36,15 +36,14 @@ HELP_MARKDOWN = """
 | `Up` / `Down` | **Select Item** | Move up/down through the items list; details update on selection |
 | `Ctrl+J` / *Button* | **Ask LLM** | In search bar: submit multi-line query to Ask LLM |
 | *Ask LLM* | **Smart Action** | Natural language search, generate (e.g. "create pytest bot"), edit, delete, or resume |
-| `m` / `l` | **Maximize** | Expand details (`m`) or logs (`l`) to fullscreen (`Esc` to restore) |
+| `Ctrl+B` / `Ctrl+L` | **Maximize** | Expand details (`Ctrl+B`) or logs (`Ctrl+L`) to fullscreen (`Esc` to restore) |
 
 ---
 
 ## ⚙️ Chat Options Screen (`ChatOptionsScreen`)
 | Key | Action | Description |
 |:---|:---|:---|
-| `c` | **Start Chat** | Start multi-turn chat session with current settings |
-| `/` | **Search Presets** | When focused on a dropdown (Engine/Model/Agent/Tools), open search popup |
+| `Ctrl+C` | **Start Chat** | Start multi-turn chat session with current settings |
 | `Esc` | **Cancel / Back** | Discard changes and return to main screen |
 | *Buttons* | **Copy Command** | Copy untruncated `meta_agent chat ...` command to system clipboard |
 
@@ -53,7 +52,7 @@ HELP_MARKDOWN = """
 ## 📂 Resume Chat Session Modal (`ResumeChatScreen`)
 | Key | Action | Description |
 |:---|:---|:---|
-| `/` | **Search Files** | Focus the filter input to quickly search exported sessions by name |
+| `Ctrl+F` | **Search Files** | Focus the filter input to quickly search exported sessions by name |
 | `Up` / `Down` | **Select File** | Navigate through exported sessions with real-time preview |
 | `Enter` | **Resume** | Restore session settings and messages to continue chat |
 | `Esc` | **Cancel** | Close modal and return to main screen |
@@ -64,13 +63,12 @@ HELP_MARKDOWN = """
 | Key | Action | Description |
 |:---|:---|:---|
 | `Enter` | **Newline** | Insert a new line in the chat message input box |
-| `Ctrl+J` / `Ctrl+S` | **Send Message** | Send the multi-line message in the input box to the assistant |
-| `m` | **Maximize Messages**| Toggle fullscreen for conversation history (`Esc` to restore) |
-| `l` | **Maximize Logs** | Toggle fullscreen for execution logs (`Esc` to restore) |
-| `p` | **Maximize Prompt**| Toggle fullscreen for system prompt in left sidebar (`Esc` to restore) |
+| `Ctrl+J` | **Send Message** | Send the multi-line message in the input box to the assistant |
+| `Ctrl+B` | **Maximize Messages**| Toggle fullscreen for conversation history (`Esc` to restore) |
+| `Ctrl+L` | **Maximize Logs** | Toggle fullscreen for execution logs (`Esc` to restore) |
+| `Ctrl+P` | **Maximize Prompt**| Toggle fullscreen for system prompt in left sidebar (`Esc` to restore) |
 | `Up` / `Down` | **Input History** | Navigate through past messages when cursor is at top/bottom |
-| `Ctrl+E` | **Export Chat** | Save the entire markdown chat history to a file |
-| `Ctrl+L` | **Export Logs** | Save all activity & engine execution logs to a file |
+| `Ctrl+S` | **Export Chat** | Save the entire markdown chat history to a file |
 | `Esc` | **Back** | Restore normal view if maximized, or return to recipe list |
 
 ---
@@ -79,7 +77,7 @@ HELP_MARKDOWN = """
 | Key | Action | Description |
 |:---|:---|:---|
 | `Enter` | **Newline** | Insert a new line in the generation description box |
-| `Ctrl+J` / `Ctrl+S` | **Generate** | Submit multi-line generation query in background worker |
+| `Ctrl+J` | **Generate** | Submit multi-line generation query in background worker |
 | `Up` / `Down` | **Input History** | Navigate through your past generation prompts |
 | *Button* | **Chat with Generated Recipe** | Start chat immediately with the generated recipe |
 
@@ -97,9 +95,10 @@ class HelpScreen(ModalScreen[None]):
     """Modal screen that shows a comprehensive list of all keyboard shortcuts."""
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
-        Binding("escape", "dismiss_help", "Close Help"),
-        Binding("question_mark", "dismiss_help", "Close Help", show=False),
-        Binding("f1", "dismiss_help", "Close Help", show=False),
+        Binding("escape", "dismiss_help", "Close Help (Esc)", priority=True),
+        Binding("ctrl+h", "dismiss_help", "Close Help", show=False, priority=True),
+        Binding("question_mark", "dismiss_help", "Close Help", show=False, priority=True),
+        Binding("f1", "dismiss_help", "Close Help", show=False, priority=True),
     ]
 
     def compose(self) -> ComposeResult:

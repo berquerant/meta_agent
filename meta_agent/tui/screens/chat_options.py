@@ -27,10 +27,12 @@ class ChatOptionsScreen(Screen[None]):
     """Screen to review and override recipe settings before starting chat."""
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
-        Binding("c", "start_chat", "Start Chat", show=True),
-        Binding("escape", "cancel", "Back", show=True),
-        Binding("question_mark", "open_help", "Help (?)", show=True),
-        Binding("f1", "open_help", "Help", show=False),
+        Binding("ctrl+c", "start_chat", "Start Chat (Ctrl+C)", show=True, priority=True),
+        Binding("escape", "cancel", "Back (Esc)", show=True, priority=True),
+        Binding("ctrl+h", "open_help", "Help (Ctrl+H)", show=True, priority=True),
+        Binding("question_mark", "open_help", "Help (?)", show=False, priority=False),
+        Binding("f1", "open_help", "Help", show=False, priority=True),
+        Binding("ctrl+f", "focus_search", "Search (Ctrl+F)", show=False, priority=True),
     ]
 
     def __init__(self, recipe: Recipe, default_engine: str, default_model: str, export_dir: str | None = None) -> None:
@@ -247,6 +249,12 @@ class ChatOptionsScreen(Screen[None]):
     def action_open_help(self) -> None:
         """Open the keyboard shortcuts help modal."""
         self.app.push_screen(HelpScreen())
+
+    def action_focus_search(self) -> None:
+        """Open select overlay if focused on a Select dropdown."""
+        focused = self.focused
+        if isinstance(focused, Select):
+            focused.action_show_overlay()
 
     def _launch_chat(self) -> None:
         """Build AskingOpts and transition to ChatScreen."""
