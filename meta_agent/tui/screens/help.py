@@ -7,7 +7,9 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Button, Footer, Header, Markdown
+from textual.widgets import Button, Header, Markdown
+
+from ..widgets import OrderedFooter
 
 HELP_MARKDOWN = """
 # 📖 Meta Agent TUI Keyboard Shortcuts & Help
@@ -48,46 +50,39 @@ HELP_MARKDOWN = """
 | *Buttons* | **Copy Command** | Copy untruncated `meta_agent chat ...` command to system clipboard |
 
 ---
-
-## 📂 Resume Chat Session Modal (`ResumeChatScreen`)
-| Key | Action | Description |
-|:---|:---|:---|
-| `Ctrl+F` | **Search Files** | Focus the filter input to quickly search exported sessions by name |
-| `Up` / `Down` | **Select File** | Navigate through exported sessions with real-time preview |
-| `Enter` | **Resume** | Restore session settings and messages to continue chat |
-| `Esc` | **Cancel** | Close modal and return to main screen |
-
----
-
-## 💬 Interactive Chat Screen (`ChatScreen`)
-| Key | Action | Description |
-|:---|:---|:---|
-| `Enter` | **Newline** | Insert a new line in the chat message input box |
-| `Ctrl+J` | **Send Message** | Send the multi-line message in the input box to the assistant |
-| `Ctrl+B` | **Maximize Messages**| Toggle fullscreen for conversation history (`Esc` to restore) |
-| `Ctrl+L` | **Maximize Logs** | Toggle fullscreen for execution logs (`Esc` to restore) |
-| `Ctrl+P` | **Maximize Prompt**| Toggle fullscreen for system prompt in left sidebar (`Esc` to restore) |
-| `Up` / `Down` | **Input History** | Navigate through past messages when cursor is at top/bottom |
-| `Ctrl+S` | **Export Chat** | Save the entire markdown chat history to a file |
-| `Esc` | **Back** | Restore normal view if maximized, or return to recipe list |
+| `Ctrl+L` | **Maximize Logs** | Toggle fullscreen for logs pane (`Esc` to restore) |
+| `Ctrl+C` | **Chat** | Open chat options for selected recipe |
+| `Ctrl+R` | **Resume Chat** | Select and resume a past saved chat session |
+| `Ctrl+E` | **Edit Recipe** | Edit selected recipe TOML in modal editor |
+| `Ctrl+D` | **Delete Recipe** | Safely delete selected recipe |
+| `Ctrl+G` | **Generate Tab** | Jump to recipe generation tab |
+| `Ctrl+Q` | **Quit** | Exit the application directly |
+| `Esc` | **Back / Defocus** | Restore fullscreen pane, defocus input, or close modals |
 
 ---
 
-## 🛠️ Recipe Generator Tab (`GenerateTab`)
+## 💬 Chat Screen (`ChatScreen`) Shortcuts
 | Key | Action | Description |
 |:---|:---|:---|
-| `Enter` | **Newline** | Insert a new line in the generation description box |
-| `Ctrl+J` | **Generate** | Submit multi-line generation query in background worker |
-| `Up` / `Down` | **Input History** | Navigate through your past generation prompts |
-| *Button* | **Chat with Generated Recipe** | Start chat immediately with the generated recipe |
+| `Enter` | **Newline** | Insert a newline in multiline input |
+| `Ctrl+J` / `Ctrl+Enter` | **Send Message** | Submit input to LLM agent |
+| `Ctrl+B` | **Maximize Messages** | Expand chat messages pane to fullscreen (`Esc` to restore) |
+| `Ctrl+L` | **Maximize Logs** | Expand streaming debug logs pane to fullscreen (`Esc` to restore) |
+| `Ctrl+P` | **Maximize Prompt** | Expand input prompt area to fullscreen (`Esc` to restore) |
+| `Ctrl+S` | **Export Session** | Save chat history to Markdown file |
+| `Ctrl+Shift+L` | **Export Logs** | Save raw session activity log to `.log` file |
+| `Up` / `Down` | **Input History** | Cycle through previously sent prompts or restore draft |
+| `Esc` | **Back / Restore** | Restore fullscreen pane, or close chat session |
 
 ---
 
-## 📜 Application Logs Tab (`LogTab`)
-| Key | Action | Description |
+## 🛠 Modal Dialogs & Editors
+| Modal Screen | Key | Action |
 |:---|:---|:---|
-| *Clear Logs* | **Clear** | Clear current application log buffer and view |
-| *Export Logs* | **Export** | Save complete application logs (including LLM Search actions) to file |
+| **Chat Options** | `Ctrl+C` | Start chat session with configured options |
+| **Edit Recipe** | `Ctrl+S` | Validate and save recipe changes |
+| **Search Dropdown** | `Ctrl+F` / `/` | Open live typeahead search filter overlay |
+| **All Modals** | `Esc` | Cancel / Dismiss modal without saving |
 """
 
 
@@ -95,10 +90,14 @@ class HelpScreen(ModalScreen[None]):
     """Modal screen that shows a comprehensive list of all keyboard shortcuts."""
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
-        Binding("escape", "dismiss_help", "Close Help (Esc)", priority=True),
+        Binding("escape", "dismiss_help", "Close Help (Esc)", show=True, priority=True),
         Binding("ctrl+h", "dismiss_help", "Close Help", show=False, priority=True),
         Binding("question_mark", "dismiss_help", "Close Help", show=False, priority=True),
         Binding("f1", "dismiss_help", "Close Help", show=False, priority=True),
+        Binding("ctrl+c", "dismiss_help", show=False, priority=True),
+        Binding("ctrl+g", "dismiss_help", show=False, priority=True),
+        Binding("ctrl+q", "dismiss_help", show=False, priority=True),
+        Binding("ctrl+f", "dismiss_help", show=False, priority=True),
     ]
 
     def compose(self) -> ComposeResult:
@@ -108,7 +107,7 @@ class HelpScreen(ModalScreen[None]):
             with VerticalScroll(id="help-markdown-container"):
                 yield Markdown(HELP_MARKDOWN)
             yield Button("Close Help  [Esc]", id="help-close-btn", variant="primary")
-        yield Footer()
+        yield OrderedFooter()
 
     def action_dismiss_help(self) -> None:
         """Close the help screen."""

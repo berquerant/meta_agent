@@ -5,8 +5,50 @@ from typing import Any
 from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import Button, Label, ListView, LoadingIndicator, Markdown, RichLog, Select, Static, TextArea
+from textual.widgets import (
+    Button,
+    Footer,
+    Label,
+    ListView,
+    LoadingIndicator,
+    Markdown,
+    RichLog,
+    Select,
+    Static,
+    TextArea,
+)
+from textual.widgets._footer import FooterKey
 from textual.widgets._select import SelectOverlay
+
+
+class OrderedFooter(Footer):
+    """Custom Footer ensuring Help is always positioned on the far left."""
+
+    def compose(self) -> ComposeResult:
+        """Compose footer keys with Help always on the far left."""
+        if not self._bindings_ready:
+            return
+        items = list(super().compose())
+
+        def _sort_order(w: Any) -> int:
+            if isinstance(w, FooterKey):
+                if w.key in ("ctrl+h", "question_mark", "f1"):
+                    return 0
+                if w.key in ("escape", "back"):
+                    return 1
+                if w.key == "ctrl+f":
+                    return 2
+                if w.key == "ctrl+c":
+                    return 3
+                if w.key == "ctrl+s":
+                    return 4
+                if w.key == "ctrl+g":
+                    return 5
+                if w.key == "ctrl+q":
+                    return 6
+            return 10
+
+        yield from sorted(items, key=_sort_order)
 
 
 class SearchableSelectOverlay(SelectOverlay):

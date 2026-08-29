@@ -9,11 +9,12 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
-from textual.widgets import Button, Footer, Header, Label, Markdown, RichLog, Static, TextArea
+from textual.widgets import Button, Header, Label, Markdown, RichLog, Static, TextArea
 
 from ...asking import AskingOpts
 from ...utils import get_default_export_dir, now_str
 from ..helpers import build_chat_prompt, InputHistory, now_datetime_str
+from ..widgets import OrderedFooter
 from .help import HelpScreen
 
 
@@ -53,15 +54,19 @@ class ChatScreen(Screen[None]):
     ALLOW_SELECT: ClassVar[bool] = False
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
-        Binding("escape", "dismiss_screen", "Back (Esc)", show=True, priority=True),
-        Binding("ctrl+b", "toggle_messages_fullscreen", "Messages Max (Ctrl+B)", show=True, priority=True),
-        Binding("ctrl+l", "toggle_log_fullscreen", "Logs Max (Ctrl+L)", show=True, priority=True),
-        Binding("ctrl+p", "toggle_prompt_fullscreen", "Prompt Max (Ctrl+P)", show=True, priority=True),
-        Binding("ctrl+s", "export_chat", "Export Chat (Ctrl+S)", show=True, priority=True),
-        Binding("ctrl+shift+l", "export_logs", "Export Logs", show=False, priority=True),
         Binding("ctrl+h", "open_help", "Help (Ctrl+H)", show=True, priority=True),
         Binding("question_mark", "open_help", "Help (?)", show=False, priority=False),
         Binding("f1", "open_help", "Help", show=False, priority=True),
+        Binding("escape", "dismiss_screen", "Back (Esc)", show=True, priority=True),
+        Binding("ctrl+s", "export_chat", "Export Chat (Ctrl+S)", show=True, priority=True),
+        Binding("ctrl+b", "toggle_messages_fullscreen", "Messages Max (Ctrl+B)", show=False, priority=True),
+        Binding("ctrl+l", "toggle_log_fullscreen", "Logs Max (Ctrl+L)", show=False, priority=True),
+        Binding("ctrl+p", "toggle_prompt_fullscreen", "Prompt Max (Ctrl+P)", show=False, priority=True),
+        Binding("ctrl+shift+l", "export_logs", "Export Logs", show=False, priority=True),
+        Binding("ctrl+c", "start_chat", show=False, priority=True),
+        Binding("ctrl+g", "open_generate", show=False, priority=True),
+        Binding("ctrl+q", "quit", show=False, priority=True),
+        Binding("ctrl+f", "focus_search", show=False, priority=True),
     ]
 
     def __init__(
@@ -144,7 +149,7 @@ class ChatScreen(Screen[None]):
                         id="chat-input",
                     )
                     yield Button("Send  [Ctrl+J]", id="chat-send-btn", variant="primary")
-        yield Footer()
+        yield OrderedFooter()
 
     def on_mount(self) -> None:
         """Configure initial widget state and hook logging."""

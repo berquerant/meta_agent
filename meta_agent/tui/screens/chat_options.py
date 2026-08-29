@@ -7,7 +7,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, VerticalScroll
 from textual.screen import Screen
-from textual.widgets import Button, Footer, Header, Input, Label, Select, Static, TextArea
+from textual.widgets import Button, Header, Input, Label, Select, Static, TextArea
 
 from ...api import Recipe
 from ...asking import AskingOpts
@@ -18,7 +18,7 @@ from ..helpers import (
     fetch_runtime_options,
     format_command_preview,
 )
-from ..widgets import SearchableSelect
+from ..widgets import OrderedFooter, SearchableSelect
 from .chat import ChatScreen
 from .help import HelpScreen
 
@@ -27,12 +27,14 @@ class ChatOptionsScreen(Screen[None]):
     """Screen to review and override recipe settings before starting chat."""
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
-        Binding("ctrl+c", "start_chat", "Start Chat (Ctrl+C)", show=True, priority=True),
-        Binding("escape", "cancel", "Back (Esc)", show=True, priority=True),
         Binding("ctrl+h", "open_help", "Help (Ctrl+H)", show=True, priority=True),
         Binding("question_mark", "open_help", "Help (?)", show=False, priority=False),
         Binding("f1", "open_help", "Help", show=False, priority=True),
+        Binding("escape", "cancel", "Back (Esc)", show=True, priority=True),
+        Binding("ctrl+c", "start_chat", "Start Chat (Ctrl+C)", show=True, priority=True),
         Binding("ctrl+f", "focus_search", "Search (Ctrl+F)", show=False, priority=True),
+        Binding("ctrl+g", "open_generate", show=False, priority=True),
+        Binding("ctrl+q", "quit", show=False, priority=True),
     ]
 
     def __init__(self, recipe: Recipe, default_engine: str, default_model: str, export_dir: str | None = None) -> None:
@@ -105,7 +107,7 @@ class ChatOptionsScreen(Screen[None]):
                 yield Button("Start Chat  [c]", id="chat-opts-start", variant="success")
                 yield Button("Copy Command", id="chat-opts-copy", variant="primary")
                 yield Button("Cancel  [Esc]", id="chat-opts-cancel", variant="default")
-        yield Footer()
+        yield OrderedFooter()
 
     def on_mount(self) -> None:
         """Populate the command preview after widgets are ready."""

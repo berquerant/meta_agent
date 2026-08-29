@@ -9,7 +9,6 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import (
     Button,
-    Footer,
     Header,
     Label,
     ListItem,
@@ -44,7 +43,7 @@ from .helpers import (
 from .screens import ChatOptionsScreen, DeleteRecipeScreen, EditRecipeScreen, HelpScreen, ResumeChatScreen
 from .screens.chat import RichLogHandler
 from .styles import APP_CSS
-from .widgets import GenerateTab, LogTab, ResourceTab
+from .widgets import GenerateTab, LogTab, OrderedFooter, ResourceTab
 
 
 class MetaAgentTUI(App[None]):
@@ -58,16 +57,16 @@ class MetaAgentTUI(App[None]):
         Binding("question_mark", "open_help", "Help (?)", show=False, priority=False),
         Binding("f1", "open_help", "Help", show=False, priority=True),
         Binding("ctrl+f", "focus_search", "Search (Ctrl+F)", show=True, priority=True),
-        Binding("ctrl+b", "toggle_detail_fullscreen", "Detail Max (Ctrl+B)", show=True, priority=True),
-        Binding("ctrl+l", "toggle_log_fullscreen", "Logs Max (Ctrl+L)", show=True, priority=True),
-        Binding("escape", "handle_escape", "Back (Esc)", show=False, priority=True),
         Binding("ctrl+c", "chat_recipe", "Chat (Ctrl+C)", show=True, priority=True),
-        Binding("ctrl+r", "resume_chat", "Resume (Ctrl+R)", show=True, priority=True),
-        Binding("ctrl+e", "edit_recipe", "Edit (Ctrl+E)", show=True, priority=True),
-        Binding("ctrl+d", "delete_recipe", "Delete (Ctrl+D)", show=True, priority=True),
         Binding("ctrl+g", "open_generate", "Generate (Ctrl+G)", show=True, priority=True),
         Binding("ctrl+q", "quit", "Quit (Ctrl+Q)", show=True, priority=True),
+        Binding("ctrl+b", "toggle_detail_fullscreen", "Detail Max (Ctrl+B)", show=False, priority=True),
+        Binding("ctrl+l", "toggle_log_fullscreen", "Logs Max (Ctrl+L)", show=False, priority=True),
+        Binding("ctrl+r", "resume_chat", "Resume (Ctrl+R)", show=False, priority=True),
+        Binding("ctrl+e", "edit_recipe", "Edit (Ctrl+E)", show=False, priority=True),
+        Binding("ctrl+d", "delete_recipe", "Delete (Ctrl+D)", show=False, priority=True),
         Binding("ctrl+p", "toggle_prompt_fullscreen", show=False, priority=True),
+        Binding("escape", "handle_escape", "Back (Esc)", show=False, priority=True),
     ]
 
     def __init__(self, engine: str, model: str, recipes_dir: str, export_dir: str | None = None) -> None:
@@ -109,7 +108,7 @@ class MetaAgentTUI(App[None]):
                 yield GenerateTab(self._engine, self._model, self._recipes_dir)
             with TabPane("Logs", id="tab-logs"):
                 yield LogTab()
-        yield Footer()
+        yield OrderedFooter()
 
     def on_mount(self) -> None:
         """Load all resources after mounting and attach app log handler."""
