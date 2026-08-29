@@ -22,14 +22,29 @@ from textual.widgets import (
     TextArea,
 )
 
-from ..api import Agent, find_recipe_files, list_agents, list_recipes, list_tools, Recipe, Script, Tool
+from ..api import (
+    Agent,
+    Engine,
+    find_recipe_files,
+    list_agents,
+    list_engines,
+    list_models,
+    list_recipes,
+    list_tools,
+    Model,
+    Recipe,
+    Script,
+    Tool,
+)
 from ..utils import get_default_export_dir, now_str
 from .fullscreen import FullscreenManager
 from .generation import RecipeGenerator
 from .helpers import (
     agent_markdown,
+    engine_markdown,
     filter_items,
     InputHistory,
+    model_markdown,
     now_datetime_str,
     recipe_markdown,
     tool_markdown,
@@ -80,9 +95,13 @@ class MetaAgentTUI(App[None]):
         self._recipes: list[Recipe] = []
         self._agents: list[Agent] = []
         self._tools: list[Tool] = []
+        self._engines: list[Engine] = []
+        self._models: list[Model] = []
         self._selected_recipe: Recipe | None = None
         self._selected_agent: Agent | None = None
         self._selected_tool: Tool | None = None
+        self._selected_engine: Engine | None = None
+        self._selected_model: Model | None = None
         self._last_generated_recipe: str | None = None
         self._app_log_buffer: list[str] = []
         self._app_log_handler: RichLogHandler | None = None
@@ -91,6 +110,8 @@ class MetaAgentTUI(App[None]):
         self._displayed_recipes: list[Recipe] = []
         self._displayed_agents: list[Agent] = []
         self._displayed_tools: list[Tool] = []
+        self._displayed_engines: list[Engine] = []
+        self._displayed_models: list[Model] = []
 
         # Sub-managers
         self._fullscreen = FullscreenManager(self)
@@ -117,6 +138,10 @@ class MetaAgentTUI(App[None]):
                 yield ResourceTab("agents")
             with TabPane("Tools", id="tab-tools"):
                 yield ResourceTab("tools")
+            with TabPane("Engines", id="tab-engines"):
+                yield ResourceTab("engines")
+            with TabPane("Models", id="tab-models"):
+                yield ResourceTab("models")
             with TabPane("Generate", id="tab-generate"):
                 yield GenerateTab(self._engine, self._model, self._recipes_dir)
             with TabPane("Logs", id="tab-logs"):
@@ -131,7 +156,7 @@ class MetaAgentTUI(App[None]):
             logging.getLogger().addHandler(self._app_log_handler)
             init_msg = f"Application initialized. Engine='{self._engine}', Model='{self._model}'"
             log_widget.write(f"[green]{init_msg}[/green]")
-            for tid in ("recipes", "agents", "tools"):
+            for tid in ("recipes", "agents", "tools", "engines", "models"):
                 try:
                     self.query_one(f"#{tid}-rich-log", RichLog).write(f"[green]{init_msg}[/green]")
                 except Exception:
@@ -143,6 +168,8 @@ class MetaAgentTUI(App[None]):
         self._load_recipes()
         self._load_agents()
         self._load_tools()
+        self._load_engines()
+        self._load_models()
         try:
             self.query_one("#gen-chat-btn", Button).display = False
         except Exception:
@@ -165,6 +192,10 @@ class MetaAgentTUI(App[None]):
             self._agents = list_agents()
         elif tid == "tools":
             self._tools = list_tools()
+        elif tid == "engines":
+            self._engines = list_engines(default_engine=self._engine)
+        elif tid == "models":
+            self._models = list_models(engine=self._engine)
         self.app.call_from_thread(self._render_tab, tid)
 
     def _load_recipes(self) -> None:
@@ -178,6 +209,14 @@ class MetaAgentTUI(App[None]):
     def _load_tools(self) -> None:
         """Trigger background loading of tools."""
         self._load_resource("tools")
+
+    def _load_engines(self) -> None:
+        """Trigger background loading of engines."""
+        self._load_resource("engines")
+
+    def _load_models(self) -> None:
+        """Trigger background loading of models."""
+        self._load_resource("models")
 
     def _render_list(self, tid: str, items: list[Any]) -> None:
         """Populate ListView with resource items."""
@@ -193,6 +232,8 @@ class MetaAgentTUI(App[None]):
             "recipes": self._recipes,
             "agents": self._agents,
             "tools": self._tools,
+            "engines": self._engines,
+            "models": self._models,
         }
         all_items = items_map.get(tid, [])
         try:
@@ -214,6 +255,10 @@ class MetaAgentTUI(App[None]):
             self._displayed_agents = items
         elif tid == "tools":
             self._displayed_tools = items
+        elif tid == "engines":
+            self._displayed_engines = items
+        elif tid == "models":
+            self._displayed_models = items
 
         self._render_list(tid, items)
 
@@ -241,12 +286,18 @@ class MetaAgentTUI(App[None]):
             self.query_one("#agents-search", TextArea).focus()
         elif active_tab == "tab-tools":
             self.query_one("#tools-search", TextArea).focus()
+        elif active_tab == "tab-engines":
+            self.query_one("#engines-search", TextArea).focus()
+        elif active_tab == "tab-models":
+            self.query_one("#models-search", TextArea).focus()
         elif active_tab == "tab-generate":
             self.query_one("#gen-input", TextArea).focus()
 
     @on(TextArea.Changed, "#recipes-search")
     @on(TextArea.Changed, "#agents-search")
     @on(TextArea.Changed, "#tools-search")
+    @on(TextArea.Changed, "#engines-search")
+    @on(TextArea.Changed, "#models-search")
     def on_search_changed(self, event: TextArea.Changed) -> None:
         """Live-filter resource list as user types in search TextArea."""
         if event.text_area.id:
@@ -256,6 +307,8 @@ class MetaAgentTUI(App[None]):
     @on(Button.Pressed, "#recipes-llm-btn")
     @on(Button.Pressed, "#agents-llm-btn")
     @on(Button.Pressed, "#tools-llm-btn")
+    @on(Button.Pressed, "#engines-llm-btn")
+    @on(Button.Pressed, "#models-llm-btn")
     def on_llm_search_pressed(self, event: Button.Pressed) -> None:
         """Trigger Ask LLM semantic search."""
         if event.button.id:
@@ -272,6 +325,8 @@ class MetaAgentTUI(App[None]):
             "recipes": self._recipes,
             "agents": self._agents,
             "tools": self._tools,
+            "engines": self._engines,
+            "models": self._models,
         }
         self._llm_search(tid, query, items_map.get(tid, []))
 
@@ -301,7 +356,14 @@ class MetaAgentTUI(App[None]):
             log_line = f"[dim]{ts}[/dim] [{color}]{msg}[/{color}]"
 
             def _write_all_logs() -> None:
-                for widget_id in ("#app-rich-log", "#recipes-rich-log", "#agents-rich-log", "#tools-rich-log"):
+                for widget_id in (
+                    "#app-rich-log",
+                    "#recipes-rich-log",
+                    "#agents-rich-log",
+                    "#tools-rich-log",
+                    "#engines-rich-log",
+                    "#models-rich-log",
+                ):
                     try:
                         self.query_one(widget_id, RichLog).write(log_line)
                     except Exception:
@@ -383,9 +445,12 @@ class MetaAgentTUI(App[None]):
             elif lv.id == "agents-list" and lv.index is None and len(self._displayed_agents) > 0:
                 lv.index = 0
                 self._select_agent_by_index(0)
-            elif lv.id == "tools-list" and lv.index is None and len(self._displayed_tools) > 0:
+            elif lv.id == "engines-list" and lv.index is None and len(self._displayed_engines) > 0:
                 lv.index = 0
-                self._select_tool_by_index(0)
+                self._select_engine_by_index(0)
+            elif lv.id == "models-list" and lv.index is None and len(self._displayed_models) > 0:
+                lv.index = 0
+                self._select_model_by_index(0)
 
     def _select_recipe_by_index(self, index: int) -> None:
         if 0 <= index < len(self._displayed_recipes):
@@ -408,6 +473,18 @@ class MetaAgentTUI(App[None]):
             md = tool_markdown(self._selected_tool)
             self.query_one("#tools-markdown", Markdown).update(md)
 
+    def _select_engine_by_index(self, index: int) -> None:
+        if 0 <= index < len(self._displayed_engines):
+            self._selected_engine = self._displayed_engines[index]
+            md = engine_markdown(self._selected_engine)
+            self.query_one("#engines-markdown", Markdown).update(md)
+
+    def _select_model_by_index(self, index: int) -> None:
+        if 0 <= index < len(self._displayed_models):
+            self._selected_model = self._displayed_models[index]
+            md = model_markdown(self._selected_model)
+            self.query_one("#models-markdown", Markdown).update(md)
+
     @on(ListView.Selected, "#recipes-list")
     @on(ListView.Highlighted, "#recipes-list")
     def on_recipe_selected(self, event: ListView.Selected | ListView.Highlighted) -> None:
@@ -428,6 +505,20 @@ class MetaAgentTUI(App[None]):
         """Render markdown details for selected tool."""
         if event.list_view.index is not None:
             self._select_tool_by_index(event.list_view.index)
+
+    @on(ListView.Selected, "#engines-list")
+    @on(ListView.Highlighted, "#engines-list")
+    def on_engine_selected(self, event: ListView.Selected | ListView.Highlighted) -> None:
+        """Render markdown details for selected engine."""
+        if event.list_view.index is not None:
+            self._select_engine_by_index(event.list_view.index)
+
+    @on(ListView.Selected, "#models-list")
+    @on(ListView.Highlighted, "#models-list")
+    def on_model_selected(self, event: ListView.Selected | ListView.Highlighted) -> None:
+        """Render markdown details for selected model."""
+        if event.list_view.index is not None:
+            self._select_model_by_index(event.list_view.index)
 
     # ------------------------------------------------------------------
     # Recipe Actions & Modals

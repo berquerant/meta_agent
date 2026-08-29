@@ -11,44 +11,44 @@ ToastRack {
 }
 
 /* Toolbar */
-#recipes-toolbar, #agents-toolbar, #tools-toolbar {
+#recipes-toolbar, #agents-toolbar, #tools-toolbar, #engines-toolbar, #models-toolbar {
     height: 3;
     padding: 0 1;
     align-vertical: middle;
 }
-#recipes-search, #agents-search, #tools-search {
+#recipes-search, #agents-search, #tools-search, #engines-search, #models-search {
     width: 1fr;
     height: 3;
 }
-#recipes-llm-btn, #agents-llm-btn, #tools-llm-btn {
+#recipes-llm-btn, #agents-llm-btn, #tools-llm-btn, #engines-llm-btn, #models-llm-btn {
     width: 16;
     height: 3;
 }
 
 /* Body */
-#recipes-body, #agents-body, #tools-body {
+#recipes-body, #agents-body, #tools-body, #engines-body, #models-body {
     height: 1fr;
 }
 
 /* Sidebar */
-#recipes-sidebar, #agents-sidebar, #tools-sidebar {
+#recipes-sidebar, #agents-sidebar, #tools-sidebar, #engines-sidebar, #models-sidebar {
     width: 30;
     border-right: solid $primary;
     overflow-y: auto;
 }
 
 /* Main & Detail pane */
-#recipes-main-pane, #agents-main-pane, #tools-main-pane {
+#recipes-main-pane, #agents-main-pane, #tools-main-pane, #engines-main-pane, #models-main-pane {
     width: 1fr;
     height: 1fr;
 }
-#recipes-detail, #agents-detail, #tools-detail {
+#recipes-detail, #agents-detail, #tools-detail, #engines-detail, #models-detail {
     height: 1fr;
     padding: 1 2;
     overflow-y: auto;
     overflow-x: auto;
 }
-#recipes-log-pane, #agents-log-pane, #tools-log-pane {
+#recipes-log-pane, #agents-log-pane, #tools-log-pane, #engines-log-pane, #models-log-pane {
     height: 8;
     border-top: solid $primary;
     background: $surface;
@@ -88,17 +88,23 @@ ToastRack {
 /* Fullscreen / Maximized state rules for ResourceTab */
 .maximized-detail #recipes-sidebar,
 .maximized-detail #agents-sidebar,
-.maximized-detail #tools-sidebar {
+.maximized-detail #tools-sidebar,
+.maximized-detail #engines-sidebar,
+.maximized-detail #models-sidebar {
     display: none;
 }
 .maximized-detail #recipes-log-pane,
 .maximized-detail #agents-log-pane,
-.maximized-detail #tools-log-pane {
+.maximized-detail #tools-log-pane,
+.maximized-detail #engines-log-pane,
+.maximized-detail #models-log-pane {
     display: none;
 }
 .maximized-detail #recipes-detail,
 .maximized-detail #agents-detail,
-.maximized-detail #tools-detail {
+.maximized-detail #tools-detail,
+.maximized-detail #engines-detail,
+.maximized-detail #models-detail {
     height: 1fr;
     border: none;
     padding: 0 1;
@@ -106,17 +112,23 @@ ToastRack {
 
 .maximized-log #recipes-sidebar,
 .maximized-log #agents-sidebar,
-.maximized-log #tools-sidebar {
+.maximized-log #tools-sidebar,
+.maximized-log #engines-sidebar,
+.maximized-log #models-sidebar {
     display: none;
 }
 .maximized-log #recipes-detail,
 .maximized-log #agents-detail,
-.maximized-log #tools-detail {
+.maximized-log #tools-detail,
+.maximized-log #engines-detail,
+.maximized-log #models-detail {
     display: none;
 }
 .maximized-log #recipes-log-pane,
 .maximized-log #agents-log-pane,
-.maximized-log #tools-log-pane {
+.maximized-log #tools-log-pane,
+.maximized-log #engines-log-pane,
+.maximized-log #models-log-pane {
     height: 1fr;
     border: none;
     border-top: none;

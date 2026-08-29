@@ -40,7 +40,7 @@ class FullscreenManager:
         except Exception:
             return
 
-        if active_tab in ("tab-recipes", "tab-agents", "tab-tools"):
+        if active_tab in ("tab-recipes", "tab-agents", "tab-tools", "tab-engines", "tab-models"):
             tid = active_tab.removeprefix("tab-")
             if self._maximized_pane == f"{tid}-detail":
                 self.restore_fullscreen()
@@ -66,7 +66,7 @@ class FullscreenManager:
         except Exception:
             return
 
-        if active_tab in ("tab-recipes", "tab-agents", "tab-tools"):
+        if active_tab in ("tab-recipes", "tab-agents", "tab-tools", "tab-engines", "tab-models"):
             tid = active_tab.removeprefix("tab-")
             if self._maximized_pane == f"{tid}-log":
                 self.restore_fullscreen()
@@ -141,7 +141,7 @@ class FullscreenManager:
         """Restore all tabs and panes to normal layout."""
         if self._maximized_pane is None:
             return
-        for tid in ("recipes", "agents", "tools"):
+        for tid in ("recipes", "agents", "tools", "engines", "models"):
             try:
                 self._app.query_one(f"#{tid}-body").remove_class("maximized-detail", "maximized-log")
                 self._app.query_one(f"#{tid}-toolbar").remove_class("pane-hidden")

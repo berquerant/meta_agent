@@ -32,6 +32,26 @@ async def test_tui_app_tabs_and_search_focus() -> None:
             await pilot.pause()
             assert app.query_one("#agents-search", TextArea).has_focus
 
+            # Switch to engines tab
+            await pilot.click(tabs.get_tab("tab-engines"))
+            await pilot.pause()
+            assert tabs.active == "tab-engines"
+
+            # Press 'ctrl+f' to focus search TextArea in engines tab
+            await pilot.press("ctrl+f")
+            await pilot.pause()
+            assert app.query_one("#engines-search", TextArea).has_focus
+
+            # Switch to models tab
+            await pilot.click(tabs.get_tab("tab-models"))
+            await pilot.pause()
+            assert tabs.active == "tab-models"
+
+            # Press 'ctrl+f' to focus search TextArea in models tab
+            await pilot.press("ctrl+f")
+            await pilot.pause()
+            assert app.query_one("#models-search", TextArea).has_focus
+
             # Switch to Generate tab via action
             app.action_open_generate()
             await pilot.pause()
