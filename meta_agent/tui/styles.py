@@ -59,6 +59,70 @@ ToastRack {
     color: $accent;
 }
 
+/* Pane Headers & Maximize Button */
+.pane-header {
+    height: 1;
+    margin-bottom: 0;
+    align-vertical: middle;
+}
+.pane-title {
+    width: 1fr;
+    text-style: bold;
+    color: $accent;
+}
+.pane-max-btn {
+    min-width: 4;
+    height: 1;
+    border: none;
+    padding: 0 1;
+    background: $primary;
+    color: $text;
+}
+.pane-max-btn:hover {
+    background: $accent;
+}
+.pane-hidden {
+    display: none;
+}
+
+/* Fullscreen / Maximized state rules for ResourceTab */
+.maximized-detail #recipes-sidebar,
+.maximized-detail #agents-sidebar,
+.maximized-detail #tools-sidebar {
+    display: none;
+}
+.maximized-detail #recipes-log-pane,
+.maximized-detail #agents-log-pane,
+.maximized-detail #tools-log-pane {
+    display: none;
+}
+.maximized-detail #recipes-detail,
+.maximized-detail #agents-detail,
+.maximized-detail #tools-detail {
+    height: 1fr;
+    border: none;
+    padding: 0 1;
+}
+
+.maximized-log #recipes-sidebar,
+.maximized-log #agents-sidebar,
+.maximized-log #tools-sidebar {
+    display: none;
+}
+.maximized-log #recipes-detail,
+.maximized-log #agents-detail,
+.maximized-log #tools-detail {
+    display: none;
+}
+.maximized-log #recipes-log-pane,
+.maximized-log #agents-log-pane,
+.maximized-log #tools-log-pane {
+    height: 1fr;
+    border: none;
+    border-top: none;
+    padding: 0 1;
+}
+
 Markdown {
     height: auto;
 }
@@ -138,6 +202,39 @@ LoadingIndicator {
 #gen-submit-btn {
     width: 14;
     margin-left: 1;
+}
+
+/* Fullscreen / Maximized state rules for GenerateTab */
+.maximized-preview #gen-sidebar,
+.maximized-preview #gen-log-pane,
+.maximized-preview #gen-status-bar,
+.maximized-preview #gen-input-bar {
+    display: none;
+}
+.maximized-preview #gen-main-pane {
+    padding: 0;
+}
+.maximized-preview #gen-preview-scroll {
+    height: 1fr;
+    border: none;
+    padding: 0 1;
+    margin-bottom: 0;
+}
+
+.maximized-log #gen-sidebar,
+.maximized-log #gen-preview-scroll,
+.maximized-log #gen-status-bar,
+.maximized-log #gen-input-bar {
+    display: none;
+}
+.maximized-log #gen-main-pane {
+    padding: 0;
+}
+.maximized-log #gen-log-pane {
+    height: 1fr;
+    border: none;
+    padding: 0 1;
+    margin-bottom: 0;
 }
 
 /* Chat options screen */
@@ -247,6 +344,37 @@ LoadingIndicator {
 #chat-send-btn {
     width: 12;
     margin-left: 1;
+}
+
+/* Fullscreen / Maximized state rules for ChatScreen */
+.maximized-messages #chat-info-sidebar,
+.maximized-messages #chat-log-pane {
+    display: none;
+}
+.maximized-messages #chat-main-pane {
+    padding: 0;
+}
+.maximized-messages #chat-messages {
+    height: 1fr;
+    border: none;
+    padding: 0 1;
+    margin-bottom: 0;
+}
+
+.maximized-log #chat-info-sidebar,
+.maximized-log #chat-messages,
+.maximized-log #chat-status-bar,
+.maximized-log #chat-input-bar {
+    display: none;
+}
+.maximized-log #chat-main-pane {
+    padding: 0;
+}
+.maximized-log #chat-log-pane {
+    height: 1fr;
+    border: none;
+    padding: 0 1;
+    margin-bottom: 0;
 }
 
 #recipes-actions {
@@ -416,6 +544,17 @@ LoadingIndicator {
     background: $surface;
 }
 #app-rich-log {
+    height: 1fr;
+}
+
+/* Fullscreen / Maximized state rules for LogTab */
+.maximized-log #app-log-toolbar {
+    display: none;
+}
+.maximized-log #app-log-container {
+    margin: 0;
+    border: none;
+    padding: 0 1;
     height: 1fr;
 }
 

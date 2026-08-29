@@ -55,6 +55,9 @@ class MetaAgentTUI(App[None]):
         Binding("question_mark", "open_help", "Help (?)", show=True),
         Binding("f1", "open_help", "Help", show=False),
         Binding("slash", "focus_search", "Search (/)", show=True),
+        Binding("f", "toggle_fullscreen", "Fullscreen (f)", show=True),
+        Binding("f11", "toggle_fullscreen", "Fullscreen", show=False),
+        Binding("escape", "handle_escape", "Back", show=False),
         Binding("c", "chat_recipe", "Chat", show=True),
         Binding("r", "resume_chat", "Resume Chat (r)", show=True),
         Binding("e", "edit_recipe", "Edit (e)", show=True),
@@ -79,6 +82,7 @@ class MetaAgentTUI(App[None]):
         self._displayed_tools: list[Tool] = []
         self._selected_recipe: Recipe | None = None
         self._last_ctrl_c: float = 0.0
+        self._maximized_pane: str | None = None
 
         # Generate tab history state
         self._gen_user_inputs: list[str] = []
@@ -223,8 +227,8 @@ class MetaAgentTUI(App[None]):
     # ------------------------------------------------------------------
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
-        """Check if action is enabled; disables and hides search binding on sub-screens."""
-        if action == "focus_search" and len(self.screen_stack) > 1:
+        """Check if action is enabled; disables and hides search and fullscreen bindings on sub-screens."""
+        if action in ("focus_search", "toggle_fullscreen") and len(self.screen_stack) > 1:
             return False
         return True
 
@@ -796,6 +800,190 @@ class MetaAgentTUI(App[None]):
             self.notify(f"App logs exported to: {filepath}", severity="information")
         except Exception as e:
             self.notify(f"Failed to export app logs: {e}", severity="error")
+
+    # ------------------------------------------------------------------
+    # Fullscreen / Maximize Actions
+    # ------------------------------------------------------------------
+
+    def action_handle_escape(self) -> None:
+        """Handle Escape key; restores fullscreen if active."""
+        if self._maximized_pane is not None:
+            self._restore_fullscreen()
+
+    def action_toggle_fullscreen(self) -> None:
+        """Toggle fullscreen / maximize for active pane or focused widget."""
+        if len(self.screen_stack) > 1:
+            return
+
+        if self._maximized_pane is not None:
+            self._restore_fullscreen()
+            return
+
+        try:
+            tabbed_content = self.query_one(TabbedContent)
+            active_tab = tabbed_content.active
+        except Exception:
+            return
+
+        # Determine target pane to maximize based on active tab and focus
+        if active_tab in ("tab-recipes", "tab-agents", "tab-tools"):
+            tid = active_tab.removeprefix("tab-")
+            focused = self.focused
+            if focused is not None and (
+                focused.id == f"{tid}-rich-log" or self._is_descendant_of(focused, f"{tid}-log-pane")
+            ):
+                self._maximize_resource_log(tid)
+            else:
+                self._maximize_resource_detail(tid)
+
+        elif active_tab == "tab-generate":
+            focused = self.focused
+            if focused is not None and (
+                focused.id == "gen-rich-log" or self._is_descendant_of(focused, "gen-log-pane")
+            ):
+                self._maximize_gen_log()
+            else:
+                self._maximize_gen_preview()
+
+        elif active_tab == "tab-logs":
+            self._maximize_app_log()
+
+    def _is_descendant_of(self, widget: Any, ancestor_id: str) -> bool:
+        """Check if widget is a descendant of a container with ancestor_id."""
+        curr = widget
+        while curr is not None:
+            if getattr(curr, "id", None) == ancestor_id:
+                return True
+            curr = getattr(curr, "parent", None)
+        return False
+
+    @on(TabbedContent.TabActivated)
+    def on_tab_activated(self) -> None:
+        """Restore normal layout when switching tabs."""
+        if self._maximized_pane is not None:
+            self._restore_fullscreen(notify=False)
+
+    def _maximize_resource_detail(self, tid: str) -> None:
+        """Maximize detail pane in resource tab."""
+        self._restore_fullscreen(notify=False)
+        try:
+            self.query_one(f"#{tid}-body").add_class("maximized-detail")
+            self.query_one(f"#{tid}-toolbar").add_class("pane-hidden")
+            self._maximized_pane = f"{tid}-detail"
+            self.notify(f"Maximized {tid.capitalize()} Details (press 'f' or Esc to restore)", timeout=3.0)
+        except Exception:
+            pass
+
+    def _maximize_resource_log(self, tid: str) -> None:
+        """Maximize log pane in resource tab."""
+        self._restore_fullscreen(notify=False)
+        try:
+            self.query_one(f"#{tid}-body").add_class("maximized-log")
+            self.query_one(f"#{tid}-toolbar").add_class("pane-hidden")
+            self._maximized_pane = f"{tid}-log"
+            self.notify(f"Maximized {tid.capitalize()} Logs (press 'f' or Esc to restore)", timeout=3.0)
+        except Exception:
+            pass
+
+    def _maximize_gen_preview(self) -> None:
+        """Maximize preview pane in generate tab."""
+        self._restore_fullscreen(notify=False)
+        try:
+            self.query_one("#gen-screen-layout").add_class("maximized-preview")
+            self._maximized_pane = "gen-preview"
+            self.notify("Maximized Recipe Preview (press 'f' or Esc to restore)", timeout=3.0)
+        except Exception:
+            pass
+
+    def _maximize_gen_log(self) -> None:
+        """Maximize log pane in generate tab."""
+        self._restore_fullscreen(notify=False)
+        try:
+            self.query_one("#gen-screen-layout").add_class("maximized-log")
+            self._maximized_pane = "gen-log"
+            self.notify("Maximized Generation Logs (press 'f' or Esc to restore)", timeout=3.0)
+        except Exception:
+            pass
+
+    def _maximize_app_log(self) -> None:
+        """Maximize application log tab."""
+        self._restore_fullscreen(notify=False)
+        try:
+            self.query_one(LogTab).add_class("maximized-log")
+            self._maximized_pane = "app-log"
+            self.notify("Maximized Application Logs (press 'f' or Esc to restore)", timeout=3.0)
+        except Exception:
+            pass
+
+    def _restore_fullscreen(self, notify: bool = True) -> None:
+        """Restore all tabs and panes to normal layout."""
+        if self._maximized_pane is None:
+            return
+        for tid in ("recipes", "agents", "tools"):
+            try:
+                self.query_one(f"#{tid}-body").remove_class("maximized-detail", "maximized-log")
+                self.query_one(f"#{tid}-toolbar").remove_class("pane-hidden")
+            except Exception:
+                pass
+        try:
+            self.query_one("#gen-screen-layout").remove_class("maximized-preview", "maximized-log")
+        except Exception:
+            pass
+        try:
+            self.query_one(LogTab).remove_class("maximized-log")
+        except Exception:
+            pass
+        self._maximized_pane = None
+        if notify:
+            self.notify("Restored normal view", timeout=2.0)
+
+    @on(Button.Pressed, "#recipes-detail-max-btn")
+    @on(Button.Pressed, "#agents-detail-max-btn")
+    @on(Button.Pressed, "#tools-detail-max-btn")
+    def on_resource_detail_max(self, event: Button.Pressed) -> None:
+        """Handle detail pane maximize button."""
+        if event.button.id:
+            tid = event.button.id.removesuffix("-detail-max-btn")
+            if self._maximized_pane == f"{tid}-detail":
+                self._restore_fullscreen()
+            else:
+                self._maximize_resource_detail(tid)
+
+    @on(Button.Pressed, "#recipes-log-max-btn")
+    @on(Button.Pressed, "#agents-log-max-btn")
+    @on(Button.Pressed, "#tools-log-max-btn")
+    def on_resource_log_max(self, event: Button.Pressed) -> None:
+        """Handle log pane maximize button."""
+        if event.button.id:
+            tid = event.button.id.removesuffix("-log-max-btn")
+            if self._maximized_pane == f"{tid}-log":
+                self._restore_fullscreen()
+            else:
+                self._maximize_resource_log(tid)
+
+    @on(Button.Pressed, "#gen-preview-max-btn")
+    def on_gen_preview_max(self) -> None:
+        """Handle generate preview maximize button."""
+        if self._maximized_pane == "gen-preview":
+            self._restore_fullscreen()
+        else:
+            self._maximize_gen_preview()
+
+    @on(Button.Pressed, "#gen-log-max-btn")
+    def on_gen_log_max(self) -> None:
+        """Handle generate log maximize button."""
+        if self._maximized_pane == "gen-log":
+            self._restore_fullscreen()
+        else:
+            self._maximize_gen_log()
+
+    @on(Button.Pressed, "#app-log-max-btn")
+    def on_app_log_max(self) -> None:
+        """Handle application log maximize button."""
+        if self._maximized_pane == "app-log":
+            self._restore_fullscreen()
+        else:
+            self._maximize_app_log()
 
 
 def run_tui(engine: str, model: str, recipes_dir: str, export_dir: str | None = None) -> None:
