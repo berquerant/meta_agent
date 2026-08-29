@@ -50,13 +50,14 @@ class MetaAgentTUI(App[None]):
     """TUI application for meta_agent."""
 
     CSS = APP_CSS
+    ALLOW_SELECT: ClassVar[bool] = False
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
         Binding("question_mark", "open_help", "Help (?)", show=True),
         Binding("f1", "open_help", "Help", show=False),
         Binding("slash", "focus_search", "Search (/)", show=True),
-        Binding("f", "toggle_fullscreen", "Fullscreen (f)", show=True),
-        Binding("f11", "toggle_fullscreen", "Fullscreen", show=False),
+        Binding("m", "toggle_detail_fullscreen", "Detail (m)", show=True),
+        Binding("l", "toggle_log_fullscreen", "Logs (l)", show=True),
         Binding("escape", "handle_escape", "Back", show=False),
         Binding("c", "chat_recipe", "Chat", show=True),
         Binding("r", "resume_chat", "Resume Chat (r)", show=True),
@@ -228,7 +229,10 @@ class MetaAgentTUI(App[None]):
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         """Check if action is enabled; disables and hides search and fullscreen bindings on sub-screens."""
-        if action in ("focus_search", "toggle_fullscreen") and len(self.screen_stack) > 1:
+        if (
+            action in ("focus_search", "toggle_detail_fullscreen", "toggle_log_fullscreen")
+            and len(self.screen_stack) > 1
+        ):
             return False
         return True
 
@@ -810,13 +814,9 @@ class MetaAgentTUI(App[None]):
         if self._maximized_pane is not None:
             self._restore_fullscreen()
 
-    def action_toggle_fullscreen(self) -> None:
-        """Toggle fullscreen / maximize for active pane or focused widget."""
+    def action_toggle_detail_fullscreen(self) -> None:
+        """Toggle fullscreen for detail or preview pane."""
         if len(self.screen_stack) > 1:
-            return
-
-        if self._maximized_pane is not None:
-            self._restore_fullscreen()
             return
 
         try:
@@ -825,37 +825,48 @@ class MetaAgentTUI(App[None]):
         except Exception:
             return
 
-        # Determine target pane to maximize based on active tab and focus
         if active_tab in ("tab-recipes", "tab-agents", "tab-tools"):
             tid = active_tab.removeprefix("tab-")
-            focused = self.focused
-            if focused is not None and (
-                focused.id == f"{tid}-rich-log" or self._is_descendant_of(focused, f"{tid}-log-pane")
-            ):
-                self._maximize_resource_log(tid)
+            if self._maximized_pane == f"{tid}-detail":
+                self._restore_fullscreen()
             else:
                 self._maximize_resource_detail(tid)
 
         elif active_tab == "tab-generate":
-            focused = self.focused
-            if focused is not None and (
-                focused.id == "gen-rich-log" or self._is_descendant_of(focused, "gen-log-pane")
-            ):
-                self._maximize_gen_log()
+            if self._maximized_pane == "gen-preview":
+                self._restore_fullscreen()
             else:
                 self._maximize_gen_preview()
 
-        elif active_tab == "tab-logs":
-            self._maximize_app_log()
+    def action_toggle_log_fullscreen(self) -> None:
+        """Toggle fullscreen for logs pane."""
+        if len(self.screen_stack) > 1:
+            return
 
-    def _is_descendant_of(self, widget: Any, ancestor_id: str) -> bool:
-        """Check if widget is a descendant of a container with ancestor_id."""
-        curr = widget
-        while curr is not None:
-            if getattr(curr, "id", None) == ancestor_id:
-                return True
-            curr = getattr(curr, "parent", None)
-        return False
+        try:
+            tabbed_content = self.query_one(TabbedContent)
+            active_tab = tabbed_content.active
+        except Exception:
+            return
+
+        if active_tab in ("tab-recipes", "tab-agents", "tab-tools"):
+            tid = active_tab.removeprefix("tab-")
+            if self._maximized_pane == f"{tid}-log":
+                self._restore_fullscreen()
+            else:
+                self._maximize_resource_log(tid)
+
+        elif active_tab == "tab-generate":
+            if self._maximized_pane == "gen-log":
+                self._restore_fullscreen()
+            else:
+                self._maximize_gen_log()
+
+        elif active_tab == "tab-logs":
+            if self._maximized_pane == "app-log":
+                self._restore_fullscreen()
+            else:
+                self._maximize_app_log()
 
     @on(TabbedContent.TabActivated)
     def on_tab_activated(self) -> None:
@@ -870,7 +881,7 @@ class MetaAgentTUI(App[None]):
             self.query_one(f"#{tid}-body").add_class("maximized-detail")
             self.query_one(f"#{tid}-toolbar").add_class("pane-hidden")
             self._maximized_pane = f"{tid}-detail"
-            self.notify(f"Maximized {tid.capitalize()} Details (press 'f' or Esc to restore)", timeout=3.0)
+            self.notify(f"Maximized {tid.capitalize()} Details (press 'm' or Esc to restore)", timeout=3.0)
         except Exception:
             pass
 
@@ -881,7 +892,7 @@ class MetaAgentTUI(App[None]):
             self.query_one(f"#{tid}-body").add_class("maximized-log")
             self.query_one(f"#{tid}-toolbar").add_class("pane-hidden")
             self._maximized_pane = f"{tid}-log"
-            self.notify(f"Maximized {tid.capitalize()} Logs (press 'f' or Esc to restore)", timeout=3.0)
+            self.notify(f"Maximized {tid.capitalize()} Logs (press 'l' or Esc to restore)", timeout=3.0)
         except Exception:
             pass
 
@@ -891,7 +902,7 @@ class MetaAgentTUI(App[None]):
         try:
             self.query_one("#gen-screen-layout").add_class("maximized-preview")
             self._maximized_pane = "gen-preview"
-            self.notify("Maximized Recipe Preview (press 'f' or Esc to restore)", timeout=3.0)
+            self.notify("Maximized Recipe Preview (press 'm' or Esc to restore)", timeout=3.0)
         except Exception:
             pass
 
@@ -901,7 +912,7 @@ class MetaAgentTUI(App[None]):
         try:
             self.query_one("#gen-screen-layout").add_class("maximized-log")
             self._maximized_pane = "gen-log"
-            self.notify("Maximized Generation Logs (press 'f' or Esc to restore)", timeout=3.0)
+            self.notify("Maximized Generation Logs (press 'l' or Esc to restore)", timeout=3.0)
         except Exception:
             pass
 
@@ -911,7 +922,7 @@ class MetaAgentTUI(App[None]):
         try:
             self.query_one(LogTab).add_class("maximized-log")
             self._maximized_pane = "app-log"
-            self.notify("Maximized Application Logs (press 'f' or Esc to restore)", timeout=3.0)
+            self.notify("Maximized Application Logs (press 'l' or Esc to restore)", timeout=3.0)
         except Exception:
             pass
 

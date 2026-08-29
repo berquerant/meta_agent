@@ -17,7 +17,8 @@ HELP_MARKDOWN = """
 |:---|:---|:---|
 | `?` / `F1` | **Help** | Open this keyboard shortcuts help modal |
 | `/` | **Search** | Focus the filter input for the currently active tab (Recipes / Agents / Tools) |
-| `f` / `F11` | **Fullscreen** | Toggle maximize/fullscreen for active pane (details, preview, logs, or chat) |
+| `m` | **Maximize Detail** | Toggle fullscreen for details or preview pane (`Esc` to restore) |
+| `l` | **Maximize Logs** | Toggle fullscreen for activity / execution logs (`Esc` to restore) |
 | `c` | **Chat** | Open chat setup options for the selected recipe |
 | `r` | **Resume Chat** | Browse and restore previous chat session from exported markdown |
 | `e` | **Edit** | Edit selected recipe TOML file in interactive editor (`Ctrl+S` to save) |
@@ -35,7 +36,7 @@ HELP_MARKDOWN = """
 | `Up` / `Down` | **Select Item** | Move up/down through the items list; details update on selection |
 | `Enter` | **Ask LLM / Open** | In search bar: submit query to Ask LLM; otherwise open/trigger |
 | *Ask LLM* | **Smart Action** | Natural language search, generate (e.g. "create pytest bot"), edit, delete, or resume |
-| `f` / *Button* | **Toggle Maximize**| Temporarily expand details or logs to fullscreen (`Esc` to restore) |
+| `m` / `l` | **Maximize** | Expand details (`m`) or logs (`l`) to fullscreen (`Esc` to restore) |
 
 ---
 
@@ -62,7 +63,9 @@ HELP_MARKDOWN = """
 ## 💬 Interactive Chat Screen (`ChatScreen`)
 | Key | Action | Description |
 |:---|:---|:---|
-| `f` / `F11` | **Fullscreen** | Toggle maximize/fullscreen for conversation history or logs (`Esc` to restore) |
+| `m` | **Maximize Messages**| Toggle fullscreen for conversation history (`Esc` to restore) |
+| `l` | **Maximize Logs** | Toggle fullscreen for execution logs (`Esc` to restore) |
+| `p` | **Maximize Prompt**| Toggle fullscreen for system prompt in left sidebar (`Esc` to restore) |
 | `Up` / `Down` | **Input History** | Navigate through your past sent messages in the chat input field |
 | `Enter` | **Send Message** | Send the message in input field to the assistant |
 | `Ctrl+E` | **Export Chat** | Save the entire markdown chat history to a file |

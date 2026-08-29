@@ -71,7 +71,7 @@ ToastRack {
     color: $accent;
 }
 .pane-max-btn {
-    min-width: 4;
+    min-width: 3;
     height: 1;
     border: none;
     padding: 0 1;
@@ -371,6 +371,26 @@ LoadingIndicator {
     padding: 0;
 }
 .maximized-log #chat-log-pane {
+    height: 1fr;
+    border: none;
+    padding: 0 1;
+    margin-bottom: 0;
+}
+
+.maximized-prompt #chat-main-pane {
+    display: none;
+}
+.maximized-prompt #chat-info-sidebar {
+    width: 1fr;
+    border-right: none;
+    padding: 0 1;
+}
+.maximized-prompt #chat-sidebar-title,
+.maximized-prompt .chat-sidebar-item,
+.maximized-prompt #chat-sidebar-actions {
+    display: none;
+}
+.maximized-prompt #chat-sidebar-prompt {
     height: 1fr;
     border: none;
     padding: 0 1;

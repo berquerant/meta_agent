@@ -73,7 +73,7 @@ class ResourceTab(Vertical):
                     with Horizontal(classes="pane-header"):
                         yield Label("Description & Details", classes="pane-title")
                         yield Button(
-                            "⛶", id=f"{tid}-detail-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (f)"
+                            "m", id=f"{tid}-detail-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (m)"
                         )
                     yield LoadingIndicator(id=f"{tid}-loading")
                     yield Markdown("", id=f"{tid}-markdown")
@@ -86,7 +86,7 @@ class ResourceTab(Vertical):
                     with Horizontal(classes="pane-header"):
                         yield Label("Activity / Event Logs", classes="pane-title")
                         yield Button(
-                            "⛶", id=f"{tid}-log-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (f)"
+                            "l", id=f"{tid}-log-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (l)"
                         )
                     yield RichLog(id=f"{tid}-rich-log", highlight=True, markup=True)
 
@@ -119,7 +119,7 @@ class GenerateTab(Vertical):
                     with Horizontal(classes="pane-header"):
                         yield Label("Recipe Preview", classes="pane-title")
                         yield Button(
-                            "⛶", id="gen-preview-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (f)"
+                            "m", id="gen-preview-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (m)"
                         )
                     yield Markdown(
                         "# Assistant Recipe Generator\n"
@@ -130,7 +130,7 @@ class GenerateTab(Vertical):
                 with Vertical(id="gen-log-pane"):
                     with Horizontal(classes="pane-header"):
                         yield Label("Generation / Meta-Agent Activity Logs", classes="pane-title")
-                        yield Button("⛶", id="gen-log-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (f)")
+                        yield Button("l", id="gen-log-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (l)")
                     yield RichLog(id="gen-rich-log", highlight=True, markup=True)
                 yield Static("", id="gen-status-bar")
                 with Horizontal(id="gen-input-bar"):
@@ -150,6 +150,6 @@ class LogTab(Vertical):
             yield Label("Application Activity & Event Logs", id="app-log-title")
             yield Button("Clear Logs", id="app-log-clear-btn", variant="default")
             yield Button("Export Logs", id="app-log-export-btn", variant="primary")
-            yield Button("⛶", id="app-log-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (f)")
+            yield Button("l", id="app-log-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (l)")
         with Vertical(id="app-log-container"):
             yield RichLog(id="app-rich-log", highlight=True, markup=True)
