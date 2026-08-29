@@ -9,7 +9,6 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import (
     Button,
-    Footer,
     Header,
     Label,
     ListItem,
@@ -39,13 +38,12 @@ from .helpers import (
     parse_recipe_action_intent,
     RecipeActionIntent,
     recipe_markdown,
-    sort_items,
     tool_markdown,
 )
 from .screens import ChatOptionsScreen, DeleteRecipeScreen, EditRecipeScreen, HelpScreen, ResumeChatScreen
 from .screens.chat import RichLogHandler
 from .styles import APP_CSS
-from .widgets import GenerateTab, LogTab, ResourceTab
+from .widgets import GenerateTab, LogTab, OrderedFooter, ResourceTab
 
 
 class MetaAgentTUI(App[None]):
@@ -55,19 +53,20 @@ class MetaAgentTUI(App[None]):
     ALLOW_SELECT: ClassVar[bool] = False
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
-        Binding("question_mark", "open_help", "Help (?)", show=True),
-        Binding("f1", "open_help", "Help", show=False),
-        Binding("slash", "focus_search", "Search (/)", show=True),
-        Binding("m", "toggle_detail_fullscreen", "Detail (m)", show=True),
-        Binding("l", "toggle_log_fullscreen", "Logs (l)", show=True),
-        Binding("escape", "handle_escape", "Back", show=False),
-        Binding("c", "chat_recipe", "Chat", show=True),
-        Binding("r", "resume_chat", "Resume Chat (r)", show=True),
-        Binding("e", "edit_recipe", "Edit (e)", show=True),
-        Binding("d", "delete_recipe", "Delete (d)", show=True),
-        Binding("g", "open_generate", "Generate (g)", show=True),
-        Binding("q", "quit", "Quit", show=True),
-        Binding("ctrl+c", "handle_ctrl_c", "Quit (×2)", show=True),
+        Binding("ctrl+h", "open_help", "Help (Ctrl+H)", show=True, priority=True),
+        Binding("question_mark", "open_help", "Help (?)", show=False, priority=False),
+        Binding("f1", "open_help", "Help", show=False, priority=True),
+        Binding("ctrl+f", "focus_search", "Search (Ctrl+F)", show=True, priority=True),
+        Binding("ctrl+c", "chat_recipe", "Chat (Ctrl+C)", show=True, priority=True),
+        Binding("ctrl+g", "open_generate", "Generate (Ctrl+G)", show=True, priority=True),
+        Binding("ctrl+q", "quit", "Quit (Ctrl+Q)", show=True, priority=True),
+        Binding("ctrl+b", "toggle_detail_fullscreen", "Detail Max (Ctrl+B)", show=False, priority=True),
+        Binding("ctrl+l", "toggle_log_fullscreen", "Logs Max (Ctrl+L)", show=False, priority=True),
+        Binding("ctrl+r", "resume_chat", "Resume (Ctrl+R)", show=False, priority=True),
+        Binding("ctrl+e", "edit_recipe", "Edit (Ctrl+E)", show=False, priority=True),
+        Binding("ctrl+d", "delete_recipe", "Delete (Ctrl+D)", show=False, priority=True),
+        Binding("ctrl+p", "toggle_prompt_fullscreen", show=False, priority=True),
+        Binding("escape", "handle_escape", "Back (Esc)", show=False, priority=True),
     ]
 
     def __init__(self, engine: str, model: str, recipes_dir: str, export_dir: str | None = None) -> None:
@@ -109,7 +108,7 @@ class MetaAgentTUI(App[None]):
                 yield GenerateTab(self._engine, self._model, self._recipes_dir)
             with TabPane("Logs", id="tab-logs"):
                 yield LogTab()
-        yield Footer()
+        yield OrderedFooter()
 
     def on_mount(self) -> None:
         """Load all resources after mounting and attach app log handler."""
@@ -136,6 +135,10 @@ class MetaAgentTUI(App[None]):
         self._load_tools()
         try:
             self.query_one("#gen-chat-btn", Button).display = False
+        except Exception:
+            pass
+        try:
+            self.query_one("#recipes-search", TextArea).focus()
         except Exception:
             pass
 
@@ -192,7 +195,7 @@ class MetaAgentTUI(App[None]):
         self.query_one(f"#{tid}-loading", LoadingIndicator).display = False
 
     def _render_tab(self, tid: str) -> None:
-        """Render the current (filtered + sorted) resource list for a given tab."""
+        """Render the current filtered resource list for a given tab."""
         items_map: dict[str, list[Any]] = {
             "recipes": self._recipes,
             "agents": self._agents,
@@ -200,12 +203,10 @@ class MetaAgentTUI(App[None]):
         }
         all_items = items_map.get(tid, [])
         try:
-            sort_key = str(self.query_one(f"#{tid}-sort", Select).value)
             search = self.query_one(f"#{tid}-search", TextArea).text
         except Exception:
             return
         items = filter_items(all_items, search)
-        items = sort_items(items, sort_key)
 
         if tid == "recipes":
             self._displayed_recipes = items
@@ -238,11 +239,15 @@ class MetaAgentTUI(App[None]):
 
     def action_focus_search(self) -> None:
         """Focus the search input or open select overlay if focused on a Select."""
-        if len(self.screen_stack) > 1:
-            return
-
         if isinstance(self.focused, Select):
             self.focused.action_show_overlay()
+            return
+
+        if len(self.screen_stack) > 1:
+            if hasattr(self.screen, "action_focus_search"):
+                self.screen.action_focus_search()
+            elif hasattr(self.screen, "action_focus_filter"):
+                self.screen.action_focus_filter()
             return
 
         try:
@@ -417,6 +422,7 @@ class MetaAgentTUI(App[None]):
             self.clear_notifications()
             try:
                 self.query_one(TabbedContent).active = "tab-generate"
+                self.query_one("#gen-input", TextArea).focus()
             except Exception:
                 pass
 
@@ -491,27 +497,26 @@ class MetaAgentTUI(App[None]):
         return False
 
     # ------------------------------------------------------------------
-    # Sort events
+    # Selection & Focus events
     # ------------------------------------------------------------------
 
-    @on(Select.Changed, "#recipes-sort")
-    @on(Select.Changed, "#agents-sort")
-    @on(Select.Changed, "#tools-sort")
-    def on_sort_changed(self, event: Select.Changed) -> None:
-        """Re-sort and re-render resources for active select widget."""
-        if event.select.id:
-            tid = event.select.id.removesuffix("-sort")
-            self._render_tab(tid)
+    def on_descendant_focus(self, event: events.DescendantFocus) -> None:
+        """Auto-select the first item if list gains focus and no item is selected yet."""
+        if isinstance(event.widget, ListView):
+            lv = event.widget
+            if lv.id == "recipes-list" and lv.index is None and len(self._displayed_recipes) > 0:
+                lv.index = 0
+                self._select_recipe_by_index(0)
+            elif lv.id == "agents-list" and lv.index is None and len(self._displayed_agents) > 0:
+                lv.index = 0
+                self._select_agent_by_index(0)
+            elif lv.id == "tools-list" and lv.index is None and len(self._displayed_tools) > 0:
+                lv.index = 0
+                self._select_tool_by_index(0)
 
-    # ------------------------------------------------------------------
-    # Selection events
-    # ------------------------------------------------------------------
-
-    @on(ListView.Selected, "#recipes-list")
-    def on_recipe_selected(self, event: ListView.Selected) -> None:
-        """Show recipe detail on selection."""
-        idx = event.list_view.index
-        if idx is None or idx >= len(self._displayed_recipes):
+    def _select_recipe_by_index(self, idx: int) -> None:
+        """Select recipe at index and update detail and action buttons."""
+        if idx >= len(self._displayed_recipes):
             return
         r = self._displayed_recipes[idx]
         self._selected_recipe = r
@@ -524,25 +529,42 @@ class MetaAgentTUI(App[None]):
         except Exception:
             pass
 
-    @on(ListView.Selected, "#agents-list")
-    def on_agent_selected(self, event: ListView.Selected) -> None:
-        """Show agent detail on selection."""
-        idx = event.list_view.index
-        if idx is None or idx >= len(self._displayed_agents):
+    def _select_agent_by_index(self, idx: int) -> None:
+        """Select agent at index and update detail."""
+        if idx >= len(self._displayed_agents):
             return
         a = self._displayed_agents[idx]
         md = agent_markdown(a)
         self.query_one("#agents-markdown", Markdown).update(md)
 
-    @on(ListView.Selected, "#tools-list")
-    def on_tool_selected(self, event: ListView.Selected) -> None:
-        """Show tool detail on selection."""
-        idx = event.list_view.index
-        if idx is None or idx >= len(self._displayed_tools):
+    def _select_tool_by_index(self, idx: int) -> None:
+        """Select tool at index and update detail."""
+        if idx >= len(self._displayed_tools):
             return
         t = self._displayed_tools[idx]
         md = tool_markdown(t)
         self.query_one("#tools-markdown", Markdown).update(md)
+
+    @on(ListView.Selected, "#recipes-list")
+    @on(ListView.Highlighted, "#recipes-list")
+    def on_recipe_selected(self, event: ListView.Selected | ListView.Highlighted) -> None:
+        """Show recipe detail on selection or highlight."""
+        if event.list_view.index is not None:
+            self._select_recipe_by_index(event.list_view.index)
+
+    @on(ListView.Selected, "#agents-list")
+    @on(ListView.Highlighted, "#agents-list")
+    def on_agent_selected(self, event: ListView.Selected | ListView.Highlighted) -> None:
+        """Show agent detail on selection or highlight."""
+        if event.list_view.index is not None:
+            self._select_agent_by_index(event.list_view.index)
+
+    @on(ListView.Selected, "#tools-list")
+    @on(ListView.Highlighted, "#tools-list")
+    def on_tool_selected(self, event: ListView.Selected | ListView.Highlighted) -> None:
+        """Show tool detail on selection or highlight."""
+        if event.list_view.index is not None:
+            self._select_tool_by_index(event.list_view.index)
 
     # ------------------------------------------------------------------
     # Chat Options & Launch
@@ -563,7 +585,11 @@ class MetaAgentTUI(App[None]):
         self._open_chat_options()
 
     def action_chat_recipe(self) -> None:
-        """Launch chat options screen via key binding."""
+        """Launch chat options screen or start chat if already on ChatOptionsScreen."""
+        if len(self.screen_stack) > 1:
+            if hasattr(self.screen, "action_start_chat"):
+                self.screen.action_start_chat()
+            return
         self._open_chat_options()
 
     def action_resume_chat(self) -> None:
@@ -863,13 +889,35 @@ class MetaAgentTUI(App[None]):
     # ------------------------------------------------------------------
 
     def action_handle_escape(self) -> None:
-        """Handle Escape key; restores fullscreen if active."""
+        """Handle Escape key; delegates to pushed screen or restores fullscreen / unfocuses input."""
+        if len(self.screen_stack) > 1:
+            active_screen = self.screen
+            if hasattr(active_screen, "action_handle_escape"):
+                active_screen.action_handle_escape()
+            elif hasattr(active_screen, "action_dismiss_screen"):
+                active_screen.action_dismiss_screen()
+            elif hasattr(active_screen, "action_dismiss_help"):
+                active_screen.action_dismiss_help()
+            elif hasattr(active_screen, "action_cancel"):
+                active_screen.action_cancel()
+            elif hasattr(active_screen, "action_dismiss_cancel"):
+                active_screen.action_dismiss_cancel()
+            elif hasattr(active_screen, "dismiss"):
+                active_screen.dismiss()
+            return
+
         if self._maximized_pane is not None:
             self._restore_fullscreen()
+            return
+        focused = self.focused
+        if focused and isinstance(focused, TextArea):
+            self.set_focus(None)
 
     def action_toggle_detail_fullscreen(self) -> None:
         """Toggle fullscreen for detail or preview pane."""
         if len(self.screen_stack) > 1:
+            if hasattr(self.screen, "action_toggle_messages_fullscreen"):
+                self.screen.action_toggle_messages_fullscreen()
             return
 
         try:
@@ -894,6 +942,8 @@ class MetaAgentTUI(App[None]):
     def action_toggle_log_fullscreen(self) -> None:
         """Toggle fullscreen for logs pane."""
         if len(self.screen_stack) > 1:
+            if hasattr(self.screen, "action_toggle_log_fullscreen"):
+                self.screen.action_toggle_log_fullscreen()
             return
 
         try:
@@ -920,6 +970,12 @@ class MetaAgentTUI(App[None]):
                 self._restore_fullscreen()
             else:
                 self._maximize_app_log()
+
+    def action_toggle_prompt_fullscreen(self) -> None:
+        """Toggle fullscreen for prompt pane on active screen."""
+        if len(self.screen_stack) > 1:
+            if hasattr(self.screen, "action_toggle_prompt_fullscreen"):
+                self.screen.action_toggle_prompt_fullscreen()
 
     @on(TabbedContent.TabActivated)
     def on_tab_activated(self) -> None:

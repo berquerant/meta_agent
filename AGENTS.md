@@ -37,7 +37,7 @@ meta_agent/
 │   ├── tui/           # Textual-based interactive TUI (package)
 │   │   ├── __init__.py    # re-exports run_tui
 │   │   ├── app.py         # MetaAgentTUI app + run_tui entry point
-│   │   ├── helpers.py     # sort / filter / markdown formatting helpers
+│   │   ├── helpers.py     # filter / markdown formatting / prompt helpers
 │   │   ├── styles.py      # App CSS styles definition
 │   │   ├── screens/       # TUI screens package
 │   │   │   ├── __init__.py

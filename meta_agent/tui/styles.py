@@ -24,10 +24,6 @@ ToastRack {
     width: 16;
     height: 3;
 }
-#recipes-sort, #agents-sort, #tools-sort {
-    width: 18;
-    height: 3;
-}
 
 /* Body */
 #recipes-body, #agents-body, #tools-body {

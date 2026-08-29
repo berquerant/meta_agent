@@ -32,7 +32,7 @@ meta_agent tui --engine ollama --model llama3 --export-dir ~/Documents/meta_agen
 ```
 
 ### ✨ Key Features
-- **Resource Management**: Browse, sort, and search recipes, agent architectures, and tools with instant markdown previews.
+- **Resource Management**: Browse and search recipes, agent architectures, and tools with instant markdown previews.
 - **Smart Ask LLM**: Natural language query bar supporting semantic search, auto-generating recipes, and launching chat sessions.
 - **Interactive Chat**: Stream multi-turn conversations directly in the terminal with token-by-token rendering, copy-to-clipboard, and session export.
 - **Session Resume & History**: Restore previous chat sessions from exported markdown files.

@@ -9,11 +9,12 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
-from textual.widgets import Button, Footer, Header, Label, Markdown, RichLog, Static, TextArea
+from textual.widgets import Button, Header, Label, Markdown, RichLog, Static, TextArea
 
 from ...asking import AskingOpts
 from ...utils import get_default_export_dir, now_str
 from ..helpers import build_chat_prompt, InputHistory, now_datetime_str
+from ..widgets import OrderedFooter
 from .help import HelpScreen
 
 
@@ -53,14 +54,19 @@ class ChatScreen(Screen[None]):
     ALLOW_SELECT: ClassVar[bool] = False
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
-        Binding("escape", "dismiss_screen", "Back", show=True),
-        Binding("m", "toggle_messages_fullscreen", "Messages (m)", show=True),
-        Binding("l", "toggle_log_fullscreen", "Logs (l)", show=True),
-        Binding("p", "toggle_prompt_fullscreen", "Prompt (p)", show=True),
-        Binding("ctrl+e", "export_chat", "Export Chat", show=True),
-        Binding("ctrl+l", "export_logs", "Export Logs", show=True),
-        Binding("question_mark", "open_help", "Help (?)", show=True),
-        Binding("f1", "open_help", "Help", show=False),
+        Binding("ctrl+h", "open_help", "Help (Ctrl+H)", show=True, priority=True),
+        Binding("question_mark", "open_help", "Help (?)", show=False, priority=False),
+        Binding("f1", "open_help", "Help", show=False, priority=True),
+        Binding("escape", "dismiss_screen", "Back (Esc)", show=True, priority=True),
+        Binding("ctrl+s", "export_chat", "Export Chat (Ctrl+S)", show=True, priority=True),
+        Binding("ctrl+b", "toggle_messages_fullscreen", "Messages Max (Ctrl+B)", show=False, priority=True),
+        Binding("ctrl+l", "toggle_log_fullscreen", "Logs Max (Ctrl+L)", show=False, priority=True),
+        Binding("ctrl+p", "toggle_prompt_fullscreen", "Prompt Max (Ctrl+P)", show=False, priority=True),
+        Binding("ctrl+shift+l", "export_logs", "Export Logs", show=False, priority=True),
+        Binding("ctrl+c", "start_chat", show=False, priority=True),
+        Binding("ctrl+g", "open_generate", show=False, priority=True),
+        Binding("ctrl+q", "quit", show=False, priority=True),
+        Binding("ctrl+f", "focus_search", show=False, priority=True),
     ]
 
     def __init__(
@@ -100,7 +106,10 @@ class ChatScreen(Screen[None]):
                     with Horizontal(classes="pane-header"):
                         yield Label("System Prompt:", classes="pane-title")
                         yield Button(
-                            "p", id="chat-prompt-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (p)"
+                            "^p",
+                            id="chat-prompt-max-btn",
+                            classes="pane-max-btn",
+                            tooltip="Toggle Fullscreen (Ctrl+P)",
                         )
                     yield VerticalScroll(Markdown(self._opts.system), id="chat-sidebar-prompt")
                 with Vertical(id="chat-sidebar-actions"):
@@ -114,14 +123,20 @@ class ChatScreen(Screen[None]):
                     with Horizontal(classes="pane-header"):
                         yield Label("Conversation History", classes="pane-title")
                         yield Button(
-                            "m", id="chat-messages-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (m)"
+                            "^b",
+                            id="chat-messages-max-btn",
+                            classes="pane-max-btn",
+                            tooltip="Toggle Fullscreen (Ctrl+B)",
                         )
                     yield Markdown("# Chat Session Started\nType a message below to begin.", id="chat-markdown")
                 with Vertical(id="chat-log-pane"):
                     with Horizontal(classes="pane-header"):
                         yield Label("Activity / Execution Logs", classes="pane-title")
                         yield Button(
-                            "l", id="chat-log-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (l)"
+                            "^l",
+                            id="chat-log-max-btn",
+                            classes="pane-max-btn",
+                            tooltip="Toggle Fullscreen (Ctrl+L)",
                         )
                     yield RichLog(id="chat-rich-log", highlight=True, markup=True)
                 yield Static("", id="chat-status-bar")
@@ -134,7 +149,7 @@ class ChatScreen(Screen[None]):
                         id="chat-input",
                     )
                     yield Button("Send  [Ctrl+J]", id="chat-send-btn", variant="primary")
-        yield Footer()
+        yield OrderedFooter()
 
     def on_mount(self) -> None:
         """Configure initial widget state and hook logging."""
@@ -335,15 +350,33 @@ class ChatScreen(Screen[None]):
     # ------------------------------------------------------------------
 
     def on_key(self, event: events.Key) -> None:
-        """Handle submission via Ctrl+J/Ctrl+Enter and Up/Down history navigation for chat input."""
+        """Handle submission via Ctrl+J/Ctrl+Enter, shortcuts, and Up/Down history navigation."""
         inp = self.query_one("#chat-input", TextArea)
         if not inp.has_focus:
             return
 
-        if event.key in ("ctrl+j", "ctrl+enter", "ctrl+s"):
+        if event.key in ("ctrl+j", "ctrl+enter"):
             event.prevent_default()
             event.stop()
             self.on_submit()
+            return
+
+        if event.key == "ctrl+p":
+            event.prevent_default()
+            event.stop()
+            self.action_toggle_prompt_fullscreen()
+            return
+
+        if event.key == "ctrl+b":
+            event.prevent_default()
+            event.stop()
+            self.action_toggle_messages_fullscreen()
+            return
+
+        if event.key == "ctrl+l":
+            event.prevent_default()
+            event.stop()
+            self.action_toggle_log_fullscreen()
             return
 
         if not self._input_history.entries:

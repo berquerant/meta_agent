@@ -14,26 +14,12 @@ from meta_agent.tui.helpers import (
     InputHistory,
     parse_exported_chat_file,
     parse_recipe_action_intent,
-    sort_items,
 )
 
 
 @dataclass
 class DummyItem:
     name: str
-
-
-@pytest.mark.parametrize(
-    ("sort_key", "expected_names"),
-    [
-        ("alpha_asc", ["Apple", "banana", "cherry"]),
-        ("alpha_desc", ["cherry", "banana", "Apple"]),
-    ],
-)
-def test_sort_items(sort_key: str, expected_names: list[str]) -> None:
-    items = [DummyItem("banana"), DummyItem("Apple"), DummyItem("cherry")]
-    sorted_res = sort_items(items, sort_key)
-    assert [x.name for x in sorted_res] == expected_names
 
 
 @pytest.mark.parametrize(

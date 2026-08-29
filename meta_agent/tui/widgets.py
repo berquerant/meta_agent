@@ -5,10 +5,50 @@ from typing import Any
 from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import Button, Label, ListView, LoadingIndicator, Markdown, RichLog, Select, Static, TextArea
+from textual.widgets import (
+    Button,
+    Footer,
+    Label,
+    ListView,
+    LoadingIndicator,
+    Markdown,
+    RichLog,
+    Select,
+    Static,
+    TextArea,
+)
+from textual.widgets._footer import FooterKey
 from textual.widgets._select import SelectOverlay
 
-from .helpers import SORT_OPTIONS
+
+class OrderedFooter(Footer):
+    """Custom Footer ensuring Help is always positioned on the far left."""
+
+    def compose(self) -> ComposeResult:
+        """Compose footer keys with Help always on the far left."""
+        if not self._bindings_ready:
+            return
+        items = list(super().compose())
+
+        def _sort_order(w: Any) -> int:
+            if isinstance(w, FooterKey):
+                if w.key in ("ctrl+h", "question_mark", "f1"):
+                    return 0
+                if w.key in ("escape", "back"):
+                    return 1
+                if w.key == "ctrl+f":
+                    return 2
+                if w.key == "ctrl+c":
+                    return 3
+                if w.key == "ctrl+s":
+                    return 4
+                if w.key == "ctrl+g":
+                    return 5
+                if w.key == "ctrl+q":
+                    return 6
+            return 10
+
+        yield from sorted(items, key=_sort_order)
 
 
 class SearchableSelectOverlay(SelectOverlay):
@@ -65,12 +105,6 @@ class ResourceTab(Vertical):
                 id=f"{tid}-search",
             )
             yield Button("Ask LLM", id=f"{tid}-llm-btn", variant="default")
-            yield SearchableSelect(
-                [(label, val) for label, val in SORT_OPTIONS],
-                id=f"{tid}-sort",
-                value="alpha_asc",
-                allow_blank=False,
-            )
         with Horizontal(id=f"{tid}-body"):
             with Vertical(id=f"{tid}-sidebar"):
                 yield ListView(id=f"{tid}-list")
@@ -79,20 +113,23 @@ class ResourceTab(Vertical):
                     with Horizontal(classes="pane-header"):
                         yield Label("Description & Details", classes="pane-title")
                         yield Button(
-                            "m", id=f"{tid}-detail-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (m)"
+                            "^b",
+                            id=f"{tid}-detail-max-btn",
+                            classes="pane-max-btn",
+                            tooltip="Toggle Fullscreen (Ctrl+B)",
                         )
                     yield LoadingIndicator(id=f"{tid}-loading")
                     yield Markdown("", id=f"{tid}-markdown")
                     if self._show_chat:
                         with Horizontal(id=f"{tid}-actions"):
-                            yield Button("Chat with this recipe  [c]", id=f"{tid}-chat-btn", variant="success")
-                            yield Button("Edit  [e]", id=f"{tid}-edit-btn", variant="default")
-                            yield Button("Delete  [d]", id=f"{tid}-delete-btn", variant="error")
+                            yield Button("Chat with this recipe  [Ctrl+C]", id=f"{tid}-chat-btn", variant="success")
+                            yield Button("Edit  [Ctrl+E]", id=f"{tid}-edit-btn", variant="default")
+                            yield Button("Delete  [Ctrl+D]", id=f"{tid}-delete-btn", variant="error")
                 with Vertical(id=f"{tid}-log-pane"):
                     with Horizontal(classes="pane-header"):
                         yield Label("Activity / Event Logs", classes="pane-title")
                         yield Button(
-                            "l", id=f"{tid}-log-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (l)"
+                            "^l", id=f"{tid}-log-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (Ctrl+L)"
                         )
                     yield RichLog(id=f"{tid}-rich-log", highlight=True, markup=True)
 
@@ -125,7 +162,7 @@ class GenerateTab(Vertical):
                     with Horizontal(classes="pane-header"):
                         yield Label("Recipe Preview", classes="pane-title")
                         yield Button(
-                            "m", id="gen-preview-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (m)"
+                            "^b", id="gen-preview-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (Ctrl+B)"
                         )
                     yield Markdown(
                         "# Assistant Recipe Generator\n"
@@ -136,7 +173,9 @@ class GenerateTab(Vertical):
                 with Vertical(id="gen-log-pane"):
                     with Horizontal(classes="pane-header"):
                         yield Label("Generation / Meta-Agent Activity Logs", classes="pane-title")
-                        yield Button("l", id="gen-log-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (l)")
+                        yield Button(
+                            "^l", id="gen-log-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (Ctrl+L)"
+                        )
                     yield RichLog(id="gen-rich-log", highlight=True, markup=True)
                 yield Static("", id="gen-status-bar")
                 with Horizontal(id="gen-input-bar"):
@@ -159,6 +198,6 @@ class LogTab(Vertical):
             yield Label("Application Activity & Event Logs", id="app-log-title")
             yield Button("Clear Logs", id="app-log-clear-btn", variant="default")
             yield Button("Export Logs", id="app-log-export-btn", variant="primary")
-            yield Button("l", id="app-log-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (l)")
+            yield Button("^l", id="app-log-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (Ctrl+L)")
         with Vertical(id="app-log-container"):
             yield RichLog(id="app-rich-log", highlight=True, markup=True)

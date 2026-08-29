@@ -19,8 +19,8 @@ class ResumeChatScreen(ModalScreen[bool]):
     """Modal dialog to browse, preview, and resume exported chat sessions."""
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
-        Binding("slash", "focus_filter", "Search (/)", show=True),
-        Binding("escape", "dismiss_cancel", "Cancel", show=True),
+        Binding("ctrl+f", "focus_filter", "Search (Ctrl+F)", show=True, priority=True),
+        Binding("escape", "dismiss_cancel", "Cancel (Esc)", show=True, priority=True),
     ]
 
     def __init__(self, export_dir: str, initial_filter: str = "") -> None:
