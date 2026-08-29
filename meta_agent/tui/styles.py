@@ -46,7 +46,7 @@ ToastRack {
     height: 1fr;
     padding: 1 2;
     overflow-y: auto;
-    overflow-x: hidden;
+    overflow-x: auto;
 }
 #recipes-log-pane, #agents-log-pane, #tools-log-pane {
     height: 8;

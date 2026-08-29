@@ -131,7 +131,7 @@ class ResourceTab(Vertical):
                         yield Button(
                             "^l", id=f"{tid}-log-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (Ctrl+L)"
                         )
-                    yield RichLog(id=f"{tid}-rich-log", highlight=True, markup=True)
+                    yield RichLog(id=f"{tid}-rich-log", highlight=True, markup=True, wrap=True)
 
 
 class GenerateTab(Vertical):
@@ -176,7 +176,7 @@ class GenerateTab(Vertical):
                         yield Button(
                             "^l", id="gen-log-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (Ctrl+L)"
                         )
-                    yield RichLog(id="gen-rich-log", highlight=True, markup=True)
+                    yield RichLog(id="gen-rich-log", highlight=True, markup=True, wrap=True)
                 yield Static("", id="gen-status-bar")
                 with Horizontal(id="gen-input-bar"):
                     yield TextArea(
@@ -200,4 +200,4 @@ class LogTab(Vertical):
             yield Button("Export Logs", id="app-log-export-btn", variant="primary")
             yield Button("^l", id="app-log-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (Ctrl+L)")
         with Vertical(id="app-log-container"):
-            yield RichLog(id="app-rich-log", highlight=True, markup=True)
+            yield RichLog(id="app-rich-log", highlight=True, markup=True, wrap=True)
