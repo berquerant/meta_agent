@@ -1,4 +1,4 @@
-"""Shared helpers for the TUI: sorting, filtering, markdown formatting, command building, and prompt generation."""
+"""Shared helpers for the TUI: filtering, markdown formatting, command building, and prompt generation."""
 
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
@@ -12,25 +12,12 @@ from ..cmd import format_obj
 # Constants
 # ---------------------------------------------------------------------------
 
-SORT_OPTIONS: list[tuple[str, str]] = [
-    ("A → Z", "alpha_asc"),
-    ("Z → A", "alpha_desc"),
-]
-
-SortKey = str  # "alpha_asc" | "alpha_desc"
-
 CTRL_C_TIMEOUT: float = 2.0  # seconds timeout for double Ctrl+C app quit
 
 
 # ---------------------------------------------------------------------------
-# Sort & Filter Utilities
+# Filter Utilities
 # ---------------------------------------------------------------------------
-
-
-def sort_items(items: list[Any], sort_key: SortKey) -> list[Any]:
-    """Sort a list of dataclass items by name."""
-    reverse = sort_key == "alpha_desc"
-    return sorted(items, key=lambda x: x.name.lower(), reverse=reverse)
 
 
 def filter_items(items: list[Any], query: str) -> list[Any]:

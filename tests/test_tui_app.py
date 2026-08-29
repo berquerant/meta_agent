@@ -10,7 +10,6 @@ from meta_agent.tui.screens.chat_options import ChatOptionsScreen
 from meta_agent.tui.screens.delete_recipe import DeleteRecipeScreen
 from meta_agent.tui.screens.edit_recipe import EditRecipeScreen
 from meta_agent.tui.screens.resume_chat import ResumeChatScreen
-from meta_agent.tui.widgets import SearchableSelect, SearchableSelectOverlay
 
 
 @pytest.mark.anyio
@@ -38,38 +37,6 @@ async def test_tui_app_tabs_and_search_focus() -> None:
             await pilot.pause()
             assert tabs.active == "tab-generate"
             assert app.query_one("#gen-input", TextArea).has_focus
-
-
-@pytest.mark.anyio
-async def test_tui_dropdown_search_overlay() -> None:
-    """Test pressing '/' on a focused Select widget opens the searchable overlay, filters, and selects."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
-        async with app.run_test() as pilot:
-            # Focus sort Select on recipes tab
-            select = app.query_one("#recipes-sort", SearchableSelect)
-            select.focus()
-            await pilot.pause()
-            assert not select.expanded
-
-            # Press 'ctrl+f' to open the dropdown overlay
-            await pilot.press("ctrl+f")
-            await pilot.pause()
-            assert select.expanded
-
-            # Type search characters in the overlay
-            overlay = app.query_one(SearchableSelectOverlay)
-            assert overlay.has_focus
-
-            # Type search query
-            await pilot.press("z")
-            await pilot.pause()
-            assert "z" in overlay.border_title.lower()
-
-            # Press Enter to select the filtered option
-            await pilot.press("enter")
-            await pilot.pause()
-            assert select.value == "alpha_desc"
 
 
 @pytest.mark.anyio

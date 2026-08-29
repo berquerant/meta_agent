@@ -8,7 +8,7 @@ This directory contains unit, integration, and UI tests for `meta_agent`.
 |---|---|---|
 | [`test_tui_app.py`](test_tui_app.py) | `meta_agent.tui.app` | Verifies main TUI application lifecycle, tab navigation, shortcuts, fullscreen modes, and log management. |
 | [`test_tui_screens.py`](test_tui_screens.py) | `meta_agent.tui.screens.*` | Verifies modal screens (`HelpScreen`, `ChatOptionsScreen`, `EditRecipeScreen`, `DeleteRecipeScreen`, `ResumeChatScreen`, `ChatScreen`), validation, and dismiss workflows. |
-| [`test_tui_helpers.py`](test_tui_helpers.py) | `meta_agent.tui.helpers` | Table-driven tests for sorting, filtering, recipe matching, prompt construction, intent parsing, and input history. |
+| [`test_tui_helpers.py`](test_tui_helpers.py) | `meta_agent.tui.helpers` | Table-driven tests for filtering, recipe matching, prompt construction, intent parsing, and input history. |
 | [`test_tui_e2e_llm.py`](test_tui_e2e_llm.py) | `meta_agent.tui.*` / `meta_agent.llm` | E2E workflows with mock LLM client (recipe generation, chat token streaming, agent mode, Ask LLM routing). |
 | [`test_recipe_ops.py`](test_recipe_ops.py) | `meta_agent.api` | Tests recipe file I/O, persistence, discovery, and file system safety. |
 | [`test_utils.py`](test_utils.py) | `meta_agent.utils` | Tests shared date formatting and text utility functions. |
@@ -25,7 +25,6 @@ The TUI test suite leverages Textual's asynchronous testing harness (`App.run_te
 | Test Function | Scenario / User Actions | Assertions & Significance |
 |---|---|---|
 | `test_tui_app_tabs_and_search_focus` | <ul><li>Switch active tab (`Recipes` &rarr; `Agents` &rarr; `Generate`)</li><li>Press `Ctrl+F` to focus the search `TextArea`</li><li>Invoke `action_open_generate()`</li></ul> | Ensures keyboard-driven tab switching and quick search activation seamlessly focus the correct text controls. |
-| `test_tui_dropdown_search_overlay` | <ul><li>Focus sort `SearchableSelect` on recipes tab</li><li>Press `Ctrl+F` to open the overlay</li><li>Type `z` to filter options, then press `Enter`</li></ul> | Verifies that searchable dropdown overlays handle incremental typing, title updates, and option selection correctly. |
 | `test_tui_fullscreen_maximize_and_restore` | <ul><li>Press `Ctrl+B` to maximize and restore the detail pane</li><li>Press `Ctrl+L` or click the maximize button to maximize the log pane</li><li>Press `Esc` to restore standard layout</li><li>Switch tabs to verify auto-reset of fullscreen mode</li></ul> | Confirms that pane maximize/restore toggles function cleanly across keybindings and buttons without state corruption. |
 | `test_tui_multiline_messages_and_submission` | <ul><li>Type multi-line prompt text in `GenerateTab`</li><li>Submit using `Ctrl+J`</li></ul> | Verifies separation between Enter (newline) and submission (`Ctrl+J` / `Ctrl+Enter`), ensuring inputs are cleared and saved to history. |
 | `test_tui_main_keybindings_and_shortcuts` | <ul><li>With a recipe selected, trigger `Ctrl+C`, `Ctrl+E`, `Ctrl+D`, `Ctrl+R`, and `Ctrl+G` actions</li><li>Verify transition to target modal screens</li><li>Press `Esc` to dismiss modals</li></ul> | Guarantees that global keyboard navigation immediately dispatches the appropriate modal screen or tab. |
@@ -33,6 +32,7 @@ The TUI test suite leverages Textual's asynchronous testing harness (`App.run_te
 | `test_tui_log_tab_clear_and_export` | <ul><li>Switch to `tab-logs`</li><li>Press `Ctrl+L` to maximize and `Esc` to restore</li><li>Click `Export Logs` button to save `.log`</li><li>Click `Clear Logs` button to empty the log buffer</li></ul> | Ensures application execution logs can be reviewed in fullscreen, archived to disk, and cleared on demand. |
 | `test_tui_resource_selection_updates_detail` | <ul><li>Select items across recipes, agents, and tools lists</li><li>Verify markdown detail pane updates</li></ul> | Confirms that selecting list items correctly updates the detail pane and selected state. |
 | `test_tui_ask_llm_button_trigger` | <ul><li>Enter search query in `#recipes-search`</li><li>Click Ask LLM button (`#recipes-llm-btn`)</li></ul> | Verifies natural language query submission triggers intent processing and query logging. |
+| `test_tui_list_focus_auto_selects_first_item` | <ul><li>Focus `#recipes-list` via Tab navigation</li><li>Verify first item is auto-selected and details/action buttons appear</li><li>Press `Down` arrow to verify real-time selection updates</li></ul> | Verifies list views automatically select the first element on focus and sync details on navigation. |
 
 ---
 
@@ -63,7 +63,6 @@ Table-driven tests using `@pytest.mark.parametrize` cover various input combinat
 
 | Test Function | Parametrized Cases | Assertions & Significance |
 |---|---|---|
-| `test_sort_items` | <ul><li>`alpha_asc`: Case-insensitive ascending order</li><li>`alpha_desc`: Case-insensitive descending order</li></ul> | Guarantees deterministic and intuitive alphabetical ordering of resources. |
 | `test_filter_items` | <ul><li>Substring matching (`"alpha"`)</li><li>Prefix matching (`"bot"`)</li><li>Empty query (returns all items)</li><li>Non-matching query (returns empty list)</li></ul> | Validates search query filtering robustness across edge cases. |
 | `test_find_matching_recipe` | <ul><li>Exact match takes precedence over substring (`"pytest"` &rarr; `pytest`)</li><li>Substring match fallback (`"bot"` &rarr; `pytest_bot`)</li><li>Case-insensitive match (`"DOC"` &rarr; `doc_writer`)</li><li>Non-matching / empty target (`None`)</li></ul> | Verifies exact-match precedence and fuzzy fallback heuristics when locating recipes from user intent. |
 | `test_build_chat_command_parts` | <ul><li>Recipe defaults (no extra flags added)</li><li>Single option override (e.g. `--engine cloud`)</li><li>Combined overrides (e.g. `--model`, `--agent`)</li></ul> | Ensures CLI invocation argument construction only appends flags that differ from recipe defaults. |

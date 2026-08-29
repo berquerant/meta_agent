@@ -39,7 +39,6 @@ from .helpers import (
     parse_recipe_action_intent,
     RecipeActionIntent,
     recipe_markdown,
-    sort_items,
     tool_markdown,
 )
 from .screens import ChatOptionsScreen, DeleteRecipeScreen, EditRecipeScreen, HelpScreen, ResumeChatScreen
@@ -197,7 +196,7 @@ class MetaAgentTUI(App[None]):
         self.query_one(f"#{tid}-loading", LoadingIndicator).display = False
 
     def _render_tab(self, tid: str) -> None:
-        """Render the current (filtered + sorted) resource list for a given tab."""
+        """Render the current filtered resource list for a given tab."""
         items_map: dict[str, list[Any]] = {
             "recipes": self._recipes,
             "agents": self._agents,
@@ -205,12 +204,10 @@ class MetaAgentTUI(App[None]):
         }
         all_items = items_map.get(tid, [])
         try:
-            sort_key = str(self.query_one(f"#{tid}-sort", Select).value)
             search = self.query_one(f"#{tid}-search", TextArea).text
         except Exception:
             return
         items = filter_items(all_items, search)
-        items = sort_items(items, sort_key)
 
         if tid == "recipes":
             self._displayed_recipes = items
@@ -499,19 +496,6 @@ class MetaAgentTUI(App[None]):
 
         self.app.call_from_thread(_target_not_found)
         return False
-
-    # ------------------------------------------------------------------
-    # Sort events
-    # ------------------------------------------------------------------
-
-    @on(Select.Changed, "#recipes-sort")
-    @on(Select.Changed, "#agents-sort")
-    @on(Select.Changed, "#tools-sort")
-    def on_sort_changed(self, event: Select.Changed) -> None:
-        """Re-sort and re-render resources for active select widget."""
-        if event.select.id:
-            tid = event.select.id.removesuffix("-sort")
-            self._render_tab(tid)
 
     # ------------------------------------------------------------------
     # Selection & Focus events

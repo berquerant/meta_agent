@@ -8,8 +8,6 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Button, Label, ListView, LoadingIndicator, Markdown, RichLog, Select, Static, TextArea
 from textual.widgets._select import SelectOverlay
 
-from .helpers import SORT_OPTIONS
-
 
 class SearchableSelectOverlay(SelectOverlay):
     """Select overlay that displays the current search query in its border title."""
@@ -65,12 +63,6 @@ class ResourceTab(Vertical):
                 id=f"{tid}-search",
             )
             yield Button("Ask LLM", id=f"{tid}-llm-btn", variant="default")
-            yield SearchableSelect(
-                [(label, val) for label, val in SORT_OPTIONS],
-                id=f"{tid}-sort",
-                value="alpha_asc",
-                allow_blank=False,
-            )
         with Horizontal(id=f"{tid}-body"):
             with Vertical(id=f"{tid}-sidebar"):
                 yield ListView(id=f"{tid}-list")
