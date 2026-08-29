@@ -2,13 +2,13 @@ init:
 	@uv sync
 
 check:
-	uv run tox -e black,ruff,mypy -p 3
+	uv run tox -e black,ruff,mypy
 
 test:
 	uv run tox -e py314
 
 ci:
-	uv run tox -e black,ruff,mypy,py314 -p 4
+	uv run tox -e black,ruff,mypy,py314
 
 dev:
 	uv run pip install --editable .
