@@ -86,22 +86,35 @@ class OpenJarvisClient:
         model: str = "llama3",
     ) -> Iterator[str]:
         """Stream chunks from Jarvis."""
+        import asyncio
         from openjarvis import Jarvis
 
+        # If a complex agent is requested, stream is unsupported in OpenJarvis; fallback to ask
+        if agent and agent not in ("simple", "none", "direct"):
+            res = self.ask(prompt, agent=agent, tools=tools, engine=engine, model=model)
+            yield res
+            return
+
         j = Jarvis(model=model, engine_key=engine)
+        loop = asyncio.new_event_loop()
         try:
-            if hasattr(j, "ask_full_stream"):
-                for chunk in j.ask_full_stream(prompt, agent=agent, tools=tools):
-                    if isinstance(chunk, dict):
-                        content = chunk.get("content", "")
-                        if content:
-                            yield str(content)
-                    elif chunk:
+            gen = j.ask_stream(prompt, model=model)
+            while True:
+                try:
+                    chunk = loop.run_until_complete(gen.__anext__())
+                    if chunk:
                         yield str(chunk)
-            else:
-                full_res = self.ask(prompt, agent=agent, tools=tools, engine=engine, model=model)
-                yield full_res
+                except StopAsyncIteration:
+                    break
+        except Exception as exc:
+            logging.warning("Stream error, falling back to ask: %s", exc)
+            res = self.ask(prompt, agent=agent, tools=tools, engine=engine, model=model)
+            yield res
         finally:
+            try:
+                loop.close()
+            except Exception:
+                pass
             try:
                 j.close()
             except Exception:
