@@ -1,6 +1,5 @@
 """ChatScreen for interactive multi-turn chat sessions inside the TUI with streaming and log capture."""
 
-import asyncio
 import logging
 from pathlib import Path
 from typing import ClassVar
@@ -14,7 +13,7 @@ from textual.widgets import Button, Footer, Header, Label, Markdown, RichLog, St
 
 from ...asking import AskingOpts
 from ...utils import get_default_export_dir, now_str
-from ..helpers import build_chat_prompt, now_datetime_str
+from ..helpers import build_chat_prompt, InputHistory, now_datetime_str
 from .help import HelpScreen
 
 
@@ -77,9 +76,10 @@ class ChatScreen(Screen[None]):
         self._opts = opts
         self._export_dir = export_dir or get_default_export_dir()
         self._history: list[tuple[str, str, str]] = list(initial_history) if initial_history else []
-        self._user_inputs: list[str] = [text for role, text, _ts in self._history if role == "User"]
-        self._history_cursor: int = -1  # -1 indicates active/draft editing state
-        self._current_draft: str = ""
+        self._input_history = InputHistory()
+        for role, text, _ts in self._history:
+            if role == "User":
+                self._input_history.append(text)
         self._log_buffer: list[str] = []
         self._log_handler: RichLogHandler | None = None
         self._maximized_pane: str | None = None
@@ -346,32 +346,24 @@ class ChatScreen(Screen[None]):
             self.on_submit()
             return
 
-        if not self._user_inputs:
+        if not self._input_history.entries:
             return
 
         # Up/Down history navigation when at top/bottom boundary
         if event.key == "up" and inp.cursor_location[0] == 0:
-            event.prevent_default()
-            event.stop()
-            if self._history_cursor == -1:
-                self._current_draft = inp.text
-                self._history_cursor = len(self._user_inputs) - 1
-            elif self._history_cursor > 0:
-                self._history_cursor -= 1
-
-            inp.load_text(self._user_inputs[self._history_cursor])
-            inp.move_cursor((inp.document.line_count - 1, len(inp.document.lines[-1])))
+            val = self._input_history.previous(inp.text)
+            if val is not None:
+                event.prevent_default()
+                event.stop()
+                inp.load_text(val)
+                inp.move_cursor((inp.document.line_count - 1, len(inp.document.lines[-1])))
 
         elif event.key == "down" and inp.cursor_location[0] == inp.document.line_count - 1:
-            event.prevent_default()
-            event.stop()
-            if self._history_cursor != -1:
-                if self._history_cursor < len(self._user_inputs) - 1:
-                    self._history_cursor += 1
-                    inp.load_text(self._user_inputs[self._history_cursor])
-                else:
-                    self._history_cursor = -1
-                    inp.load_text(self._current_draft)
+            val = self._input_history.next()
+            if val is not None:
+                event.prevent_default()
+                event.stop()
+                inp.load_text(val)
                 inp.move_cursor((inp.document.line_count - 1, len(inp.document.lines[-1])))
 
     @on(Button.Pressed, "#chat-send-btn")
@@ -382,9 +374,7 @@ class ChatScreen(Screen[None]):
         if not text:
             return
         inp.clear()
-        self._user_inputs.append(text)
-        self._history_cursor = -1
-        self._current_draft = ""
+        self._input_history.append(text)
 
         ts = now_datetime_str()
         self._history.append(("User", text, ts))
@@ -416,9 +406,7 @@ class ChatScreen(Screen[None]):
 
     @work(thread=True)
     def _ask_agent(self, query: str) -> None:
-        """Query Jarvis agent in a background thread with progressive/streaming updates."""
-        from openjarvis import Jarvis
-
+        """Query LLM agent in a background thread with progressive/streaming updates."""
         log = self.query_one("#chat-rich-log", RichLog)
         tools_list = [t.strip() for t in self._opts.tools.split(",") if t.strip()]
 
@@ -433,45 +421,39 @@ class ChatScreen(Screen[None]):
         self.app.call_from_thread(log.write, log_msg)
 
         full_query = build_chat_prompt(self._opts.system, self._history, query)
-        j = Jarvis(model=self._opts.model, engine_key=self._opts.engine)
+        from meta_agent.llm import get_llm_client
 
+        client = get_llm_client()
         content = ""
         try:
             if not agent_mode:
                 # Direct engine mode: streaming token response
-                async def _run_stream() -> str:
-                    parts: list[str] = []
-                    async for token in j.ask_stream(full_query):
-                        parts.append(token)
-                        curr_text = "".join(parts)
-                        self.app.call_from_thread(self._render_chat, curr_text)
-                    return "".join(parts)
-
-                content = asyncio.run(_run_stream())
+                parts: list[str] = []
+                for token in client.ask_stream(
+                    full_query,
+                    agent=None,
+                    tools=[],
+                    engine=self._opts.engine,
+                    model=self._opts.model,
+                ):
+                    parts.append(token)
+                    curr_text = "".join(parts)
+                    self.app.call_from_thread(self._render_chat, curr_text)
+                content = "".join(parts)
                 ts_done = now_datetime_str()
                 self.app.call_from_thread(
                     log.write,
                     f"[dim]{ts_done}[/dim] [green]✓ Direct engine streaming response completed.[/green]",
                 )
             else:
-                # Agent mode: run agent and report tools execution
-                res = j.ask_full(
+                # Agent mode: run agent
+                content = client.ask(
                     full_query,
                     agent=self._opts.agent or "orchestrator",
                     tools=tools_list,
+                    engine=self._opts.engine,
+                    model=self._opts.model,
                 )
-                content = str(res.get("content", ""))
-                tool_results = res.get("tool_results", [])
-                for tr in tool_results:
-                    tool_name = tr.get("tool_name", "unknown")
-                    success = tr.get("success", True)
-                    status_color = "green" if success else "red"
-                    ts_tr = now_datetime_str()
-                    tr_msg = (
-                        f"[dim]{ts_tr}[/dim] [{status_color}]Tool executed: "
-                        f"{tool_name} (success={success})[/{status_color}]"
-                    )
-                    self.app.call_from_thread(log.write, tr_msg)
                 ts_done = now_datetime_str()
                 self.app.call_from_thread(
                     log.write,
@@ -484,8 +466,6 @@ class ChatScreen(Screen[None]):
                 log.write,
                 f"[dim]{ts_err}[/dim] [bold red]✗ Execution failed: {e}[/bold red]",
             )
-        finally:
-            j.close()
 
         def _done() -> None:
             ts_resp = now_datetime_str()

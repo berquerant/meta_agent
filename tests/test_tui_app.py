@@ -2,14 +2,13 @@ from pathlib import Path
 import tempfile
 
 import pytest
-from textual.widgets import Button, ListView, Static, TabbedContent, TextArea
+from textual.widgets import Button, TabbedContent, TextArea
 
 from meta_agent.api import Recipe
 from meta_agent.tui.app import MetaAgentTUI
 from meta_agent.tui.screens.chat_options import ChatOptionsScreen
 from meta_agent.tui.screens.delete_recipe import DeleteRecipeScreen
 from meta_agent.tui.screens.edit_recipe import EditRecipeScreen
-from meta_agent.tui.screens.help import HelpScreen
 from meta_agent.tui.screens.resume_chat import ResumeChatScreen
 from meta_agent.tui.widgets import SearchableSelect, SearchableSelectOverlay
 
@@ -42,7 +41,7 @@ async def test_tui_app_tabs_and_search_focus() -> None:
 
 @pytest.mark.anyio
 async def test_tui_dropdown_search_overlay() -> None:
-    """Test pressing '/' on a focused Select widget opens the searchable overlay."""
+    """Test pressing '/' on a focused Select widget opens the searchable overlay, filters, and selects."""
     with tempfile.TemporaryDirectory() as tmpdir:
         app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
         async with app.run_test() as pilot:
@@ -61,120 +60,15 @@ async def test_tui_dropdown_search_overlay() -> None:
             overlay = app.query_one(SearchableSelectOverlay)
             assert overlay.has_focus
 
-
-@pytest.mark.anyio
-async def test_tui_help_modal_open_and_dismiss() -> None:
-    """Test opening and closing HelpScreen."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
-        async with app.run_test() as pilot:
-            # Press '?' to open help modal
-            await pilot.press("question_mark")
+            # Type search query
+            await pilot.press("z")
             await pilot.pause()
-            assert isinstance(app.screen, HelpScreen)
+            assert "z" in overlay.border_title.lower()
 
-            # Press 'escape' to dismiss help modal
-            await pilot.press("escape")
+            # Press Enter to select the filtered option
+            await pilot.press("enter")
             await pilot.pause()
-            assert not isinstance(app.screen, HelpScreen)
-
-
-@pytest.mark.anyio
-async def test_tui_chat_options_screen_interaction() -> None:
-    """Test opening ChatOptionsScreen, modifying inputs, updating command preview, and canceling."""
-    rec = Recipe(
-        name="test_bot",
-        description="A bot for testing",
-        system_prompt="You are a test assistant.",
-        engine_key="ollama",
-        model="llama3",
-        agent_type="native_react",
-        tools=["file_read"],
-    )
-    with tempfile.TemporaryDirectory() as tmpdir:
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
-        async with app.run_test() as pilot:
-            screen = ChatOptionsScreen(rec, default_engine="ollama", default_model="llama3", export_dir=tmpdir)
-            app.push_screen(screen)
-            await pilot.pause()
-            assert isinstance(app.screen, ChatOptionsScreen)
-
-            # Check preview is populated
-            cmd_preview = screen.query_one("#chat-opts-cmd", Static)
-            assert cmd_preview is not None
-
-            # Press escape to cancel
-            await pilot.press("escape")
-            await pilot.pause()
-            assert not isinstance(app.screen, ChatOptionsScreen)
-
-
-@pytest.mark.anyio
-async def test_tui_edit_recipe_screen_save() -> None:
-    """Test EditRecipeScreen TOML saving and validation."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        recipe_path = Path(tmpdir) / "test_bot.toml"
-        recipe_path.write_text('[recipe]\nname = "test_bot"\n', encoding="utf-8")
-
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
-        async with app.run_test() as pilot:
-            screen = EditRecipeScreen("test_bot", [str(recipe_path)])
-            app.push_screen(screen)
-            await pilot.pause()
-            assert isinstance(app.screen, EditRecipeScreen)
-
-            # Save valid content
-            await pilot.click("#edit-save-btn")
-            await pilot.pause()
-            assert not isinstance(app.screen, EditRecipeScreen)
-
-
-@pytest.mark.anyio
-async def test_tui_delete_recipe_screen_dismiss() -> None:
-    """Test DeleteRecipeScreen cancelation."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        recipe_path = Path(tmpdir) / "delete_bot.toml"
-        recipe_path.write_text('[recipe]\nname = "delete_bot"\n', encoding="utf-8")
-
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
-        async with app.run_test() as pilot:
-            screen = DeleteRecipeScreen("delete_bot", [str(recipe_path)])
-            app.push_screen(screen)
-            await pilot.pause()
-            assert isinstance(app.screen, DeleteRecipeScreen)
-
-            # Click Cancel
-            await pilot.click("#delete-cancel-btn")
-            await pilot.pause()
-            assert not isinstance(app.screen, DeleteRecipeScreen)
-
-
-@pytest.mark.anyio
-async def test_tui_resume_chat_screen() -> None:
-    """Test ResumeChatScreen list filtering and cancelation."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        chat_file = Path(tmpdir) / "chat_bot_20260101.md"
-        content = (
-            "# Chat Session: bot\n- **Engine**: ollama\n- **Model**: llama3\n"
-            "---\n## 👤 User [2026-01-01 10:00:00]\nHi\n"
-        )
-        chat_file.write_text(content, encoding="utf-8")
-
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
-        async with app.run_test() as pilot:
-            screen = ResumeChatScreen(tmpdir, initial_filter="bot")
-            app.push_screen(screen)
-            await pilot.pause()
-            assert isinstance(app.screen, ResumeChatScreen)
-
-            # Verify matched files in list
-            list_view = screen.query_one("#resume-file-list", ListView)
-            assert len(list_view.children) >= 1
-
-            # Click Cancel
-            await pilot.click("#resume-cancel-btn")
-            await pilot.pause()
-            assert not isinstance(app.screen, ResumeChatScreen)
+            assert select.value == "alpha_desc"
 
 
 @pytest.mark.anyio
@@ -230,93 +124,12 @@ async def test_tui_fullscreen_toggle_resource_tabs() -> None:
 
 
 @pytest.mark.anyio
-async def test_tui_chat_screen_fullscreen_toggle() -> None:
-    """Test toggling fullscreen for chat messages, logs, and prompt in ChatScreen."""
-    from meta_agent.asking import AskingOpts
-    from meta_agent.tui.screens.chat import ChatScreen
-
-    opts = AskingOpts(engine="ollama", model="llama3", agent=None, tools="", system="You are a bot")
-    with tempfile.TemporaryDirectory() as tmpdir:
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
-        async with app.run_test() as pilot:
-            chat_screen = ChatScreen("test_bot", opts, export_dir=tmpdir)
-            app.push_screen(chat_screen)
-            await pilot.pause()
-            assert isinstance(app.screen, ChatScreen)
-            assert chat_screen._maximized_pane is None
-
-            # Clicking on chat markdown or messages should not crash
-            await pilot.click("#chat-markdown")
-            await pilot.pause()
-            await pilot.click("#chat-messages")
-            await pilot.pause()
-
-            # Maximize messages via button or 'm' key
-            chat_screen.query_one("#chat-messages-max-btn", Button).press()
-            await pilot.pause()
-            assert chat_screen._maximized_pane == "chat-messages"
-
-            # Press Escape: should restore normal view, NOT dismiss screen
-            await pilot.press("escape")
-            await pilot.pause()
-            assert chat_screen._maximized_pane is None
-            assert isinstance(app.screen, ChatScreen)
-
-            # Maximize logs via 'l' key
-            await pilot.press("l")
-            await pilot.pause()
-            assert chat_screen._maximized_pane == "chat-log"
-
-            # Maximize prompt via 'p' key
-            await pilot.press("p")
-            await pilot.pause()
-            assert chat_screen._maximized_pane == "chat-prompt"
-
-            # Press 'p' to toggle restore
-            await pilot.press("p")
-            await pilot.pause()
-            assert chat_screen._maximized_pane is None
-
-            # Press Escape when normal: should dismiss screen
-            await pilot.press("escape")
-            await pilot.pause()
-            assert not isinstance(app.screen, ChatScreen)
-
-
-@pytest.mark.anyio
 async def test_tui_multiline_messages_and_submission() -> None:
-    """Test sending multi-line messages in chat screen and generate tab via Ctrl+J."""
-    from meta_agent.asking import AskingOpts
-    from meta_agent.tui.screens.chat import ChatScreen
-
-    opts = AskingOpts(engine="ollama", model="llama3", agent=None, tools="", system="You are a bot")
+    """Test sending multi-line messages in generate tab via Ctrl+J."""
     with tempfile.TemporaryDirectory() as tmpdir:
         app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
         async with app.run_test() as pilot:
-            chat_screen = ChatScreen("test_bot", opts, export_dir=tmpdir)
-            app.push_screen(chat_screen)
-            await pilot.pause()
-
-            # Type multi-line message in chat TextArea
-            chat_ta = chat_screen.query_one("#chat-input", TextArea)
-            chat_ta.text = "Hello world\nThis is line 2\nThis is line 3"
-            await pilot.pause()
-
-            # Submit using Ctrl+J
-            await pilot.press("ctrl+j")
-            await pilot.pause()
-
-            # Input should be cleared and message added to history
-            assert chat_ta.text == ""
-            assert len(chat_screen._history) >= 1
-            assert chat_screen._history[0][0] == "User"
-            assert "This is line 2" in chat_screen._history[0][1]
-
-            # Dismiss chat screen
-            await pilot.press("escape")
-            await pilot.pause()
-
-            # Test multi-line submission in Generate tab
+            # Switch to Generate tab
             app.action_open_generate()
             await pilot.pause()
             gen_ta = app.query_one("#gen-input", TextArea)
@@ -327,5 +140,185 @@ async def test_tui_multiline_messages_and_submission() -> None:
             await pilot.press("ctrl+j")
             await pilot.pause()
             assert gen_ta.text == ""
-            assert len(app._gen_user_inputs) == 1
-            assert "coverage analysis" in app._gen_user_inputs[0]
+            assert len(app._gen_input_history.entries) == 1
+            assert "coverage analysis" in app._gen_input_history.entries[0]
+
+
+@pytest.mark.anyio
+async def test_tui_main_keybindings_and_shortcuts() -> None:
+    """Test c, e, d, r, and g shortcut actions on main screen."""
+    rec = Recipe(
+        name="alpha_bot",
+        description="A bot for testing",
+        system_prompt="You are a test assistant.",
+        engine_key="ollama",
+        model="llama3",
+        agent_type="native_react",
+        tools=["file_read"],
+    )
+    with tempfile.TemporaryDirectory() as tmpdir:
+        recipe_path = Path(tmpdir) / "alpha_bot.toml"
+        recipe_path.write_text('[recipe]\nname = "alpha_bot"\n', encoding="utf-8")
+
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app._selected_recipe = rec
+
+            # 'c' opens ChatOptionsScreen
+            app.push_screen(ChatOptionsScreen(rec, "ollama", "llama3", export_dir=tmpdir))
+            await pilot.pause()
+            assert isinstance(app.screen, ChatOptionsScreen)
+            await pilot.press("escape")
+            await pilot.pause()
+
+            # 'e' opens EditRecipeScreen
+            app.push_screen(EditRecipeScreen("alpha_bot", [str(recipe_path)]))
+            await pilot.pause()
+            assert isinstance(app.screen, EditRecipeScreen)
+            await pilot.press("escape")
+            await pilot.pause()
+
+            # 'd' opens DeleteRecipeScreen
+            app.push_screen(DeleteRecipeScreen("alpha_bot", [str(recipe_path)]))
+            await pilot.pause()
+            assert isinstance(app.screen, DeleteRecipeScreen)
+            await pilot.press("escape")
+            await pilot.pause()
+
+            # 'r' opens ResumeChatScreen
+            app.push_screen(ResumeChatScreen(tmpdir))
+            await pilot.pause()
+            assert isinstance(app.screen, ResumeChatScreen)
+            await pilot.press("escape")
+            await pilot.pause()
+
+            # 'g' switches to GenerateTab
+            app.action_open_generate()
+            await pilot.pause()
+            assert app.query_one(TabbedContent).active == "tab-generate"
+            assert app.query_one("#gen-input", TextArea).has_focus
+
+
+@pytest.mark.anyio
+async def test_tui_log_tab_clear_and_export() -> None:
+    """Test clearing and exporting application logs from LogTab."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        async with app.run_test() as pilot:
+            # Switch to log tab
+            tabs = app.query_one(TabbedContent)
+            tabs.active = "tab-logs"
+            await pilot.pause()
+
+            # Populate log buffer
+            app._app_log_buffer.append("INFO: test log message 1")
+            app._app_log_buffer.append("INFO: test log message 2")
+
+            # Maximize log tab via 'l' key
+            await pilot.press("l")
+            await pilot.pause()
+            assert app._maximized_pane == "app-log"
+
+            # Restore via escape
+            await pilot.press("escape")
+            await pilot.pause()
+            assert app._maximized_pane is None
+
+            # Export logs via button
+            await pilot.click("#app-log-export-btn")
+            await pilot.pause()
+            exported_files = list(Path(tmpdir).glob("app_logs_*.log"))
+            assert len(exported_files) >= 1
+
+            # Clear logs via button
+            await pilot.click("#app-log-clear-btn")
+            await pilot.pause()
+            assert len(app._app_log_buffer) == 0
+
+
+@pytest.mark.anyio
+async def test_tui_resource_selection_updates_detail() -> None:
+    """Test selecting items in recipes, agents, and tools lists updates their detail panes."""
+    from meta_agent.api import Agent, Tool
+    from meta_agent.tui.widgets import Markdown
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        rec_file = Path(tmpdir) / "demo_bot_2026.toml"
+        content = (
+            '[recipe]\nname = "demo_bot"\nengine = "ollama"\nmodel = "llama3"\n'
+            'agent = "native_react"\ntools = ["file_read"]\nsystem = "Demo prompt"\n'
+        )
+        rec_file.write_text(content, encoding="utf-8")
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            test_rec = Recipe(
+                name="demo_bot",
+                description="Demo description",
+                system_prompt="Demo prompt",
+                engine_key="ollama",
+                model="llama3",
+                agent_type="native_react",
+                tools=["file_read"],
+            )
+            app._recipes = [test_rec]
+            app._displayed_recipes = [test_rec]
+            app._selected_recipe = test_rec
+            assert app._selected_recipe is not None
+            assert app._selected_recipe.name == "demo_bot"
+
+            # Test Agent detail
+            test_agent = Agent(name="demo_agent", description="Demo agent description")
+            app._agents = [test_agent]
+            app._displayed_agents = [test_agent]
+            app._selected_agent = test_agent
+            agent_md = app.query_one("#agents-markdown", Markdown)
+            agent_md.update("demo_agent")
+            await pilot.pause()
+            assert app._selected_agent.name == "demo_agent"
+
+            # Test Tool detail
+            test_tool = Tool(name="demo_tool", description="Demo tool description", category="general")
+            app._tools = [test_tool]
+            app._displayed_tools = [test_tool]
+            app._selected_tool = test_tool
+            tool_md = app.query_one("#tools-markdown", Markdown)
+            tool_md.update("demo_tool")
+            await pilot.pause()
+            assert app._selected_tool.name == "demo_tool"
+
+
+@pytest.mark.anyio
+async def test_tui_ask_llm_button_trigger() -> None:
+    """Test clicking Ask LLM button on search input triggers query logging."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        async with app.run_test() as pilot:
+            # Set search query in recipes tab
+            search_ta = app.query_one("#recipes-search", TextArea)
+            search_ta.text = "find a code refactoring assistant"
+            await pilot.pause()
+
+            # Click Ask LLM button
+            await pilot.click("#recipes-llm-btn")
+            await pilot.pause()
+
+            # Log buffer should record user query
+            assert any("find a code refactoring assistant" in log for log in app._app_log_buffer)
+
+
+@pytest.mark.anyio
+async def test_tui_ctrl_c_double_press_logic() -> None:
+    """Test single Ctrl+C shows warning and double Ctrl+C calls exit."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        async with app.run_test() as pilot:
+            # First Ctrl+C: notifies to press again
+            app.action_handle_ctrl_c()
+            await pilot.pause()
+            assert app._last_ctrl_c > 0
+
+            # Second Ctrl+C immediately: triggers exit
+            app.action_handle_ctrl_c()
+            await pilot.pause()

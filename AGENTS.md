@@ -32,6 +32,7 @@ meta_agent/
 │   ├── cli.py         # argparse entry point
 │   ├── cmd.py         # High-level Cmd class wiring CLI args to api/gen
 │   ├── gen.py         # Recipe generation logic and meta-agent prompt
+│   ├── llm.py         # LLM client abstraction interface & OpenJarvis wrapper
 │   ├── tools.py       # Custom OpenJarvis tool registrations
 │   ├── tui/           # Textual-based interactive TUI (package)
 │   │   ├── __init__.py    # re-exports run_tui
@@ -44,7 +45,6 @@ meta_agent/
 │   │   │   ├── chat_options.py # ChatOptionsScreen (command preview & overrides)
 │   │   │   ├── delete_recipe.py # DeleteRecipeScreen (preview & duplicate file deletion)
 │   │   │   ├── edit_recipe.py   # EditRecipeScreen (in-TUI editor with syntax validation)
-│   │   │   ├── generate.py     # GenerateScreen
 │   │   │   ├── help.py         # HelpScreen (shortcuts & guide modal)
 │   │   │   └── resume_chat.py  # ResumeChatScreen (restore session from exported markdown)
 │   │   └── widgets.py     # ResourceTab, GenerateTab, LogTab & SearchableSelect widgets

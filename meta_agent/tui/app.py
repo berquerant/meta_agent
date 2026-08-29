@@ -33,6 +33,8 @@ from .helpers import (
     build_recipe_action_prompt,
     build_semantic_search_prompt,
     filter_items,
+    find_matching_recipe,
+    InputHistory,
     now_datetime_str,
     parse_recipe_action_intent,
     RecipeActionIntent,
@@ -86,9 +88,7 @@ class MetaAgentTUI(App[None]):
         self._maximized_pane: str | None = None
 
         # Generate tab history state
-        self._gen_user_inputs: list[str] = []
-        self._gen_history_cursor: int = -1
-        self._gen_current_draft: str = ""
+        self._gen_input_history = InputHistory()
         self._last_generated_recipe: str | None = None
 
         # App Log buffer and handler
@@ -394,97 +394,100 @@ class MetaAgentTUI(App[None]):
         log_fn: Any,
     ) -> bool:
         """Handle matched recipe action intent (generate, resume, delete, edit). Returns True if handled."""
-        if intent.action == "generate":
-            gen_req = intent.generate_query or query
-            log_fn(
-                f"Intent matched recipe generation: '{gen_req}'. "
-                "Switching to Generate tab and starting background generation.",
-                "INFO",
-                "green",
-            )
-
-            def _start_gen() -> None:
-                self.clear_notifications()
-                try:
-                    self.query_one(TabbedContent).active = "tab-generate"
-                except Exception:
-                    pass
-
-                self._gen_user_inputs.append(gen_req)
-                self._gen_history_cursor = -1
-                self._gen_current_draft = ""
-
-                status_msg = "⏳ Generating assistant recipe (you can switch tabs anytime)..."
-                self.query_one("#gen-status-bar", Static).update(status_msg)
-                self.query_one("#gen-submit-btn", Button).disabled = True
-                self.query_one("#gen-chat-btn", Button).display = False
-
-                ts_now = now_datetime_str()
-                gen_log = self.query_one("#gen-rich-log", RichLog)
-                gen_log.write(f"[dim]{ts_now}[/dim] [cyan]> Generation started from Ask LLM: '{gen_req}'[/cyan]")
-
-                self.run_worker(
-                    lambda: self._execute_recipe_generation(gen_req),
-                    thread=True,
-                    name=f"recipe_gen_{gen_req[:20]}",
-                )
-
-            self.app.call_from_thread(_start_gen)
-            return True
-
-        if intent.action == "resume":
-            search_term = intent.chat_file or intent.target or query
-            log_fn(
-                f"Intent matched resume chat with term: '{search_term}'. Opening session picker.",
-                "INFO",
-                "green",
-            )
-
-            def _open_resume() -> None:
-                self.clear_notifications()
-                self.push_screen(ResumeChatScreen(self._export_dir, initial_filter=search_term))
-
-            self.app.call_from_thread(_open_resume)
-            return True
-
-        if intent.action in ("delete", "edit") and intent.target:
-            matched_recipe = next((r for r in self._recipes if r.name == intent.target), None)
-            if not matched_recipe:
-                matched_recipe = next((r for r in self._recipes if intent.target.lower() in r.name.lower()), None)
-
-            if matched_recipe is not None:
-                target_rec = matched_recipe
-                action_name = intent.action
-                log_fn(
-                    f"Intent matched {action_name} target: '{target_rec.name}'. Opening screen.",
-                    "INFO",
-                    "green",
-                )
-
-                def _open_action(rec: Recipe = target_rec, act: str = action_name) -> None:
-                    self.clear_notifications()
-                    self._selected_recipe = rec
-                    if act == "delete":
-                        self.action_delete_recipe()
-                    else:
-                        self.action_edit_recipe()
-
-                self.app.call_from_thread(_open_action)
-                return True
-            else:
-                log_fn(f"{intent.action.capitalize()} target '{intent.target}' not found.", "WARNING", "yellow")
-
-                def _target_not_found(tgt: str = str(intent.target), act: str = intent.action) -> None:
-                    self.clear_notifications()
-                    self.notify(
-                        f"⚠️ Target recipe '{tgt}' to {act} was not found",
-                        severity="warning",
-                        timeout=6.0,
-                    )
-
-                self.app.call_from_thread(_target_not_found)
+        match intent.action:
+            case "generate":
+                return self._handle_intent_generate(intent.generate_query or query, log_fn)
+            case "resume":
+                return self._handle_intent_resume(intent.chat_file or intent.target or query, log_fn)
+            case "delete" | "edit" if intent.target:
+                return self._handle_intent_recipe_mutation(intent.action, intent.target, log_fn)
+            case _:
                 return False
 
+    def _handle_intent_generate(self, gen_req: str, log_fn: Any) -> bool:
+        """Switch to generate tab and start recipe generation worker."""
+        log_fn(
+            f"Intent matched recipe generation: '{gen_req}'. "
+            "Switching to Generate tab and starting background generation.",
+            "INFO",
+            "green",
+        )
+
+        def _start_gen() -> None:
+            self.clear_notifications()
+            try:
+                self.query_one(TabbedContent).active = "tab-generate"
+            except Exception:
+                pass
+
+            self._gen_input_history.append(gen_req)
+
+            status_msg = "⏳ Generating assistant recipe (you can switch tabs anytime)..."
+            self.query_one("#gen-status-bar", Static).update(status_msg)
+            self.query_one("#gen-submit-btn", Button).disabled = True
+            self.query_one("#gen-chat-btn", Button).display = False
+
+            ts_now = now_datetime_str()
+            gen_log = self.query_one("#gen-rich-log", RichLog)
+            gen_log.write(f"[dim]{ts_now}[/dim] [cyan]> Generation started from Ask LLM: '{gen_req}'[/cyan]")
+
+            self.run_worker(
+                lambda: self._execute_recipe_generation(gen_req),
+                thread=True,
+                name=f"recipe_gen_{gen_req[:20]}",
+            )
+
+        self.app.call_from_thread(_start_gen)
+        return True
+
+    def _handle_intent_resume(self, search_term: str, log_fn: Any) -> bool:
+        """Open chat resume modal with the requested search filter."""
+        log_fn(
+            f"Intent matched resume chat with term: '{search_term}'. Opening session picker.",
+            "INFO",
+            "green",
+        )
+
+        def _open_resume() -> None:
+            self.clear_notifications()
+            self.push_screen(ResumeChatScreen(self._export_dir, initial_filter=search_term))
+
+        self.app.call_from_thread(_open_resume)
+        return True
+
+    def _handle_intent_recipe_mutation(self, action: str, target: str, log_fn: Any) -> bool:
+        """Find target recipe and open delete or edit screen."""
+        matched_recipe = find_matching_recipe(self._recipes, target)
+        if matched_recipe is not None:
+            target_rec = matched_recipe
+            log_fn(
+                f"Intent matched {action} target: '{target_rec.name}'. Opening screen.",
+                "INFO",
+                "green",
+            )
+
+            def _open_action(rec: Recipe = target_rec, act: str = action) -> None:
+                self.clear_notifications()
+                self._selected_recipe = rec
+                if act == "delete":
+                    self.action_delete_recipe()
+                else:
+                    self.action_edit_recipe()
+
+            self.app.call_from_thread(_open_action)
+            return True
+
+        log_fn(f"{action.capitalize()} target '{target}' not found.", "WARNING", "yellow")
+
+        def _target_not_found(tgt: str = target, act: str = action) -> None:
+            self.clear_notifications()
+            self.notify(
+                f"⚠️ Target recipe '{tgt}' to {act} was not found",
+                severity="warning",
+                timeout=6.0,
+            )
+
+        self.app.call_from_thread(_target_not_found)
         return False
 
     # ------------------------------------------------------------------
@@ -682,31 +685,23 @@ class MetaAgentTUI(App[None]):
             self.on_gen_submit()
             return
 
-        if not self._gen_user_inputs:
+        if not self._gen_input_history.entries:
             return
 
         if event.key == "up" and inp.cursor_location[0] == 0:
-            event.prevent_default()
-            event.stop()
-            if self._gen_history_cursor == -1:
-                self._gen_current_draft = inp.text
-                self._gen_history_cursor = len(self._gen_user_inputs) - 1
-            elif self._gen_history_cursor > 0:
-                self._gen_history_cursor -= 1
-
-            inp.load_text(self._gen_user_inputs[self._gen_history_cursor])
-            inp.move_cursor((inp.document.line_count - 1, len(inp.document.lines[-1])))
+            val = self._gen_input_history.previous(inp.text)
+            if val is not None:
+                event.prevent_default()
+                event.stop()
+                inp.load_text(val)
+                inp.move_cursor((inp.document.line_count - 1, len(inp.document.lines[-1])))
 
         elif event.key == "down" and inp.cursor_location[0] == inp.document.line_count - 1:
-            event.prevent_default()
-            event.stop()
-            if self._gen_history_cursor != -1:
-                if self._gen_history_cursor < len(self._gen_user_inputs) - 1:
-                    self._gen_history_cursor += 1
-                    inp.load_text(self._gen_user_inputs[self._gen_history_cursor])
-                else:
-                    self._gen_history_cursor = -1
-                    inp.load_text(self._gen_current_draft)
+            val = self._gen_input_history.next()
+            if val is not None:
+                event.prevent_default()
+                event.stop()
+                inp.load_text(val)
                 inp.move_cursor((inp.document.line_count - 1, len(inp.document.lines[-1])))
 
     @on(Button.Pressed, "#gen-submit-btn")
@@ -717,9 +712,7 @@ class MetaAgentTUI(App[None]):
         if not query:
             return
         inp.clear()
-        self._gen_user_inputs.append(query)
-        self._gen_history_cursor = -1
-        self._gen_current_draft = ""
+        self._gen_input_history.append(query)
 
         status_msg = "⏳ Generating assistant recipe (you can switch tabs anytime)..."
         self.query_one("#gen-status-bar", Static).update(status_msg)
@@ -810,6 +803,28 @@ class MetaAgentTUI(App[None]):
             if r.name == self._last_generated_recipe:
                 self.push_screen(ChatOptionsScreen(r, self._engine, self._model, export_dir=self._export_dir))
                 return
+
+        # Fallback: discover from recipes_dir
+        matched_files = find_recipe_files(self._last_generated_recipe, self._recipes_dir)
+        if matched_files:
+            try:
+                import tomllib
+
+                with open(matched_files[0], "rb") as f:
+                    data = tomllib.load(f)
+                r_dict = data.get("recipe", {})
+                rec = Recipe(
+                    name=r_dict.get("name", self._last_generated_recipe),
+                    description=r_dict.get("description", ""),
+                    system_prompt=r_dict.get("system", ""),
+                    engine_key=r_dict.get("engine", self._engine),
+                    model=r_dict.get("model", self._model),
+                    agent_type=r_dict.get("agent", "native_react"),
+                    tools=r_dict.get("tools", []),
+                )
+                self.push_screen(ChatOptionsScreen(rec, self._engine, self._model, export_dir=self._export_dir))
+            except Exception:
+                pass
 
     # ------------------------------------------------------------------
     # App Log Tab Actions

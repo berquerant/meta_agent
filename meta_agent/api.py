@@ -1,8 +1,7 @@
 import logging
 from dataclasses import dataclass, field
-from typing import cast
 
-from openjarvis import Jarvis
+from .llm import get_llm_client
 from openjarvis.core.registry import ToolRegistry, AgentRegistry
 from openjarvis.recipes.loader import discover_recipes, resolve_recipe, Recipe as JRecipe
 from openjarvis.tools._stubs import ToolSpec
@@ -15,19 +14,14 @@ class Script:
     tools: list[str] = field(default_factory=list)
 
     def run(self, engine: str, model: str, query: str = "") -> str:
-        j = Jarvis(model=model, engine_key=engine)
-        try:
-            result = j.ask_full(
-                self.prompt + query,
-                agent=self.agent,
-                tools=self.tools,
-            )
-            response = result["content"]
-        except Exception as exc:
-            raise Exception("Error during asking") from exc
-        finally:
-            j.close()
-        return cast(str, response)
+        client = get_llm_client()
+        return client.ask(
+            self.prompt + query,
+            agent=self.agent,
+            tools=self.tools,
+            engine=engine,
+            model=model,
+        )
 
 
 def inspect_tool(name: str) -> ToolSpec | None:
