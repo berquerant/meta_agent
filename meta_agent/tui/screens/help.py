@@ -34,7 +34,7 @@ HELP_MARKDOWN = """
 |:---|:---|:---|
 | `Tab` / `Shift+Tab` | **Navigate** | Move focus between tabs, inputs, selects, and buttons |
 | `Up` / `Down` | **Select Item** | Move up/down through the items list; details update on selection |
-| `Enter` | **Ask LLM / Open** | In search bar: submit query to Ask LLM; otherwise open/trigger |
+| `Ctrl+J` / *Button* | **Ask LLM** | In search bar: submit multi-line query to Ask LLM |
 | *Ask LLM* | **Smart Action** | Natural language search, generate (e.g. "create pytest bot"), edit, delete, or resume |
 | `m` / `l` | **Maximize** | Expand details (`m`) or logs (`l`) to fullscreen (`Esc` to restore) |
 
@@ -63,11 +63,12 @@ HELP_MARKDOWN = """
 ## 💬 Interactive Chat Screen (`ChatScreen`)
 | Key | Action | Description |
 |:---|:---|:---|
+| `Enter` | **Newline** | Insert a new line in the chat message input box |
+| `Ctrl+J` / `Ctrl+S` | **Send Message** | Send the multi-line message in the input box to the assistant |
 | `m` | **Maximize Messages**| Toggle fullscreen for conversation history (`Esc` to restore) |
 | `l` | **Maximize Logs** | Toggle fullscreen for execution logs (`Esc` to restore) |
 | `p` | **Maximize Prompt**| Toggle fullscreen for system prompt in left sidebar (`Esc` to restore) |
-| `Up` / `Down` | **Input History** | Navigate through your past sent messages in the chat input field |
-| `Enter` | **Send Message** | Send the message in input field to the assistant |
+| `Up` / `Down` | **Input History** | Navigate through past messages when cursor is at top/bottom |
 | `Ctrl+E` | **Export Chat** | Save the entire markdown chat history to a file |
 | `Ctrl+L` | **Export Logs** | Save all activity & engine execution logs to a file |
 | `Esc` | **Back** | Restore normal view if maximized, or return to recipe list |
@@ -77,7 +78,8 @@ HELP_MARKDOWN = """
 ## 🛠️ Recipe Generator Tab (`GenerateTab`)
 | Key | Action | Description |
 |:---|:---|:---|
-| `Enter` | **Generate** | Submit generation query in background worker |
+| `Enter` | **Newline** | Insert a new line in the generation description box |
+| `Ctrl+J` / `Ctrl+S` | **Generate** | Submit multi-line generation query in background worker |
 | `Up` / `Down` | **Input History** | Navigate through your past generation prompts |
 | *Button* | **Chat with Generated Recipe** | Start chat immediately with the generated recipe |
 

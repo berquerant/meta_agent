@@ -10,7 +10,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
-from textual.widgets import Button, Footer, Header, Input, Label, Markdown, RichLog, Static
+from textual.widgets import Button, Footer, Header, Label, Markdown, RichLog, Static, TextArea
 
 from ...asking import AskingOpts
 from ...utils import get_default_export_dir, now_str
@@ -126,13 +126,19 @@ class ChatScreen(Screen[None]):
                     yield RichLog(id="chat-rich-log", highlight=True, markup=True)
                 yield Static("", id="chat-status-bar")
                 with Horizontal(id="chat-input-bar"):
-                    yield Input(placeholder="Type your message here...", id="chat-input")
-                    yield Button("Send", id="chat-send-btn", variant="primary")
+                    yield TextArea(
+                        placeholder="Type your message here... (Enter: newline, Ctrl+J / Send: submit)",
+                        show_line_numbers=False,
+                        soft_wrap=True,
+                        tab_behavior="focus",
+                        id="chat-input",
+                    )
+                    yield Button("Send  [Ctrl+J]", id="chat-send-btn", variant="primary")
         yield Footer()
 
     def on_mount(self) -> None:
         """Configure initial widget state and hook logging."""
-        self.query_one("#chat-input", Input).focus()
+        self.query_one("#chat-input", TextArea).focus()
         log = self.query_one("#chat-rich-log", RichLog)
         init_msg = "System initialized. Ready for chat session."
         if self._history:
@@ -329,44 +335,53 @@ class ChatScreen(Screen[None]):
     # ------------------------------------------------------------------
 
     def on_key(self, event: events.Key) -> None:
-        """Handle Up/Down arrow navigation for chat input history."""
-        inp = self.query_one("#chat-input", Input)
-        if not inp.has_focus or not self._user_inputs:
+        """Handle submission via Ctrl+J/Ctrl+Enter and Up/Down history navigation for chat input."""
+        inp = self.query_one("#chat-input", TextArea)
+        if not inp.has_focus:
             return
 
-        if event.key == "up":
+        if event.key in ("ctrl+j", "ctrl+enter", "ctrl+s"):
+            event.prevent_default()
+            event.stop()
+            self.on_submit()
+            return
+
+        if not self._user_inputs:
+            return
+
+        # Up/Down history navigation when at top/bottom boundary
+        if event.key == "up" and inp.cursor_location[0] == 0:
             event.prevent_default()
             event.stop()
             if self._history_cursor == -1:
-                self._current_draft = inp.value
+                self._current_draft = inp.text
                 self._history_cursor = len(self._user_inputs) - 1
             elif self._history_cursor > 0:
                 self._history_cursor -= 1
 
-            inp.value = self._user_inputs[self._history_cursor]
-            inp.cursor_position = len(inp.value)
+            inp.load_text(self._user_inputs[self._history_cursor])
+            inp.move_cursor((inp.document.line_count - 1, len(inp.document.lines[-1])))
 
-        elif event.key == "down":
+        elif event.key == "down" and inp.cursor_location[0] == inp.document.line_count - 1:
             event.prevent_default()
             event.stop()
             if self._history_cursor != -1:
                 if self._history_cursor < len(self._user_inputs) - 1:
                     self._history_cursor += 1
-                    inp.value = self._user_inputs[self._history_cursor]
+                    inp.load_text(self._user_inputs[self._history_cursor])
                 else:
                     self._history_cursor = -1
-                    inp.value = self._current_draft
-                inp.cursor_position = len(inp.value)
+                    inp.load_text(self._current_draft)
+                inp.move_cursor((inp.document.line_count - 1, len(inp.document.lines[-1])))
 
     @on(Button.Pressed, "#chat-send-btn")
-    @on(Input.Submitted, "#chat-input")
     def on_submit(self) -> None:
         """Handle user message submission."""
-        inp = self.query_one("#chat-input", Input)
-        text = inp.value.strip()
+        inp = self.query_one("#chat-input", TextArea)
+        text = inp.text.strip()
         if not text:
             return
-        inp.value = ""
+        inp.clear()
         self._user_inputs.append(text)
         self._history_cursor = -1
         self._current_draft = ""
@@ -478,6 +493,6 @@ class ChatScreen(Screen[None]):
             self._render_chat()
             self.query_one("#chat-status-bar", Static).update("")
             self.query_one("#chat-send-btn", Button).disabled = False
-            self.query_one("#chat-input", Input).focus()
+            self.query_one("#chat-input", TextArea).focus()
 
         self.app.call_from_thread(_done)

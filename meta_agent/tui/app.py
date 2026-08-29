@@ -11,7 +11,6 @@ from textual.widgets import (
     Button,
     Footer,
     Header,
-    Input,
     Label,
     ListItem,
     ListView,
@@ -22,6 +21,7 @@ from textual.widgets import (
     Static,
     TabbedContent,
     TabPane,
+    TextArea,
 )
 
 from ..api import find_recipe_files, list_agents, list_recipes, list_tools, Agent, Recipe, Tool
@@ -201,7 +201,7 @@ class MetaAgentTUI(App[None]):
         all_items = items_map.get(tid, [])
         try:
             sort_key = str(self.query_one(f"#{tid}-sort", Select).value)
-            search = self.query_one(f"#{tid}-search", Input).value
+            search = self.query_one(f"#{tid}-search", TextArea).text
         except Exception:
             return
         items = filter_items(all_items, search)
@@ -249,24 +249,24 @@ class MetaAgentTUI(App[None]):
             tabbed_content = self.query_one(TabbedContent)
             active_tab = tabbed_content.active
             if active_tab == "tab-generate":
-                self.query_one("#gen-input", Input).focus()
+                self.query_one("#gen-input", TextArea).focus()
                 return
             tid = "recipes"
             if active_tab == "tab-agents":
                 tid = "agents"
             elif active_tab == "tab-tools":
                 tid = "tools"
-            self.query_one(f"#{tid}-search", Input).focus()
+            self.query_one(f"#{tid}-search", TextArea).focus()
         except Exception:
             pass
 
-    @on(Input.Changed, "#recipes-search")
-    @on(Input.Changed, "#agents-search")
-    @on(Input.Changed, "#tools-search")
-    def on_search_changed(self, event: Input.Changed) -> None:
+    @on(TextArea.Changed, "#recipes-search")
+    @on(TextArea.Changed, "#agents-search")
+    @on(TextArea.Changed, "#tools-search")
+    def on_search_changed(self, event: TextArea.Changed) -> None:
         """Filter resources on input change."""
-        if event.input.id:
-            tid = event.input.id.removesuffix("-search")
+        if event.text_area.id:
+            tid = event.text_area.id.removesuffix("-search")
             self._render_tab(tid)
 
     # ------------------------------------------------------------------
@@ -276,16 +276,17 @@ class MetaAgentTUI(App[None]):
     @on(Button.Pressed, "#recipes-llm-btn")
     @on(Button.Pressed, "#agents-llm-btn")
     @on(Button.Pressed, "#tools-llm-btn")
-    @on(Input.Submitted, "#recipes-search")
-    @on(Input.Submitted, "#agents-search")
-    @on(Input.Submitted, "#tools-search")
-    def on_llm_search_pressed(self, event: Button.Pressed | Input.Submitted) -> None:
-        """Trigger LLM-based action / semantic search on button press or enter key."""
-        target_id = event.button.id if isinstance(event, Button.Pressed) else event.input.id
+    def on_llm_search_pressed(self, event: Button.Pressed) -> None:
+        """Trigger LLM-based action / semantic search on button press."""
+        target_id = event.button.id
         if not target_id:
             return
-        tid = target_id.removesuffix("-llm-btn").removesuffix("-search")
-        query = self.query_one(f"#{tid}-search", Input).value.strip()
+        tid = target_id.removesuffix("-llm-btn")
+        self._trigger_llm_search(tid)
+
+    def _trigger_llm_search(self, tid: str) -> None:
+        """Trigger Ask LLM search for the given resource tab."""
+        query = self.query_one(f"#{tid}-search", TextArea).text.strip()
         if not query:
             return
         self.notify(f"🤖 [Ask LLM] Analyzing: '{query[:30]}...' with LLM", severity="information")
@@ -648,53 +649,74 @@ class MetaAgentTUI(App[None]):
         """Switch to the Generate tab and focus the input field."""
         try:
             self.query_one(TabbedContent).active = "tab-generate"
-            self.query_one("#gen-input", Input).focus()
+            self.query_one("#gen-input", TextArea).focus()
         except Exception:
             pass
 
     def on_key(self, event: events.Key) -> None:
-        """Handle Up/Down arrow history navigation for the Generate tab input."""
+        """Handle key events for Generate tab and search input (submission & history)."""
+        # Handle search bar submission via Ctrl+J / Ctrl+Enter / Ctrl+S
+        for tid in ("recipes", "agents", "tools"):
+            try:
+                search_ta = self.query_one(f"#{tid}-search", TextArea)
+                if search_ta.has_focus and event.key in ("ctrl+j", "ctrl+enter", "ctrl+s"):
+                    event.prevent_default()
+                    event.stop()
+                    self._trigger_llm_search(tid)
+                    return
+            except Exception:
+                pass
+
+        # Handle Generate tab input
         try:
-            inp = self.query_one("#gen-input", Input)
+            inp = self.query_one("#gen-input", TextArea)
         except Exception:
             return
 
-        if not inp.has_focus or not self._gen_user_inputs:
+        if not inp.has_focus:
             return
 
-        if event.key == "up":
+        if event.key in ("ctrl+j", "ctrl+enter", "ctrl+s"):
+            event.prevent_default()
+            event.stop()
+            self.on_gen_submit()
+            return
+
+        if not self._gen_user_inputs:
+            return
+
+        if event.key == "up" and inp.cursor_location[0] == 0:
             event.prevent_default()
             event.stop()
             if self._gen_history_cursor == -1:
-                self._gen_current_draft = inp.value
+                self._gen_current_draft = inp.text
                 self._gen_history_cursor = len(self._gen_user_inputs) - 1
             elif self._gen_history_cursor > 0:
                 self._gen_history_cursor -= 1
 
-            inp.value = self._gen_user_inputs[self._gen_history_cursor]
-            inp.cursor_position = len(inp.value)
+            inp.load_text(self._gen_user_inputs[self._gen_history_cursor])
+            inp.move_cursor((inp.document.line_count - 1, len(inp.document.lines[-1])))
 
-        elif event.key == "down":
+        elif event.key == "down" and inp.cursor_location[0] == inp.document.line_count - 1:
             event.prevent_default()
             event.stop()
             if self._gen_history_cursor != -1:
                 if self._gen_history_cursor < len(self._gen_user_inputs) - 1:
                     self._gen_history_cursor += 1
-                    inp.value = self._gen_user_inputs[self._gen_history_cursor]
+                    inp.load_text(self._gen_user_inputs[self._gen_history_cursor])
                 else:
                     self._gen_history_cursor = -1
-                    inp.value = self._gen_current_draft
-                inp.cursor_position = len(inp.value)
+                    inp.load_text(self._gen_current_draft)
+                inp.move_cursor((inp.document.line_count - 1, len(inp.document.lines[-1])))
 
     @on(Button.Pressed, "#gen-submit-btn")
-    @on(Input.Submitted, "#gen-input")
     def on_gen_submit(self) -> None:
         """Start recipe generation in a background worker."""
-        inp = self.query_one("#gen-input", Input)
-        query = inp.value.strip()
+        inp = self.query_one("#gen-input", TextArea)
+        query = inp.text.strip()
         if not query:
             return
-        inp.value = ""
+        inp.clear()
         self._gen_user_inputs.append(query)
         self._gen_history_cursor = -1
         self._gen_current_draft = ""
@@ -718,7 +740,23 @@ class MetaAgentTUI(App[None]):
         """Run recipe generation in background worker."""
         log = self.query_one("#gen-rich-log", RichLog)
         req = GenRequest(engine=self._engine, model=self._model, query=query, recipes_dir=self._recipes_dir)
-        r = generate_assistant(req)
+        try:
+            r = generate_assistant(req)
+        except Exception as e:
+            err_msg = str(e)
+
+            def _on_exc() -> None:
+                ts_err = now_datetime_str()
+                try:
+                    self.query_one("#gen-status-bar", Static).update(f"❌ Error: {err_msg}")
+                    self.query_one("#gen-submit-btn", Button).disabled = False
+                    log.write(f"[dim]{ts_err}[/dim] [bold red]✗ Generation error: {err_msg}[/bold red]")
+                except Exception:
+                    pass
+                self.notify(f"Generation error: {err_msg}", severity="error")
+
+            self.call_from_thread(_on_exc)
+            return
 
         if r.success:
             self._last_generated_recipe = r.name

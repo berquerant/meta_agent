@@ -5,7 +5,7 @@ from typing import Any
 from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import Button, Input, Label, ListView, LoadingIndicator, Markdown, RichLog, Select, Static
+from textual.widgets import Button, Label, ListView, LoadingIndicator, Markdown, RichLog, Select, Static, TextArea
 from textual.widgets._select import SelectOverlay
 
 from .helpers import SORT_OPTIONS
@@ -57,7 +57,13 @@ class ResourceTab(Vertical):
         """Build the resource tab layout."""
         tid = self._tab_id
         with Horizontal(id=f"{tid}-toolbar"):
-            yield Input(placeholder="Search or ask LLM...", id=f"{tid}-search")
+            yield TextArea(
+                placeholder="Search or ask LLM...  [Ctrl+J to ask]",
+                show_line_numbers=False,
+                soft_wrap=True,
+                tab_behavior="focus",
+                id=f"{tid}-search",
+            )
             yield Button("Ask LLM", id=f"{tid}-llm-btn", variant="default")
             yield SearchableSelect(
                 [(label, val) for label, val in SORT_OPTIONS],
@@ -134,11 +140,14 @@ class GenerateTab(Vertical):
                     yield RichLog(id="gen-rich-log", highlight=True, markup=True)
                 yield Static("", id="gen-status-bar")
                 with Horizontal(id="gen-input-bar"):
-                    yield Input(
-                        placeholder="e.g. A Python testing specialist that runs pytest and explains errors",
+                    yield TextArea(
+                        placeholder="Describe the assistant to create... (Enter: newline, Ctrl+J / Send: generate)",
+                        show_line_numbers=False,
+                        soft_wrap=True,
+                        tab_behavior="focus",
                         id="gen-input",
                     )
-                    yield Button("Generate", id="gen-submit-btn", variant="primary")
+                    yield Button("Generate  [Ctrl+J]", id="gen-submit-btn", variant="primary")
 
 
 class LogTab(Vertical):
