@@ -84,6 +84,30 @@ class SearchableSelect(Select[Any]):
         yield SearchableSelectOverlay(type_to_search=self._type_to_search).data_bind(compact=Select.compact)
 
 
+class PromptTextArea(TextArea):
+    """Custom TextArea allowing App-level navigation bindings (Ctrl+[, Ctrl+]) to pass through."""
+
+    BINDINGS = [
+        *TextArea.BINDINGS,
+        ("ctrl+left_square_bracket", "app.previous_tab", "Previous Tab"),
+        ("ctrl+right_square_bracket", "app.next_tab", "Next Tab"),
+    ]
+
+    async def _on_key(self, event: events.Key) -> None:
+        """Forward tab navigation shortcuts to app navigation actions."""
+        if event.key in ("ctrl+left", "ctrl+left_square_bracket", "ctrl+[", "ctrl__"):
+            event.stop()
+            event.prevent_default()
+            await self.app.run_action("previous_tab")
+            return
+        elif event.key in ("ctrl+right", "ctrl+right_square_bracket", "ctrl+]"):
+            event.stop()
+            event.prevent_default()
+            await self.app.run_action("next_tab")
+            return
+        await super()._on_key(event)
+
+
 class ResourceTab(Vertical):
     """A tab panel with search, sort, list, and detail area."""
 
@@ -97,7 +121,7 @@ class ResourceTab(Vertical):
         """Build the resource tab layout."""
         tid = self._tab_id
         with Horizontal(id=f"{tid}-toolbar"):
-            yield TextArea(
+            yield PromptTextArea(
                 placeholder="Search or ask LLM...  [Ctrl+J to ask]",
                 show_line_numbers=False,
                 soft_wrap=True,
@@ -179,7 +203,7 @@ class GenerateTab(Vertical):
                     yield RichLog(id="gen-rich-log", highlight=True, markup=True, wrap=True)
                 yield Static("", id="gen-status-bar")
                 with Horizontal(id="gen-input-bar"):
-                    yield TextArea(
+                    yield PromptTextArea(
                         placeholder="Describe the assistant to create... (Enter: newline, Ctrl+J / Send: generate)",
                         show_line_numbers=False,
                         soft_wrap=True,

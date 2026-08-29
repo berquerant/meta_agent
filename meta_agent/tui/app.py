@@ -75,6 +75,10 @@ class MetaAgentTUI(App[None]):
         Binding("ctrl+f", "focus_search", "Search (Ctrl+F)", show=True, priority=False),
         Binding("ctrl+c", "chat_recipe", "Chat (Ctrl+C)", show=True, priority=False),
         Binding("ctrl+g", "open_generate", "Generate (Ctrl+G)", show=True, priority=True),
+        Binding("ctrl+left", "previous_tab", "Prev Tab (Ctrl+Left)", show=False, priority=True),
+        Binding("ctrl+right", "next_tab", "Next Tab (Ctrl+Right)", show=False, priority=True),
+        Binding("ctrl+left_square_bracket", "previous_tab", "Prev Tab (Ctrl+[)", show=False, priority=True),
+        Binding("ctrl+right_square_bracket", "next_tab", "Next Tab (Ctrl+])", show=False, priority=True),
         Binding("ctrl+q", "quit", "Quit (Ctrl+Q)", show=True, priority=True),
         Binding("ctrl+b", "toggle_detail_fullscreen", "Detail Max (Ctrl+B)", show=False, priority=True),
         Binding("ctrl+l", "toggle_log_fullscreen", "Logs Max (Ctrl+L)", show=False, priority=True),
@@ -622,15 +626,95 @@ class MetaAgentTUI(App[None]):
         except Exception:
             pass
 
+    def action_previous_tab(self) -> None:
+        """Switch to previous tab (wraps around)."""
+        tabs_order = [
+            "tab-recipes",
+            "tab-agents",
+            "tab-tools",
+            "tab-engines",
+            "tab-models",
+            "tab-generate",
+            "tab-logs",
+        ]
+        try:
+            tabbed_content = self.query_one(TabbedContent)
+            current = tabbed_content.active
+            if current in tabs_order:
+                idx = tabs_order.index(current)
+                prev_idx = (idx - 1) % len(tabs_order)
+                target_tab = tabs_order[prev_idx]
+                self.set_focus(None)
+                tabbed_content.active = target_tab
+                self._focus_tab_search(target_tab)
+        except Exception:
+            pass
+
+    def action_next_tab(self) -> None:
+        """Switch to next tab (wraps around)."""
+        tabs_order = [
+            "tab-recipes",
+            "tab-agents",
+            "tab-tools",
+            "tab-engines",
+            "tab-models",
+            "tab-generate",
+            "tab-logs",
+        ]
+        try:
+            tabbed_content = self.query_one(TabbedContent)
+            current = tabbed_content.active
+            if current in tabs_order:
+                idx = tabs_order.index(current)
+                next_idx = (idx + 1) % len(tabs_order)
+                target_tab = tabs_order[next_idx]
+                self.set_focus(None)
+                tabbed_content.active = target_tab
+                self._focus_tab_search(target_tab)
+        except Exception:
+            pass
+
+    def _focus_tab_search(self, target_tab: str) -> None:
+        """Focus the search/input widget for the specified tab."""
+        if target_tab == "tab-recipes":
+            self.query_one("#recipes-search", TextArea).focus()
+        elif target_tab == "tab-agents":
+            self.query_one("#agents-search", TextArea).focus()
+        elif target_tab == "tab-tools":
+            self.query_one("#tools-search", TextArea).focus()
+        elif target_tab == "tab-engines":
+            self.query_one("#engines-search", TextArea).focus()
+        elif target_tab == "tab-models":
+            self.query_one("#models-search", TextArea).focus()
+        elif target_tab == "tab-generate":
+            self.query_one("#gen-input", TextArea).focus()
+
     # ------------------------------------------------------------------
     # Keyboard & Key Navigation
     # ------------------------------------------------------------------
 
     def on_key(self, event: events.Key) -> None:
-        """Handle Ctrl+J submission and Up/Down prompt history cycling."""
+        """Handle Ctrl+J submission, tab navigation, and Up/Down prompt history cycling."""
+        if event.key in ("ctrl+left", "ctrl+left_square_bracket", "ctrl+[", "ctrl__"):
+            event.prevent_default()
+            event.stop()
+            self.action_previous_tab()
+            return
+        elif event.key in ("ctrl+right", "ctrl+right_square_bracket", "ctrl+]"):
+            event.prevent_default()
+            event.stop()
+            self.action_next_tab()
+            return
+
         if event.key in ("ctrl+j", "ctrl+m"):
             focused = self.focused
-            if isinstance(focused, TextArea) and focused.id in ("recipes-search", "agents-search", "tools-search"):
+            if isinstance(focused, TextArea) and focused.id in (
+                "recipes-search",
+                "agents-search",
+                "tools-search",
+                "engines-search",
+                "models-search",
+            ):
                 tid = focused.id.removesuffix("-search")
                 event.prevent_default()
                 event.stop()

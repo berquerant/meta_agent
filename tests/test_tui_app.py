@@ -58,6 +58,19 @@ async def test_tui_app_tabs_and_search_focus() -> None:
             assert tabs.active == "tab-generate"
             assert app.query_one("#gen-input", TextArea).has_focus
 
+            # Test Next Tab and Prev Tab keyboard shortcuts from within focused inputs
+            await pilot.press("ctrl+right")
+            await pilot.pause()
+            assert tabs.active == "tab-logs"
+
+            await pilot.press("ctrl+right")
+            await pilot.pause()
+            assert tabs.active == "tab-recipes"
+
+            await pilot.press("ctrl+left")
+            await pilot.pause()
+            assert tabs.active == "tab-logs"
+
 
 @pytest.mark.anyio
 async def test_tui_fullscreen_maximize_and_restore() -> None:
