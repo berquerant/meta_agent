@@ -8,7 +8,9 @@ from meta_agent.tui.helpers import (
     build_recipe_action_prompt,
     build_semantic_search_prompt,
     filter_items,
+    find_matching_recipe,
     format_command_preview,
+    InputHistory,
     parse_exported_chat_file,
     parse_recipe_action_intent,
     sort_items,
@@ -36,6 +38,34 @@ class TestTUIHelpers(TestCase):
 
         empty_filtered = filter_items(items, "")
         self.assertEqual(len(empty_filtered), 3)
+
+    def test_find_matching_recipe(self) -> None:
+        recipes = [
+            Recipe(
+                name="pytest_bot", description="", engine_key="e", model="m", agent_type="a", tools=[], system_prompt=""
+            ),
+            Recipe(
+                name="pytest", description="", engine_key="e", model="m", agent_type="a", tools=[], system_prompt=""
+            ),
+            Recipe(
+                name="doc_writer", description="", engine_key="e", model="m", agent_type="a", tools=[], system_prompt=""
+            ),
+        ]
+        # Exact match takes precedence over substring match
+        matched = find_matching_recipe(recipes, "pytest")
+        self.assertIsNotNone(matched)
+        assert matched is not None
+        self.assertEqual(matched.name, "pytest")
+
+        # Substring match
+        matched_sub = find_matching_recipe(recipes, "bot")
+        self.assertIsNotNone(matched_sub)
+        assert matched_sub is not None
+        self.assertEqual(matched_sub.name, "pytest_bot")
+
+        # Non-matching
+        self.assertIsNone(find_matching_recipe(recipes, "unknown"))
+        self.assertIsNone(find_matching_recipe(recipes, ""))
 
     def test_build_chat_command_parts(self) -> None:
         rec = Recipe(
@@ -182,3 +212,36 @@ class TestTUIHelpers(TestCase):
         self.assertEqual(len(parsed.history), 2)
         self.assertEqual(parsed.history[0], ("User", "Can you run tests?", "2026-08-28 10:00:00"))
         self.assertEqual(parsed.history[1], ("Assistant", "Yes, I can execute pytest for you.", "2026-08-28 10:00:05"))
+
+    def test_input_history(self) -> None:
+        history = InputHistory(max_size=3)
+        self.assertEqual(history.entries, [])
+        self.assertIsNone(history.previous("current draft"))
+        self.assertIsNone(history.next())
+
+        # Add entries
+        history.append("prompt 1")
+        history.append("prompt 2")
+        self.assertEqual(history.entries, ["prompt 1", "prompt 2"])
+
+        # Navigate backwards (up)
+        self.assertEqual(history.previous("working draft"), "prompt 2")
+        self.assertEqual(history.previous("working draft"), "prompt 1")
+        # At oldest, stays at oldest
+        self.assertEqual(history.previous("working draft"), "prompt 1")
+
+        # Navigate forwards (down)
+        self.assertEqual(history.next(), "prompt 2")
+        self.assertEqual(history.next(), "working draft")
+        self.assertIsNone(history.next())
+
+        # Append new entry resets navigation state
+        history.append("prompt 3")
+        history.append("prompt 4")  # Exceeds max_size=3, prompt 1 should be dropped
+        self.assertEqual(history.entries, ["prompt 2", "prompt 3", "prompt 4"])
+        self.assertEqual(history.previous("new draft"), "prompt 4")
+
+        # Clear
+        history.clear()
+        self.assertEqual(history.entries, [])
+        self.assertIsNone(history.previous("draft"))

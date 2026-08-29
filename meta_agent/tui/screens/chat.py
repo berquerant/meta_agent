@@ -14,7 +14,7 @@ from textual.widgets import Button, Footer, Header, Label, Markdown, RichLog, St
 
 from ...asking import AskingOpts
 from ...utils import get_default_export_dir, now_str
-from ..helpers import build_chat_prompt, now_datetime_str
+from ..helpers import build_chat_prompt, InputHistory, now_datetime_str
 from .help import HelpScreen
 
 
@@ -77,9 +77,10 @@ class ChatScreen(Screen[None]):
         self._opts = opts
         self._export_dir = export_dir or get_default_export_dir()
         self._history: list[tuple[str, str, str]] = list(initial_history) if initial_history else []
-        self._user_inputs: list[str] = [text for role, text, _ts in self._history if role == "User"]
-        self._history_cursor: int = -1  # -1 indicates active/draft editing state
-        self._current_draft: str = ""
+        self._input_history = InputHistory()
+        for role, text, _ts in self._history:
+            if role == "User":
+                self._input_history.append(text)
         self._log_buffer: list[str] = []
         self._log_handler: RichLogHandler | None = None
         self._maximized_pane: str | None = None
@@ -346,32 +347,24 @@ class ChatScreen(Screen[None]):
             self.on_submit()
             return
 
-        if not self._user_inputs:
+        if not self._input_history.entries:
             return
 
         # Up/Down history navigation when at top/bottom boundary
         if event.key == "up" and inp.cursor_location[0] == 0:
-            event.prevent_default()
-            event.stop()
-            if self._history_cursor == -1:
-                self._current_draft = inp.text
-                self._history_cursor = len(self._user_inputs) - 1
-            elif self._history_cursor > 0:
-                self._history_cursor -= 1
-
-            inp.load_text(self._user_inputs[self._history_cursor])
-            inp.move_cursor((inp.document.line_count - 1, len(inp.document.lines[-1])))
+            val = self._input_history.previous(inp.text)
+            if val is not None:
+                event.prevent_default()
+                event.stop()
+                inp.load_text(val)
+                inp.move_cursor((inp.document.line_count - 1, len(inp.document.lines[-1])))
 
         elif event.key == "down" and inp.cursor_location[0] == inp.document.line_count - 1:
-            event.prevent_default()
-            event.stop()
-            if self._history_cursor != -1:
-                if self._history_cursor < len(self._user_inputs) - 1:
-                    self._history_cursor += 1
-                    inp.load_text(self._user_inputs[self._history_cursor])
-                else:
-                    self._history_cursor = -1
-                    inp.load_text(self._current_draft)
+            val = self._input_history.next()
+            if val is not None:
+                event.prevent_default()
+                event.stop()
+                inp.load_text(val)
                 inp.move_cursor((inp.document.line_count - 1, len(inp.document.lines[-1])))
 
     @on(Button.Pressed, "#chat-send-btn")
@@ -382,9 +375,7 @@ class ChatScreen(Screen[None]):
         if not text:
             return
         inp.clear()
-        self._user_inputs.append(text)
-        self._history_cursor = -1
-        self._current_draft = ""
+        self._input_history.append(text)
 
         ts = now_datetime_str()
         self._history.append(("User", text, ts))

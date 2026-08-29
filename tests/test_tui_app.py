@@ -327,5 +327,5 @@ async def test_tui_multiline_messages_and_submission() -> None:
             await pilot.press("ctrl+j")
             await pilot.pause()
             assert gen_ta.text == ""
-            assert len(app._gen_user_inputs) == 1
-            assert "coverage analysis" in app._gen_user_inputs[0]
+            assert len(app._gen_input_history.entries) == 1
+            assert "coverage analysis" in app._gen_input_history.entries[0]

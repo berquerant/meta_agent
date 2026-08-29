@@ -1,5 +1,6 @@
 """Shared helpers for the TUI: sorting, filtering, markdown formatting, command building, and prompt generation."""
 
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 import shlex
 from typing import Any
@@ -38,6 +39,23 @@ def filter_items(items: list[Any], query: str) -> list[Any]:
     if not q:
         return items
     return [x for x in items if q in x.name.lower()]
+
+
+def find_matching_recipe(recipes: Sequence[Recipe], target: str) -> Recipe | None:
+    """Find a recipe by exact name match first, then by case-insensitive substring match."""
+    t = target.strip()
+    if not t:
+        return None
+    # Exact match
+    for r in recipes:
+        if r.name == t:
+            return r
+    # Case-insensitive substring match
+    t_lower = t.lower()
+    for r in recipes:
+        if t_lower in r.name.lower():
+            return r
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -443,3 +461,61 @@ def fetch_runtime_options(default_engine: str, default_model: str) -> RuntimeOpt
         agents=agent_opts,
         tools=tool_names,
     )
+
+
+class InputHistory:
+    """Manages input prompt history navigation with draft persistence."""
+
+    def __init__(self, max_size: int = 100) -> None:
+        """Initialize empty history buffer."""
+        self._entries: list[str] = []
+        self._cursor: int = -1
+        self._draft: str = ""
+        self._max_size = max_size
+
+    @property
+    def entries(self) -> list[str]:
+        """Return a copy of the history entries."""
+        return list(self._entries)
+
+    def append(self, text: str) -> None:
+        """Append a new non-empty entry and reset the navigation cursor."""
+        text = text.strip()
+        if not text:
+            return
+        self._entries.append(text)
+        if len(self._entries) > self._max_size:
+            self._entries.pop(0)
+        self._cursor = -1
+        self._draft = ""
+
+    def previous(self, current_draft: str) -> str | None:
+        """Navigate backwards in history (older prompt)."""
+        if not self._entries:
+            return None
+
+        if self._cursor == -1:
+            self._draft = current_draft
+            self._cursor = len(self._entries) - 1
+        elif self._cursor > 0:
+            self._cursor -= 1
+
+        return self._entries[self._cursor]
+
+    def next(self) -> str | None:
+        """Navigate forwards in history (newer prompt or draft)."""
+        if not self._entries or self._cursor == -1:
+            return None
+
+        if self._cursor < len(self._entries) - 1:
+            self._cursor += 1
+            return self._entries[self._cursor]
+
+        self._cursor = -1
+        return self._draft
+
+    def clear(self) -> None:
+        """Clear all entries and reset cursor."""
+        self._entries.clear()
+        self._cursor = -1
+        self._draft = ""
