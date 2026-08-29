@@ -253,9 +253,11 @@ class ChatOptionsScreen(Screen[None]):
         self.app.push_screen(HelpScreen())
 
     def action_focus_search(self) -> None:
-        """Open select overlay if focused on a Select dropdown."""
+        """Open select overlay if focused on a Select or SearchableSelect dropdown."""
         focused = self.focused
-        if isinstance(focused, Select):
+        if isinstance(focused, SearchableSelect):
+            focused.expanded = True
+        elif isinstance(focused, Select):
             focused.action_show_overlay()
 
     def _launch_chat(self) -> None:

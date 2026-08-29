@@ -1,12 +1,43 @@
-"""Shared helpers for the TUI: filtering, markdown formatting, command building, and prompt generation."""
+"""Shared helpers for the TUI: filtering, markdown formatting, command building, and session parsing."""
 
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
+from datetime import datetime
+import re
 import shlex
 from typing import Any
 
 from ..api import Agent, list_agents, list_tools, Recipe, Tool
 from ..cmd import format_obj
+from .intent import (
+    build_recipe_action_prompt,
+    build_semantic_search_prompt,
+    parse_recipe_action_intent,
+    RecipeActionIntent,
+)
+
+__all__ = [
+    "CTRL_C_TIMEOUT",
+    "filter_items",
+    "find_matching_recipe",
+    "recipe_markdown",
+    "agent_markdown",
+    "tool_markdown",
+    "ChatCommandOptions",
+    "build_chat_command_parts",
+    "format_command_preview",
+    "now_datetime_str",
+    "build_chat_prompt",
+    "RecipeActionIntent",
+    "build_recipe_action_prompt",
+    "build_semantic_search_prompt",
+    "parse_recipe_action_intent",
+    "RestoredChatSession",
+    "parse_exported_chat_file",
+    "RuntimeOptions",
+    "fetch_runtime_options",
+    "InputHistory",
+]
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -28,19 +59,20 @@ def filter_items(items: list[Any], query: str) -> list[Any]:
     return [x for x in items if q in x.name.lower()]
 
 
-def find_matching_recipe(recipes: Sequence[Recipe], target: str) -> Recipe | None:
-    """Find a recipe by exact name match first, then by case-insensitive substring match."""
-    t = target.strip()
-    if not t:
+def find_matching_recipe(recipes: Sequence[Recipe], target: str | None) -> Recipe | None:
+    """Locate matching recipe object by exact or substring name match."""
+    if not target or not recipes:
         return None
-    # Exact match
+    tgt_clean = target.strip().lower()
+    if not tgt_clean:
+        return None
+    # 1. Exact match
     for r in recipes:
-        if r.name == t:
+        if r.name.lower() == tgt_clean:
             return r
-    # Case-insensitive substring match
-    t_lower = t.lower()
+    # 2. Substring match fallback
     for r in recipes:
-        if t_lower in r.name.lower():
+        if tgt_clean in r.name.lower() or r.name.lower() in tgt_clean:
             return r
     return None
 
@@ -50,28 +82,28 @@ def find_matching_recipe(recipes: Sequence[Recipe], target: str) -> Recipe | Non
 # ---------------------------------------------------------------------------
 
 
-def _obj_to_markdown(obj: dict[str, Any]) -> str:
-    """Convert a dataclass dict to a Markdown string for display."""
-    return format_obj(obj, "text")
+def _obj_to_markdown(obj: Any) -> str:
+    """Format dataclass object into Markdown text with bold keys."""
+    return format_obj(asdict(obj), "md")
 
 
-def recipe_markdown(r: Recipe) -> str:
-    """Format recipe as markdown."""
-    return _obj_to_markdown(asdict(r))
+def recipe_markdown(recipe: Recipe) -> str:
+    """Convert Recipe to rendered Markdown string."""
+    return _obj_to_markdown(recipe)
 
 
-def agent_markdown(a: Agent) -> str:
-    """Format agent as markdown."""
-    return _obj_to_markdown(asdict(a))
+def agent_markdown(agent: Agent) -> str:
+    """Convert Agent to rendered Markdown string."""
+    return _obj_to_markdown(agent)
 
 
-def tool_markdown(t: Tool) -> str:
-    """Format tool as markdown."""
-    return _obj_to_markdown(asdict(t))
+def tool_markdown(tool: Tool) -> str:
+    """Convert Tool to rendered Markdown string."""
+    return _obj_to_markdown(tool)
 
 
 # ---------------------------------------------------------------------------
-# Command Building Helpers
+# Chat Command Builders
 # ---------------------------------------------------------------------------
 
 
@@ -88,6 +120,30 @@ class ChatCommandOptions:
     default_engine: str = ""
     default_model: str = ""
     truncate_system: bool = False
+
+
+def _append_override(parts: list[str], flag: str, val: str, default: str) -> None:
+    """Append flag and value if overridden value differs from default."""
+    if val and val != default:
+        parts.extend([flag, shlex.quote(val)])
+
+
+def _append_tools_override(parts: list[str], tls: str, rec_tools: list[str]) -> None:
+    """Append --tools flag if provided tools list differs from recipe tools."""
+    rec_tools_str = ", ".join(rec_tools) if rec_tools else ""
+    norm_tools = ",".join(t.strip() for t in tls.split(",") if t.strip())
+    norm_rec_tools = ",".join(t.strip() for t in rec_tools_str.split(",") if t.strip())
+    if tls and norm_tools != norm_rec_tools:
+        parts.extend(["--tools", shlex.quote(norm_tools)])
+
+
+def _append_system_override(parts: list[str], sys: str, rec_system: str, truncate: bool) -> None:
+    """Append --system flag if provided prompt differs from recipe system prompt."""
+    norm_rec_sys = rec_system.strip().replace("\r\n", "\n")
+    norm_sys = sys.strip().replace("\r\n", "\n")
+    if norm_sys and norm_sys != norm_rec_sys:
+        display_sys = (norm_sys[:60] + "...") if (truncate and len(norm_sys) > 60) else norm_sys
+        parts.extend(["--system", shlex.quote(display_sys)])
 
 
 def build_chat_command_parts(
@@ -110,57 +166,22 @@ def build_chat_command_parts(
     are explicitly included in the generated command flags.
     """
     if opts is not None:
-        rec = opts.recipe
-        eng = opts.engine
-        mod = opts.model
-        agt = opts.agent
-        tls = opts.tools
-        sys = opts.system
-        def_eng = opts.default_engine
-        def_mod = opts.default_model
+        rec, eng, mod, agt = opts.recipe, opts.engine, opts.model, opts.agent
+        tls, sys, def_eng, def_mod = opts.tools, opts.system, opts.default_engine, opts.default_model
         trunc_sys = opts.truncate_system
     else:
         if recipe is None:
             return []
-        rec = recipe
-        eng = engine
-        mod = model
-        agt = agent
-        tls = tools
-        sys = system
-        def_eng = default_engine
-        def_mod = default_model
+        rec, eng, mod, agt = recipe, engine, model, agent
+        tls, sys, def_eng, def_mod = tools, system, default_engine, default_model
         trunc_sys = truncate_system
 
     parts: list[str] = ["meta_agent", "chat", "--recipe", shlex.quote(rec.name)]
-
-    rec_engine = rec.engine_key or def_eng
-    if eng and eng != rec_engine:
-        parts.extend(["--engine", shlex.quote(eng)])
-
-    rec_model = rec.model or def_mod
-    if mod and mod != rec_model:
-        parts.extend(["--model", shlex.quote(mod)])
-
-    rec_agent = rec.agent_type or ""
-    if agt and agt != rec_agent:
-        parts.extend(["--agent", shlex.quote(agt)])
-
-    rec_tools = ", ".join(rec.tools) if rec.tools else ""
-    norm_tools = ",".join(t.strip() for t in tls.split(",") if t.strip())
-    norm_rec_tools = ",".join(t.strip() for t in rec_tools.split(",") if t.strip())
-    if tls and norm_tools != norm_rec_tools:
-        parts.extend(["--tools", shlex.quote(norm_tools)])
-
-    rec_system = (rec.system_prompt or "").strip().replace("\r\n", "\n")
-    norm_system = sys.strip().replace("\r\n", "\n")
-    if norm_system and norm_system != rec_system:
-        if trunc_sys and len(norm_system) > 60:
-            display_system = norm_system[:60] + "..."
-        else:
-            display_system = norm_system
-        parts.extend(["--system", shlex.quote(display_system)])
-
+    _append_override(parts, "--engine", eng, rec.engine_key or def_eng)
+    _append_override(parts, "--model", mod, rec.model or def_mod)
+    _append_override(parts, "--agent", agt, rec.agent_type or "")
+    _append_tools_override(parts, tls, rec.tools)
+    _append_system_override(parts, sys, rec.system_prompt or "", trunc_sys)
     return parts
 
 
@@ -190,145 +211,32 @@ def format_command_preview(parts: list[str]) -> str:
 
 def now_datetime_str() -> str:
     """Return current date and time formatted as 'YYYY-MM-DD HH:MM:SS'."""
-    from datetime import datetime
-
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def build_chat_prompt(
     system_prompt: str | None,
     history: list[tuple[str, str, str]],
-    current_query: str,
+    new_user_message: str,
 ) -> str:
-    """
-    Construct prompt string including system prompt and prior conversation history.
-
-    - 1st turn: system prompt + user query
-    - Multi-turn: system prompt + prior turns tagged with <User>/<Assistant> + current query
-    """
-    prompt_parts: list[str] = []
+    """Construct full LLM prompt including system persona, turn history, and latest input."""
+    prompt_lines: list[str] = []
     if system_prompt:
-        prompt_parts.append(f"# System Prompt\n{system_prompt}\n")
+        prompt_lines.append(f"# System Prompt\n{system_prompt.strip()}\n")
 
-    prior_turns = history[:-1] if history else []
-    if prior_turns:
-        prompt_parts.append("# Conversation History")
-        for role, text, _time in prior_turns:
-            prompt_parts.append(f"<{role}>\n{text}\n</{role}>")
-        prompt_parts.append(f"\n# Current User Query\n{current_query}")
+    if history:
+        prompt_lines.append("# Conversation History")
+        for role, msg, _ in history:
+            prompt_lines.append(f"<{role}>\n{msg.strip()}\n</{role}>")
+        prompt_lines.append("")
+        prompt_lines.append(f"# Current User Query\n{new_user_message.strip()}")
     else:
-        if not system_prompt:
-            prompt_parts.append(current_query)
-        else:
-            prompt_parts.append(f"# User Query\n{current_query}")
-
-    return "\n\n".join(prompt_parts)
+        prompt_lines.append(f"# User Query\n{new_user_message.strip()}")
+    return "\n".join(prompt_lines)
 
 
 # ---------------------------------------------------------------------------
-# Recipe Action Intent Helpers
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class RecipeActionIntent:
-    """Action intent parsed from user LLM query in the recipes tab."""
-
-    action: str  # "search" | "edit" | "delete" | "resume" | "generate"
-    target: str | None = None
-    instruction: str | None = None
-    ranked_names: list[str] | None = None
-    chat_file: str | None = None
-    generate_query: str | None = None
-
-
-def build_recipe_action_prompt(query: str, catalogue: str, chat_catalogue: str) -> str:
-    """Construct LLM prompt for recipe action intent classification and ranking."""
-    return (
-        "You are an assistant managing AI recipes and chat history.\n"
-        f"User request: {query}\n\n"
-        f"Available recipes:\n{catalogue}\n\n"
-        f"Exported past chat sessions:\n{chat_catalogue}\n\n"
-        "Determine the user's intent:\n"
-        "- If the user wants to CREATE, GENERATE, or BUILD a new assistant recipe, return JSON: "
-        '{"action": "generate", "generate_query": "<extracted_assistant_requirements>"}\n'
-        "- If the user wants to RESUME, RESTORE, or CONTINUE a previous chat session/topic, return JSON: "
-        '{"action": "resume", "chat_file": "<matched_file_name_or_keyword>", "recipe": "<recipe_name>"}\n'
-        "- If the user wants to DELETE or REMOVE a recipe, return JSON: "
-        '{"action": "delete", "target": "<recipe_name>"}\n'
-        "- If the user wants to EDIT, UPDATE, or MODIFY a recipe, return JSON: "
-        '{"action": "edit", "target": "<recipe_name>", "instruction": "<edit details>"}\n'
-        "- If the user wants to SEARCH or FIND recipes, return JSON: "
-        '{"action": "search", "ranked_names": ["<matching_recipe_name_1>", "<matching_recipe_name_2>"]}\n\n'
-        "Output ONLY a valid JSON object matching one of the schemas above. No markdown fences, no explanation."
-    )
-
-
-def build_semantic_search_prompt(query: str, catalogue: str) -> str:
-    """Construct LLM prompt for standard item semantic search ranking."""
-    return (
-        "You are a search assistant. The user is looking for items matching their query.\n"
-        f"Query: {query}\n\n"
-        f"Available items:\n{catalogue}\n\n"
-        "Reply with ONLY a newline-separated list of matching item names, "
-        "ordered by relevance (most relevant first). "
-        "Include only names that appear in the list above. No explanations."
-    )
-
-
-def parse_recipe_action_intent(raw_response: str) -> RecipeActionIntent:
-    """Parse JSON or structured text response from LLM recipe action prompt."""
-    import json
-    import re
-
-    # Try extracting JSON object {...}
-    json_match = re.search(r"\{.*\}", raw_response, re.DOTALL)
-    if json_match:
-        try:
-            data = json.loads(json_match.group(0))
-            action = str(data.get("action", "search")).lower()
-            if action in ("delete", "remove", "del"):
-                action = "delete"
-            elif action in ("edit", "update", "modify"):
-                action = "edit"
-            elif action in ("resume", "restore", "continue", "history", "session"):
-                action = "resume"
-            elif action in ("generate", "gen", "create", "new", "build", "make"):
-                action = "generate"
-            else:
-                action = "search"
-
-            target = data.get("target") or data.get("recipe") or data.get("name")
-            target_str = str(target).strip() if target else None
-            chat_file = data.get("chat_file") or data.get("file")
-            chat_file_str = str(chat_file).strip() if chat_file else None
-            instruction = data.get("instruction") or data.get("changes") or data.get("detail")
-            instruction_str = str(instruction).strip() if instruction else None
-            gen_query = (
-                data.get("generate_query") or data.get("query") or data.get("prompt") or data.get("requirements")
-            )
-            gen_query_str = str(gen_query).strip() if gen_query else None
-            ranked = data.get("ranked_names") or data.get("matches") or []
-            ranked_list = [str(x).strip() for x in ranked if str(x).strip()] if isinstance(ranked, list) else []
-
-            return RecipeActionIntent(
-                action=action,
-                target=target_str,
-                instruction=instruction_str,
-                ranked_names=ranked_list,
-                chat_file=chat_file_str,
-                generate_query=gen_query_str,
-            )
-        except Exception:
-            pass
-
-    # Fallback to pure newline-separated list as search results
-    lines = [line.lstrip("- *").strip() for line in raw_response.splitlines() if line.strip()]
-    return RecipeActionIntent(action="search", ranked_names=lines)
-
-
-# ---------------------------------------------------------------------------
-# Exported Chat File Restoration
+# Chat History Session Parser
 # ---------------------------------------------------------------------------
 
 
@@ -347,8 +255,6 @@ class RestoredChatSession:
 
 def parse_exported_chat_file(content: str) -> RestoredChatSession | None:
     """Parse an exported chat session markdown file into RestoredChatSession."""
-    import re
-
     header_m = re.search(r"# Chat Session:\s*(.+)", content)
     if not header_m:
         return None
@@ -370,7 +276,6 @@ def parse_exported_chat_file(content: str) -> RestoredChatSession | None:
     tools = _extract_field("Tools")
     system = _extract_field("System")
 
-    # Extract conversation messages: ## 👤 User [timestamp] or ## 🤖 Assistant [timestamp]
     msg_pattern = re.compile(
         r"##\s*(?:👤|🤖)?\s*(User|Assistant)\s*(?:\[(.*?)\])?\n(.*?)(?=\n##\s*(?:👤|🤖)?\s*(?:User|Assistant)|\Z)",
         re.DOTALL,
@@ -395,7 +300,7 @@ def parse_exported_chat_file(content: str) -> RestoredChatSession | None:
 
 
 # ---------------------------------------------------------------------------
-# Runtime Options Discovery
+# Runtime Resource Inspection Helpers
 # ---------------------------------------------------------------------------
 
 
@@ -453,6 +358,11 @@ def fetch_runtime_options(default_engine: str, default_model: str) -> RuntimeOpt
         agents=agent_opts,
         tools=tool_names,
     )
+
+
+# ---------------------------------------------------------------------------
+# Input History Manager
+# ---------------------------------------------------------------------------
 
 
 class InputHistory:
