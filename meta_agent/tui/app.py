@@ -157,7 +157,8 @@ class MetaAgentTUI(App[None]):
         try:
             log_widget = self.query_one("#app-rich-log", RichLog)
             self._app_log_handler = RichLogHandler(log_widget, self._app_log_buffer)
-            logging.getLogger().addHandler(self._app_log_handler)
+            # Scope to "meta_agent" logger to avoid deadlock and intercepting pytest/asyncio root logs
+            logging.getLogger("meta_agent").addHandler(self._app_log_handler)
             init_msg = f"Application initialized. Engine='{self._engine}', Model='{self._model}'"
             log_widget.write(f"[green]{init_msg}[/green]")
             for tid in ("recipes", "agents", "tools", "engines", "models"):
@@ -182,6 +183,12 @@ class MetaAgentTUI(App[None]):
             self.query_one("#recipes-search", TextArea).focus()
         except Exception:
             pass
+
+    def on_unmount(self) -> None:
+        """Clean up app logging handler on exit."""
+        if hasattr(self, "_app_log_handler") and self._app_log_handler is not None:
+            logging.getLogger("meta_agent").removeHandler(self._app_log_handler)
+            self._app_log_handler = None
 
     # ------------------------------------------------------------------
     # Resource Loading & Rendering
