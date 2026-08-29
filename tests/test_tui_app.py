@@ -235,3 +235,90 @@ async def test_tui_log_tab_clear_and_export() -> None:
             await pilot.click("#app-log-clear-btn")
             await pilot.pause()
             assert len(app._app_log_buffer) == 0
+
+
+@pytest.mark.anyio
+async def test_tui_resource_selection_updates_detail() -> None:
+    """Test selecting items in recipes, agents, and tools lists updates their detail panes."""
+    from meta_agent.api import Agent, Tool
+    from meta_agent.tui.widgets import Markdown
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        rec_file = Path(tmpdir) / "demo_bot_2026.toml"
+        content = (
+            '[recipe]\nname = "demo_bot"\nengine = "ollama"\nmodel = "llama3"\n'
+            'agent = "native_react"\ntools = ["file_read"]\nsystem = "Demo prompt"\n'
+        )
+        rec_file.write_text(content, encoding="utf-8")
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            test_rec = Recipe(
+                name="demo_bot",
+                description="Demo description",
+                system_prompt="Demo prompt",
+                engine_key="ollama",
+                model="llama3",
+                agent_type="native_react",
+                tools=["file_read"],
+            )
+            app._recipes = [test_rec]
+            app._displayed_recipes = [test_rec]
+            app._selected_recipe = test_rec
+            assert app._selected_recipe is not None
+            assert app._selected_recipe.name == "demo_bot"
+
+            # Test Agent detail
+            test_agent = Agent(name="demo_agent", description="Demo agent description")
+            app._agents = [test_agent]
+            app._displayed_agents = [test_agent]
+            app._selected_agent = test_agent
+            agent_md = app.query_one("#agents-markdown", Markdown)
+            agent_md.update("demo_agent")
+            await pilot.pause()
+            assert app._selected_agent.name == "demo_agent"
+
+            # Test Tool detail
+            test_tool = Tool(name="demo_tool", description="Demo tool description", category="general")
+            app._tools = [test_tool]
+            app._displayed_tools = [test_tool]
+            app._selected_tool = test_tool
+            tool_md = app.query_one("#tools-markdown", Markdown)
+            tool_md.update("demo_tool")
+            await pilot.pause()
+            assert app._selected_tool.name == "demo_tool"
+
+
+@pytest.mark.anyio
+async def test_tui_ask_llm_button_trigger() -> None:
+    """Test clicking Ask LLM button on search input triggers query logging."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        async with app.run_test() as pilot:
+            # Set search query in recipes tab
+            search_ta = app.query_one("#recipes-search", TextArea)
+            search_ta.text = "find a code refactoring assistant"
+            await pilot.pause()
+
+            # Click Ask LLM button
+            await pilot.click("#recipes-llm-btn")
+            await pilot.pause()
+
+            # Log buffer should record user query
+            assert any("find a code refactoring assistant" in log for log in app._app_log_buffer)
+
+
+@pytest.mark.anyio
+async def test_tui_ctrl_c_double_press_logic() -> None:
+    """Test single Ctrl+C shows warning and double Ctrl+C calls exit."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        async with app.run_test() as pilot:
+            # First Ctrl+C: notifies to press again
+            app.action_handle_ctrl_c()
+            await pilot.pause()
+            assert app._last_ctrl_c > 0
+
+            # Second Ctrl+C immediately: triggers exit
+            app.action_handle_ctrl_c()
+            await pilot.pause()

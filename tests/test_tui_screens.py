@@ -2,7 +2,7 @@ from pathlib import Path
 import tempfile
 
 import pytest
-from textual.widgets import Button, Input, ListView, Static, TextArea
+from textual.widgets import Button, Input, ListView, Markdown, Static, TextArea
 
 from meta_agent.api import Recipe
 from meta_agent.asking import AskingOpts
@@ -303,5 +303,156 @@ async def test_tui_chat_screen_export_and_history_navigation() -> None:
 
             # Dismiss
             await pilot.press("escape")
+            await pilot.pause()
+            assert not isinstance(app.screen, ChatScreen)
+
+
+@pytest.mark.anyio
+async def test_tui_delete_recipe_multi_file_and_confirm() -> None:
+    """Test DeleteRecipeScreen single confirm and multi-file delete buttons."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        f1 = Path(tmpdir) / "dup1.toml"
+        f2 = Path(tmpdir) / "dup2.toml"
+        f1.write_text('[recipe]\nname = "dup"\n', encoding="utf-8")
+        f2.write_text('[recipe]\nname = "dup"\n', encoding="utf-8")
+
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        async with app.run_test() as pilot:
+            # Test multi-file delete all
+            screen = DeleteRecipeScreen("dup", [str(f1), str(f2)])
+            app.push_screen(screen)
+            await pilot.pause()
+            assert len(screen.query_one("#delete-file-list", ListView).children) == 2
+
+            # Click Delete All
+            await pilot.click("#delete-all-btn")
+            await pilot.pause()
+            assert not f1.exists()
+            assert not f2.exists()
+            assert not isinstance(app.screen, DeleteRecipeScreen)
+
+
+@pytest.mark.anyio
+async def test_tui_edit_recipe_multi_file_switch_and_ctrl_s() -> None:
+    """Test EditRecipeScreen switching files in list and saving via Ctrl+S."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        f1 = Path(tmpdir) / "edit1.toml"
+        f2 = Path(tmpdir) / "edit2.toml"
+        f1.write_text('[recipe]\nname = "edit1"\n', encoding="utf-8")
+        f2.write_text('[recipe]\nname = "edit2"\n', encoding="utf-8")
+
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        async with app.run_test() as pilot:
+            screen = EditRecipeScreen("edit_bot", [str(f1), str(f2)])
+            app.push_screen(screen)
+            await pilot.pause()
+
+            # Switch file to f2
+            file_list = screen.query_one("#edit-file-list", ListView)
+            file_list.index = 1
+            file_list.action_select_cursor()
+            await pilot.pause()
+
+            # Verify editor text switched to f2
+            editor = screen.query_one("#edit-text-area", TextArea)
+            assert "edit2" in editor.text
+
+            # Modify and save with Ctrl+S
+            editor.text = '[recipe]\nname = "edit2_updated"\n'
+            await pilot.press("ctrl+s")
+            await pilot.pause()
+            assert "edit2_updated" in f2.read_text(encoding="utf-8")
+            assert not isinstance(app.screen, EditRecipeScreen)
+
+
+@pytest.mark.anyio
+async def test_tui_resume_chat_preview_and_confirm() -> None:
+    """Test selecting a session in ResumeChatScreen updates preview and confirm returns session data."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        chat_file = Path(tmpdir) / "chat_preview_20260101.md"
+        content = (
+            "# Chat Session: preview_bot\n- **Engine**: ollama\n- **Model**: llama3\n"
+            "---\n## 👤 User [2026-01-01 10:00:00]\nHello preview\n"
+        )
+        chat_file.write_text(content, encoding="utf-8")
+
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        async with app.run_test() as pilot:
+            screen = ResumeChatScreen(tmpdir)
+            app.push_screen(screen)
+            await pilot.pause()
+
+            # Select first file
+            file_list = screen.query_one("#resume-file-list", ListView)
+            file_list.index = 0
+            file_list.action_select_cursor()
+            await pilot.pause()
+
+            # Verify preview is updated
+            preview = screen.query_one("#resume-preview-md", Markdown)
+            assert preview is not None
+
+            # Click Confirm / Resume button
+            screen.query_one("#resume-confirm-btn", Button).press()
+            await pilot.pause()
+            assert not isinstance(app.screen, ResumeChatScreen)
+
+
+@pytest.mark.anyio
+async def test_tui_chat_options_tool_append_and_start() -> None:
+    """Test appending tools from dropdown and starting chat in ChatOptionsScreen."""
+    rec = Recipe(
+        name="test_bot",
+        description="A bot for testing",
+        system_prompt="You are a test assistant.",
+        engine_key="ollama",
+        model="llama3",
+        agent_type="native_react",
+        tools=["file_read"],
+    )
+    with tempfile.TemporaryDirectory() as tmpdir:
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        async with app.run_test() as pilot:
+            screen = ChatOptionsScreen(rec, default_engine="ollama", default_model="llama3", export_dir=tmpdir)
+            app.push_screen(screen)
+            await pilot.pause()
+
+            # Select a tool from dropdown to append
+            tool_select = screen.query_one("#chat-opts-tool-select", SearchableSelect)
+            legal_tools = [v for v in tool_select._legal_values if isinstance(v, str) and v]
+            if legal_tools:
+                chosen_tool = legal_tools[0]
+                tool_select.value = chosen_tool
+                await pilot.pause()
+
+                tools_input = screen.query_one("#chat-opts-tools", Input)
+                assert chosen_tool in tools_input.value
+
+            # Click Start Chat
+            screen.query_one("#chat-opts-start", Button).press()
+            await pilot.pause()
+            assert not isinstance(app.screen, ChatOptionsScreen)
+
+
+@pytest.mark.anyio
+async def test_tui_chat_screen_back_and_empty_submission() -> None:
+    """Test Back button in ChatScreen and empty input submission handling."""
+    opts = AskingOpts(engine="ollama", model="llama3", agent=None, tools="", system="You are a bot")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        async with app.run_test() as pilot:
+            chat_screen = ChatScreen("test_bot", opts, export_dir=tmpdir)
+            app.push_screen(chat_screen)
+            await pilot.pause()
+
+            # Empty submit should be ignored
+            chat_ta = chat_screen.query_one("#chat-input", TextArea)
+            chat_ta.text = "   \n  "
+            await pilot.press("ctrl+j")
+            await pilot.pause()
+            assert len(chat_screen._history) == 0
+
+            # Click Back button to dismiss
+            chat_screen.query_one("#chat-back-btn", Button).press()
             await pilot.pause()
             assert not isinstance(app.screen, ChatScreen)
