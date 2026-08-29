@@ -15,8 +15,9 @@ def get_resources(args):  # type: ignore[no-untyped-def]
     name = ""
     if args.resource_name is not None:
         name = args.resource_name
-    list_opts = ListOpts(out=args.out)
-    inspect_opts = InspectOpts(out=args.out, name=name)
+    engine = getattr(args, "engine", "ollama") or "ollama"
+    list_opts = ListOpts(out=args.out, engine=engine)
+    inspect_opts = InspectOpts(out=args.out, name=name, engine=engine)
     match args.resource_type:
         case "recipe":
             if name:
@@ -33,6 +34,16 @@ def get_resources(args):  # type: ignore[no-untyped-def]
                 Cmd.inspect_tool_cmd(inspect_opts)
             else:
                 Cmd.list_tools_cmd(list_opts)
+        case "engine":
+            if name:
+                Cmd.inspect_engine_cmd(inspect_opts)
+            else:
+                Cmd.list_engines_cmd(list_opts)
+        case "model":
+            if name:
+                Cmd.inspect_model_cmd(inspect_opts)
+            else:
+                Cmd.list_models_cmd(list_opts)
         case _:
             raise Exception(f"Unknown resource type: {args.resource_type}")
 
@@ -106,7 +117,8 @@ def main() -> int:
     get = sp.add_parser("get", help="Get resources")
     get.set_defaults(func=get_resources)
     get.add_argument("--out", "-o", choices=["json", "text", "name"], default="name", help="output format")
-    get.add_argument("resource_type", choices=["recipe", "agent", "tool"])
+    get.add_argument("--engine", "-e", default="ollama", help="engine backend (used for model discovery)")
+    get.add_argument("resource_type", choices=["recipe", "agent", "tool", "engine", "model"])
     get.add_argument("resource_name", nargs="?")
 
     def add_chat_base_opts(x: argparse.ArgumentParser) -> None:

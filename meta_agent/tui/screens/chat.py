@@ -21,6 +21,8 @@ from .help import HelpScreen
 class RichLogHandler(logging.Handler):
     """Logging handler that redirects logs to a Textual RichLog widget and an in-memory buffer."""
 
+    _LOGGER_NAME: ClassVar[str] = "meta_agent"
+
     def __init__(self, rich_log: RichLog, buffer: list[str]) -> None:
         """Initialize with target RichLog widget and log buffer."""
         super().__init__()
@@ -40,10 +42,18 @@ class RichLogHandler(logging.Handler):
                 color = "yellow"
             elif record.levelno >= logging.INFO:
                 color = "blue"
-            self._rich_log.app.call_from_thread(
-                self._rich_log.write,
-                f"[dim]{ts}[/dim] [{color}]{msg}[/{color}]",
-            )
+            # NOTE: call_from_thread interacts with Textual's event loop. When background threads
+            # (e.g. _load_resource workers) or third-party loggers emit logs during test lifecycles
+            # or screen transitions, unhandled thread call failures or locking contention can cause
+            # deadlocks on Python 3.14's RLock / ParkingLot mutex. Catch and ignore exceptions here
+            # to guarantee non-blocking logging without freezing the event loop.
+            try:
+                self._rich_log.app.call_from_thread(
+                    self._rich_log.write,
+                    f"[dim]{ts}[/dim] [{color}]{msg}[/{color}]",
+                )
+            except Exception:
+                pass
         except Exception:
             self.handleError(record)
 
@@ -162,17 +172,20 @@ class ChatScreen(Screen[None]):
         log.write(f"[green]{init_msg}[/green]")
         self._log_buffer.append(f"INFO: system - {init_msg}")
 
-        # Attach logging handler to capture httpx, openjarvis, and root logs
+        # Attach logging handler to capture meta_agent logs.
+        # NOTE: Do NOT attach directly to the root logger logging.getLogger().
+        # Root logger attachment intercepts pytest/textual internal logs and causes lock contention
+        # during test runner lifecycle and background thread cleanup in Python 3.14.
         handler = RichLogHandler(log, self._log_buffer)
         formatter = logging.Formatter("%(levelname)s: %(name)s - %(message)s")
         handler.setFormatter(formatter)
-        logging.getLogger().addHandler(handler)
+        logging.getLogger("meta_agent").addHandler(handler)
         self._log_handler = handler
 
     def on_unmount(self) -> None:
         """Clean up logging handler on exit."""
         if self._log_handler is not None:
-            logging.getLogger().removeHandler(self._log_handler)
+            logging.getLogger("meta_agent").removeHandler(self._log_handler)
             self._log_handler = None
 
     def action_dismiss_screen(self) -> None:

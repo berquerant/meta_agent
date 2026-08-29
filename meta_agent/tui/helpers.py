@@ -7,7 +7,7 @@ import re
 import shlex
 from typing import Any
 
-from ..api import Agent, list_agents, list_tools, Recipe, Tool
+from ..api import Agent, Engine, list_agents, list_tools, Model, Recipe, Tool
 from ..cmd import format_obj
 from .intent import (
     build_recipe_action_prompt,
@@ -100,6 +100,16 @@ def agent_markdown(agent: Agent) -> str:
 def tool_markdown(tool: Tool) -> str:
     """Convert Tool to rendered Markdown string."""
     return _obj_to_markdown(tool)
+
+
+def engine_markdown(engine: Engine) -> str:
+    """Convert Engine to rendered Markdown string."""
+    return _obj_to_markdown(engine)
+
+
+def model_markdown(model: Model) -> str:
+    """Convert Model to rendered Markdown string."""
+    return _obj_to_markdown(model)
 
 
 # ---------------------------------------------------------------------------

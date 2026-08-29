@@ -14,7 +14,7 @@ It exposes six sub-commands:
 
 | Command   | Description                                              |
 |-----------|----------------------------------------------------------|
-| `get`     | List or inspect recipes, agents, and tools               |
+| `get`     | List or inspect recipes, agents, tools, engines, and models |
 | `gen`     | Generate a new AI assistant recipe via an LLM            |
 | `chat`    | Start an interactive multi-turn chat session             |
 | `ask`     | Ask a single question using a recipe-configured agent    |

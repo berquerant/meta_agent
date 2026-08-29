@@ -26,6 +26,8 @@ HELP_MARKDOWN = """
 | `Ctrl+E` | **Edit** | Edit selected recipe TOML file in interactive editor (`Ctrl+S` to save) |
 | `Ctrl+D` | **Delete** | Prompt to delete selected recipe file with preview/multi-choice selection |
 | `Ctrl+G` | **Generate** | Switch to the Generate tab to create a new assistant |
+| `Ctrl+Left` / `Ctrl+[` | **Previous Tab** | Switch to the previous tab (wraps around) |
+| `Ctrl+Right` / `Ctrl+]` | **Next Tab** | Switch to the next tab (wraps around) |
 | `Ctrl+Q` | **Quit** | Exit the TUI application directly |
 | `Esc` | **Back / Blur** | Exit fullscreen, defocus search input, or return to list navigation |
 

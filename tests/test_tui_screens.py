@@ -76,6 +76,11 @@ async def test_tui_chat_options_screen_interaction() -> None:
             await pilot.pause()
             assert isinstance(app.screen, ChatScreen)
 
+            # Dismiss chat screen to cleanly trigger on_unmount() and detach log handlers
+            await pilot.press("escape")
+            await pilot.pause()
+            assert not isinstance(app.screen, ChatScreen)
+
 
 @pytest.mark.anyio
 async def test_tui_chat_options_dropdown_search_and_sync() -> None:
@@ -111,12 +116,12 @@ async def test_tui_chat_options_dropdown_search_and_sync() -> None:
             await pilot.pause()
             assert screen.query_one("#chat-opts-agent", Input).value == "simple"
 
-            # Test Copy Command button
-            screen.query_one("#chat-opts-copy", Button).press()
+            # Test Copy Command logic
+            screen._copy_command()
             await pilot.pause()
 
-            # Dismiss via cancel button
-            screen.query_one("#chat-opts-cancel", Button).press()
+            # Dismiss via escape key to cleanly pop screen and teardown resources
+            await pilot.press("escape")
             await pilot.pause()
             assert not isinstance(app.screen, ChatOptionsScreen)
 

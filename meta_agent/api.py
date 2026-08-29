@@ -143,6 +143,75 @@ def list_recipes() -> list[Recipe]:
     ]
 
 
+@dataclass
+class Engine:
+    name: str
+    description: str = ""
+
+
+def inspect_engine(name: str, default_engine: str = "ollama") -> Engine | None:
+    """Get the engine if available."""
+    logging.debug("inspect engine: %s", name)
+    from inspect import getdoc
+    from openjarvis.core.registry import EngineRegistry
+
+    try:
+        engine_cls = EngineRegistry.get(name)
+        doc = getdoc(engine_cls) or ""
+        return Engine(name=name, description=doc)
+    except Exception:
+        # Fallback to listing from client if not in registry directly
+        client = get_llm_client()
+        engine_names = client.list_engines(default_engine=default_engine)
+        if name in engine_names:
+            return Engine(name=name, description="")
+        return None
+
+
+def list_engines(default_engine: str = "ollama") -> list[Engine]:
+    """List all available LLM engines."""
+    logging.debug("list engines")
+    from openjarvis.core.registry import EngineRegistry
+
+    result: list[Engine] = []
+    keys = sorted(EngineRegistry.keys())
+    if keys:
+        for key in keys:
+            e = inspect_engine(key, default_engine=default_engine)
+            if e is not None:
+                result.append(e)
+        return result
+
+    client = get_llm_client()
+    engine_names = client.list_engines(default_engine=default_engine)
+    return [Engine(name=name) for name in engine_names]
+
+
+@dataclass
+class Model:
+    name: str
+    engine: str = ""
+    description: str = ""
+
+
+def list_models(engine: str = "ollama") -> list[Model]:
+    """List all available LLM models for the given engine."""
+    logging.debug("list models for engine %s", engine)
+    client = get_llm_client()
+    model_names = client.list_models(default_engine=engine)
+    return [Model(name=name, engine=engine) for name in model_names]
+
+
+def inspect_model(name: str, engine: str = "ollama") -> Model | None:
+    """Get the model if available."""
+    logging.debug("inspect model: %s for engine %s", name, engine)
+    models = list_models(engine=engine)
+    for m in models:
+        if m.name == name:
+            return m
+    return None
+
+
 def find_recipe_files(recipe_name: str, recipes_dir: str | None = None) -> list[str]:
     """
     Search for TOML recipe files in the specified directory matching recipe_name.
