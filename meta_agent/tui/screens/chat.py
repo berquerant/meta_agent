@@ -138,7 +138,7 @@ class ChatScreen(Screen[None]):
                             classes="pane-max-btn",
                             tooltip="Toggle Fullscreen (Ctrl+L)",
                         )
-                    yield RichLog(id="chat-rich-log", highlight=True, markup=True)
+                    yield RichLog(id="chat-rich-log", highlight=True, markup=True, wrap=True)
                 yield Static("", id="chat-status-bar")
                 with Horizontal(id="chat-input-bar"):
                     yield TextArea(
