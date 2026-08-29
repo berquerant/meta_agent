@@ -51,6 +51,8 @@ class RichLogHandler(logging.Handler):
 class ChatScreen(Screen[None]):
     """Screen for interactive multi-turn chat with dedicated log window and export inside TUI."""
 
+    ALLOW_SELECT: ClassVar[bool] = False
+
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
         Binding("escape", "dismiss_screen", "Back", show=True),
         Binding("f", "toggle_fullscreen", "Fullscreen (f)", show=True),

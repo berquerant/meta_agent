@@ -235,6 +235,12 @@ async def test_tui_chat_screen_fullscreen_toggle() -> None:
             assert isinstance(app.screen, ChatScreen)
             assert chat_screen._maximized_pane is None
 
+            # Clicking on chat markdown or messages should not crash
+            await pilot.click("#chat-markdown")
+            await pilot.pause()
+            await pilot.click("#chat-messages")
+            await pilot.pause()
+
             # Maximize messages via button
             await pilot.click("#chat-messages-max-btn")
             await pilot.pause()

@@ -50,6 +50,7 @@ class MetaAgentTUI(App[None]):
     """TUI application for meta_agent."""
 
     CSS = APP_CSS
+    ALLOW_SELECT: ClassVar[bool] = False
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
         Binding("question_mark", "open_help", "Help (?)", show=True),
