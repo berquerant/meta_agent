@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from textual import events, on, work
 from textual.app import ComposeResult
@@ -437,12 +437,47 @@ class ChatScreen(Screen[None]):
         scroll = self.query_one("#chat-messages", VerticalScroll)
         scroll.scroll_end(animate=False)
 
+    def _stream_direct_response(self, client: Any, full_query: str, log: RichLog) -> str:
+        """Stream tokens from LLM in direct engine mode."""
+        parts: list[str] = []
+        for token in client.ask_stream(
+            full_query,
+            agent=None,
+            tools=[],
+            engine=self._opts.engine,
+            model=self._opts.model,
+        ):
+            parts.append(token)
+            curr_text = "".join(parts)
+            self.app.call_from_thread(self._render_chat, curr_text)
+        ts_done = now_datetime_str()
+        self.app.call_from_thread(
+            log.write,
+            f"[dim]{ts_done}[/dim] [green]✓ Direct engine streaming response completed.[/green]",
+        )
+        return "".join(parts)
+
+    def _execute_agent_mode(self, client: Any, full_query: str, tools_list: list[str], log: RichLog) -> str:
+        """Execute agent workflow."""
+        content = client.ask(
+            full_query,
+            agent=self._opts.agent or "orchestrator",
+            tools=tools_list,
+            engine=self._opts.engine,
+            model=self._opts.model,
+        )
+        ts_done = now_datetime_str()
+        self.app.call_from_thread(
+            log.write,
+            f"[dim]{ts_done}[/dim] [green]✓ Agent execution completed.[/green]",
+        )
+        return str(content)
+
     @work(thread=True)
     def _ask_agent(self, query: str) -> None:
         """Query LLM agent in a background thread with progressive/streaming updates."""
         log = self.query_one("#chat-rich-log", RichLog)
         tools_list = [t.strip() for t in self._opts.tools.split(",") if t.strip()]
-
         agent_mode = bool(self._opts.agent and self._opts.agent not in ("simple", "none", "direct"))
         agent_label = self._opts.agent if agent_mode else "direct engine"
 
@@ -460,38 +495,9 @@ class ChatScreen(Screen[None]):
         content = ""
         try:
             if not agent_mode:
-                # Direct engine mode: streaming token response
-                parts: list[str] = []
-                for token in client.ask_stream(
-                    full_query,
-                    agent=None,
-                    tools=[],
-                    engine=self._opts.engine,
-                    model=self._opts.model,
-                ):
-                    parts.append(token)
-                    curr_text = "".join(parts)
-                    self.app.call_from_thread(self._render_chat, curr_text)
-                content = "".join(parts)
-                ts_done = now_datetime_str()
-                self.app.call_from_thread(
-                    log.write,
-                    f"[dim]{ts_done}[/dim] [green]✓ Direct engine streaming response completed.[/green]",
-                )
+                content = self._stream_direct_response(client, full_query, log)
             else:
-                # Agent mode: run agent
-                content = client.ask(
-                    full_query,
-                    agent=self._opts.agent or "orchestrator",
-                    tools=tools_list,
-                    engine=self._opts.engine,
-                    model=self._opts.model,
-                )
-                ts_done = now_datetime_str()
-                self.app.call_from_thread(
-                    log.write,
-                    f"[dim]{ts_done}[/dim] [green]✓ Agent execution completed.[/green]",
-                )
+                content = self._execute_agent_mode(client, full_query, tools_list, log)
         except Exception as e:
             content = f"⚠️ Error: {e}"
             ts_err = now_datetime_str()

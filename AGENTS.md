@@ -34,20 +34,23 @@ meta_agent/
 │   ├── gen.py         # Recipe generation logic and meta-agent prompt
 │   ├── llm.py         # LLM client abstraction interface & OpenJarvis wrapper
 │   ├── tools.py       # Custom OpenJarvis tool registrations
-│   ├── tui/           # Textual-based interactive TUI (package)
-│   │   ├── __init__.py    # re-exports run_tui
-│   │   ├── app.py         # MetaAgentTUI app + run_tui entry point
-│   │   ├── helpers.py     # filter / markdown formatting / prompt helpers
-│   │   ├── styles.py      # App CSS styles definition
-│   │   ├── screens/       # TUI screens package
-│   │   │   ├── __init__.py
-│   │   │   ├── chat.py         # ChatScreen (with dedicated log pane)
-│   │   │   ├── chat_options.py # ChatOptionsScreen (command preview & overrides)
-│   │   │   ├── delete_recipe.py # DeleteRecipeScreen (preview & duplicate file deletion)
-│   │   │   ├── edit_recipe.py   # EditRecipeScreen (in-TUI editor with syntax validation)
-│   │   │   ├── help.py         # HelpScreen (shortcuts & guide modal)
-│   │   │   └── resume_chat.py  # ResumeChatScreen (restore session from exported markdown)
-│   │   └── widgets.py     # ResourceTab, GenerateTab, LogTab & SearchableSelect widgets
+│   └── tui/           # Textual-based interactive TUI (package)
+│       ├── __init__.py    # re-exports run_tui
+│       ├── app.py         # MetaAgentTUI app + run_tui entry point
+│       ├── fullscreen.py  # FullscreenManager — pane maximize/restore logic
+│       ├── generation.py  # RecipeGenerator — recipe generation coordinator
+│       ├── helpers.py     # filter / markdown formatting / prompt helpers
+│       ├── intent.py      # RecipeActionIntent, IntentDispatcher — intent parsing and routing
+│       ├── styles.py      # App CSS styles definition
+│       ├── screens/       # TUI screens package
+│       │   ├── __init__.py
+│       │   ├── chat.py         # ChatScreen (with dedicated log pane)
+│       │   ├── chat_options.py # ChatOptionsScreen (command preview & overrides)
+│       │   ├── delete_recipe.py # DeleteRecipeScreen (preview & duplicate file deletion)
+│       │   ├── edit_recipe.py   # EditRecipeScreen (in-TUI editor with syntax validation)
+│       │   ├── help.py         # HelpScreen (shortcuts & guide modal)
+│       │   └── resume_chat.py  # ResumeChatScreen (restore session from exported markdown)
+│       └── widgets.py     # ResourceTab, GenerateTab, LogTab & SearchableSelect widgets
 │   └── utils.py       # Shared utilities (formatting, file reading, etc.)
 ├── scripts/           # Helper scripts (e.g. release.py)
 ├── tests/             # pytest test suite
