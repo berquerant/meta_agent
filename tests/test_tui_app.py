@@ -179,20 +179,30 @@ async def test_tui_resume_chat_screen() -> None:
 
 @pytest.mark.anyio
 async def test_tui_fullscreen_toggle_resource_tabs() -> None:
-    """Test toggling fullscreen for detail and log panes in resource tabs."""
+    """Test toggling fullscreen for detail and log panes via m and l keys in resource tabs."""
     with tempfile.TemporaryDirectory() as tmpdir:
         app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
         async with app.run_test() as pilot:
             # Default state: not maximized
             assert app._maximized_pane is None
 
-            # Toggle fullscreen via 'f' key on recipes tab (defaults to detail)
-            await pilot.press("f")
+            # Toggle detail fullscreen via 'm' key on recipes tab
+            await pilot.press("m")
             await pilot.pause()
             assert app._maximized_pane == "recipes-detail"
 
-            # Press 'f' again to restore
-            await pilot.press("f")
+            # Press 'm' again to restore
+            await pilot.press("m")
+            await pilot.pause()
+            assert app._maximized_pane is None
+
+            # Toggle log fullscreen via 'l' key
+            await pilot.press("l")
+            await pilot.pause()
+            assert app._maximized_pane == "recipes-log"
+
+            # Restore via escape key
+            await pilot.press("escape")
             await pilot.pause()
             assert app._maximized_pane is None
 
@@ -201,10 +211,10 @@ async def test_tui_fullscreen_toggle_resource_tabs() -> None:
             await pilot.pause()
             assert app._maximized_pane == "recipes-log"
 
-            # Restore via escape key
-            await pilot.press("escape")
+            # Switch to detail via 'm' key directly
+            await pilot.press("m")
             await pilot.pause()
-            assert app._maximized_pane is None
+            assert app._maximized_pane == "recipes-detail"
 
             # Switch to Generate tab
             app.action_open_generate()
@@ -221,7 +231,7 @@ async def test_tui_fullscreen_toggle_resource_tabs() -> None:
 
 @pytest.mark.anyio
 async def test_tui_chat_screen_fullscreen_toggle() -> None:
-    """Test toggling fullscreen for chat messages and logs in ChatScreen."""
+    """Test toggling fullscreen for chat messages, logs, and prompt in ChatScreen."""
     from meta_agent.asking import AskingOpts
     from meta_agent.tui.screens.chat import ChatScreen
 
@@ -241,7 +251,7 @@ async def test_tui_chat_screen_fullscreen_toggle() -> None:
             await pilot.click("#chat-messages")
             await pilot.pause()
 
-            # Maximize messages via button
+            # Maximize messages via button or 'm' key
             await pilot.click("#chat-messages-max-btn")
             await pilot.pause()
             assert chat_screen._maximized_pane == "chat-messages"
@@ -252,13 +262,18 @@ async def test_tui_chat_screen_fullscreen_toggle() -> None:
             assert chat_screen._maximized_pane is None
             assert isinstance(app.screen, ChatScreen)
 
-            # Maximize logs via button
-            await pilot.click("#chat-log-max-btn")
+            # Maximize logs via 'l' key
+            await pilot.press("l")
             await pilot.pause()
             assert chat_screen._maximized_pane == "chat-log"
 
-            # Press 'f' to toggle restore
-            await pilot.press("f")
+            # Maximize prompt via 'p' key
+            await pilot.press("p")
+            await pilot.pause()
+            assert chat_screen._maximized_pane == "chat-prompt"
+
+            # Press 'p' to toggle restore
+            await pilot.press("p")
             await pilot.pause()
             assert chat_screen._maximized_pane is None
 

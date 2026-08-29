@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import ClassVar
 
 from textual import events, on, work
 from textual.app import ComposeResult
@@ -55,8 +55,9 @@ class ChatScreen(Screen[None]):
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
         Binding("escape", "dismiss_screen", "Back", show=True),
-        Binding("f", "toggle_fullscreen", "Fullscreen (f)", show=True),
-        Binding("f11", "toggle_fullscreen", "Fullscreen", show=False),
+        Binding("m", "toggle_messages_fullscreen", "Messages (m)", show=True),
+        Binding("l", "toggle_log_fullscreen", "Logs (l)", show=True),
+        Binding("p", "toggle_prompt_fullscreen", "Prompt (p)", show=True),
         Binding("ctrl+e", "export_chat", "Export Chat", show=True),
         Binding("ctrl+l", "export_logs", "Export Logs", show=True),
         Binding("question_mark", "open_help", "Help (?)", show=True),
@@ -96,7 +97,11 @@ class ChatScreen(Screen[None]):
                 if self._opts.tools:
                     yield Label(f"Tools: {self._opts.tools}", classes="chat-sidebar-item")
                 if self._opts.system:
-                    yield Label("System Prompt:", classes="chat-sidebar-item")
+                    with Horizontal(classes="pane-header"):
+                        yield Label("System Prompt:", classes="pane-title")
+                        yield Button(
+                            "p", id="chat-prompt-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (p)"
+                        )
                     yield VerticalScroll(Markdown(self._opts.system), id="chat-sidebar-prompt")
                 with Vertical(id="chat-sidebar-actions"):
                     yield Button("Export Chat", id="chat-export-btn", variant="primary")
@@ -109,14 +114,14 @@ class ChatScreen(Screen[None]):
                     with Horizontal(classes="pane-header"):
                         yield Label("Conversation History", classes="pane-title")
                         yield Button(
-                            "⛶", id="chat-messages-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (f)"
+                            "m", id="chat-messages-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (m)"
                         )
                     yield Markdown("# Chat Session Started\nType a message below to begin.", id="chat-markdown")
                 with Vertical(id="chat-log-pane"):
                     with Horizontal(classes="pane-header"):
                         yield Label("Activity / Execution Logs", classes="pane-title")
                         yield Button(
-                            "⛶", id="chat-log-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (f)"
+                            "l", id="chat-log-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (l)"
                         )
                     yield RichLog(id="chat-rich-log", highlight=True, markup=True)
                 yield Static("", id="chat-status-bar")
@@ -164,26 +169,28 @@ class ChatScreen(Screen[None]):
     # Fullscreen / Maximize Actions
     # ------------------------------------------------------------------
 
-    def action_toggle_fullscreen(self) -> None:
-        """Toggle fullscreen for chat messages or execution logs."""
-        if self._maximized_pane is not None:
+    def action_toggle_messages_fullscreen(self) -> None:
+        """Toggle fullscreen for conversation history."""
+        if self._maximized_pane == "chat-messages":
             self._restore_fullscreen()
-            return
-
-        focused = self.focused
-        if focused is not None and (focused.id == "chat-rich-log" or self._is_descendant_of(focused, "chat-log-pane")):
-            self._maximize_chat_log()
         else:
             self._maximize_chat_messages()
 
-    def _is_descendant_of(self, widget: Any, ancestor_id: str) -> bool:
-        """Check if widget is a descendant of a container with ancestor_id."""
-        curr = widget
-        while curr is not None:
-            if getattr(curr, "id", None) == ancestor_id:
-                return True
-            curr = getattr(curr, "parent", None)
-        return False
+    def action_toggle_log_fullscreen(self) -> None:
+        """Toggle fullscreen for chat execution logs."""
+        if self._maximized_pane == "chat-log":
+            self._restore_fullscreen()
+        else:
+            self._maximize_chat_log()
+
+    def action_toggle_prompt_fullscreen(self) -> None:
+        """Toggle fullscreen for system prompt."""
+        if not self._opts.system:
+            return
+        if self._maximized_pane == "chat-prompt":
+            self._restore_fullscreen()
+        else:
+            self._maximize_chat_prompt()
 
     def _maximize_chat_messages(self) -> None:
         """Maximize the chat messages scroll pane."""
@@ -191,7 +198,7 @@ class ChatScreen(Screen[None]):
         try:
             self.query_one("#chat-screen-layout").add_class("maximized-messages")
             self._maximized_pane = "chat-messages"
-            self.notify("Maximized Conversation History (press 'f' or Esc to restore)", timeout=3.0)
+            self.notify("Maximized Conversation History (press 'm' or Esc to restore)", timeout=3.0)
         except Exception:
             pass
 
@@ -201,7 +208,17 @@ class ChatScreen(Screen[None]):
         try:
             self.query_one("#chat-screen-layout").add_class("maximized-log")
             self._maximized_pane = "chat-log"
-            self.notify("Maximized Chat Logs (press 'f' or Esc to restore)", timeout=3.0)
+            self.notify("Maximized Chat Logs (press 'l' or Esc to restore)", timeout=3.0)
+        except Exception:
+            pass
+
+    def _maximize_chat_prompt(self) -> None:
+        """Maximize the system prompt pane."""
+        self._restore_fullscreen(notify=False)
+        try:
+            self.query_one("#chat-screen-layout").add_class("maximized-prompt")
+            self._maximized_pane = "chat-prompt"
+            self.notify("Maximized System Prompt (press 'p' or Esc to restore)", timeout=3.0)
         except Exception:
             pass
 
@@ -210,28 +227,29 @@ class ChatScreen(Screen[None]):
         if self._maximized_pane is None:
             return
         try:
-            self.query_one("#chat-screen-layout").remove_class("maximized-messages", "maximized-log")
+            self.query_one("#chat-screen-layout").remove_class(
+                "maximized-messages", "maximized-log", "maximized-prompt"
+            )
         except Exception:
             pass
         self._maximized_pane = None
         if notify:
             self.notify("Restored normal view", timeout=2.0)
 
+    @on(Button.Pressed, "#chat-prompt-max-btn")
+    def on_chat_prompt_max_btn(self) -> None:
+        """Handle system prompt maximize button."""
+        self.action_toggle_prompt_fullscreen()
+
     @on(Button.Pressed, "#chat-messages-max-btn")
     def on_chat_messages_max_btn(self) -> None:
         """Handle conversation history maximize button."""
-        if self._maximized_pane == "chat-messages":
-            self._restore_fullscreen()
-        else:
-            self._maximize_chat_messages()
+        self.action_toggle_messages_fullscreen()
 
     @on(Button.Pressed, "#chat-log-max-btn")
     def on_chat_log_max_btn(self) -> None:
         """Handle chat log maximize button."""
-        if self._maximized_pane == "chat-log":
-            self._restore_fullscreen()
-        else:
-            self._maximize_chat_log()
+        self.action_toggle_log_fullscreen()
 
     @on(Button.Pressed, "#chat-back-btn")
     def on_back_btn(self) -> None:
