@@ -70,6 +70,11 @@ class ResourceTab(Vertical):
                 yield ListView(id=f"{tid}-list")
             with Vertical(id=f"{tid}-main-pane"):
                 with VerticalScroll(id=f"{tid}-detail"):
+                    with Horizontal(classes="pane-header"):
+                        yield Label("Description & Details", classes="pane-title")
+                        yield Button(
+                            "⛶", id=f"{tid}-detail-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (f)"
+                        )
                     yield LoadingIndicator(id=f"{tid}-loading")
                     yield Markdown("", id=f"{tid}-markdown")
                     if self._show_chat:
@@ -78,7 +83,11 @@ class ResourceTab(Vertical):
                             yield Button("Edit  [e]", id=f"{tid}-edit-btn", variant="default")
                             yield Button("Delete  [d]", id=f"{tid}-delete-btn", variant="error")
                 with Vertical(id=f"{tid}-log-pane"):
-                    yield Label("Activity / Event Logs", classes="resource-log-title")
+                    with Horizontal(classes="pane-header"):
+                        yield Label("Activity / Event Logs", classes="pane-title")
+                        yield Button(
+                            "⛶", id=f"{tid}-log-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (f)"
+                        )
                     yield RichLog(id=f"{tid}-rich-log", highlight=True, markup=True)
 
 
@@ -107,6 +116,11 @@ class GenerateTab(Vertical):
             # Right Main Pane: Recipe Preview + RichLog + Input Bar
             with Vertical(id="gen-main-pane"):
                 with VerticalScroll(id="gen-preview-scroll"):
+                    with Horizontal(classes="pane-header"):
+                        yield Label("Recipe Preview", classes="pane-title")
+                        yield Button(
+                            "⛶", id="gen-preview-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (f)"
+                        )
                     yield Markdown(
                         "# Assistant Recipe Generator\n"
                         "Describe the assistant you want to create below.\n"
@@ -114,7 +128,9 @@ class GenerateTab(Vertical):
                         id="gen-markdown",
                     )
                 with Vertical(id="gen-log-pane"):
-                    yield Label("Generation / Meta-Agent Activity Logs", id="gen-log-title")
+                    with Horizontal(classes="pane-header"):
+                        yield Label("Generation / Meta-Agent Activity Logs", classes="pane-title")
+                        yield Button("⛶", id="gen-log-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (f)")
                     yield RichLog(id="gen-rich-log", highlight=True, markup=True)
                 yield Static("", id="gen-status-bar")
                 with Horizontal(id="gen-input-bar"):
@@ -134,5 +150,6 @@ class LogTab(Vertical):
             yield Label("Application Activity & Event Logs", id="app-log-title")
             yield Button("Clear Logs", id="app-log-clear-btn", variant="default")
             yield Button("Export Logs", id="app-log-export-btn", variant="primary")
+            yield Button("⛶", id="app-log-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (f)")
         with Vertical(id="app-log-container"):
             yield RichLog(id="app-rich-log", highlight=True, markup=True)

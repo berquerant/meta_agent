@@ -175,3 +175,88 @@ async def test_tui_resume_chat_screen() -> None:
             await pilot.click("#resume-cancel-btn")
             await pilot.pause()
             assert not isinstance(app.screen, ResumeChatScreen)
+
+
+@pytest.mark.anyio
+async def test_tui_fullscreen_toggle_resource_tabs() -> None:
+    """Test toggling fullscreen for detail and log panes in resource tabs."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        async with app.run_test() as pilot:
+            # Default state: not maximized
+            assert app._maximized_pane is None
+
+            # Toggle fullscreen via 'f' key on recipes tab (defaults to detail)
+            await pilot.press("f")
+            await pilot.pause()
+            assert app._maximized_pane == "recipes-detail"
+
+            # Press 'f' again to restore
+            await pilot.press("f")
+            await pilot.pause()
+            assert app._maximized_pane is None
+
+            # Click log maximize button
+            await pilot.click("#recipes-log-max-btn")
+            await pilot.pause()
+            assert app._maximized_pane == "recipes-log"
+
+            # Restore via escape key
+            await pilot.press("escape")
+            await pilot.pause()
+            assert app._maximized_pane is None
+
+            # Switch to Generate tab
+            app.action_open_generate()
+            await pilot.pause()
+            await pilot.click("#gen-preview-max-btn")
+            await pilot.pause()
+            assert app._maximized_pane == "gen-preview"
+
+            # Switching active tab automatically resets fullscreen
+            app.query_one(TabbedContent).active = "tab-recipes"
+            await pilot.pause()
+            assert app._maximized_pane is None
+
+
+@pytest.mark.anyio
+async def test_tui_chat_screen_fullscreen_toggle() -> None:
+    """Test toggling fullscreen for chat messages and logs in ChatScreen."""
+    from meta_agent.asking import AskingOpts
+    from meta_agent.tui.screens.chat import ChatScreen
+
+    opts = AskingOpts(engine="ollama", model="llama3", agent=None, tools="", system="You are a bot")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        async with app.run_test() as pilot:
+            chat_screen = ChatScreen("test_bot", opts, export_dir=tmpdir)
+            app.push_screen(chat_screen)
+            await pilot.pause()
+            assert isinstance(app.screen, ChatScreen)
+            assert chat_screen._maximized_pane is None
+
+            # Maximize messages via button
+            await pilot.click("#chat-messages-max-btn")
+            await pilot.pause()
+            assert chat_screen._maximized_pane == "chat-messages"
+
+            # Press Escape: should restore normal view, NOT dismiss screen
+            await pilot.press("escape")
+            await pilot.pause()
+            assert chat_screen._maximized_pane is None
+            assert isinstance(app.screen, ChatScreen)
+
+            # Maximize logs via button
+            await pilot.click("#chat-log-max-btn")
+            await pilot.pause()
+            assert chat_screen._maximized_pane == "chat-log"
+
+            # Press 'f' to toggle restore
+            await pilot.press("f")
+            await pilot.pause()
+            assert chat_screen._maximized_pane is None
+
+            # Press Escape when normal: should dismiss screen
+            await pilot.press("escape")
+            await pilot.pause()
+            assert not isinstance(app.screen, ChatScreen)

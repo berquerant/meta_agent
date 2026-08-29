@@ -17,6 +17,7 @@ HELP_MARKDOWN = """
 |:---|:---|:---|
 | `?` / `F1` | **Help** | Open this keyboard shortcuts help modal |
 | `/` | **Search** | Focus the filter input for the currently active tab (Recipes / Agents / Tools) |
+| `f` / `F11` | **Fullscreen** | Toggle maximize/fullscreen for active pane (details, preview, logs, or chat) |
 | `c` | **Chat** | Open chat setup options for the selected recipe |
 | `r` | **Resume Chat** | Browse and restore previous chat session from exported markdown |
 | `e` | **Edit** | Edit selected recipe TOML file in interactive editor (`Ctrl+S` to save) |
@@ -34,6 +35,7 @@ HELP_MARKDOWN = """
 | `Up` / `Down` | **Select Item** | Move up/down through the items list; details update on selection |
 | `Enter` | **Ask LLM / Open** | In search bar: submit query to Ask LLM; otherwise open/trigger |
 | *Ask LLM* | **Smart Action** | Natural language search, generate (e.g. "create pytest bot"), edit, delete, or resume |
+| `f` / *Button* | **Toggle Maximize**| Temporarily expand details or logs to fullscreen (`Esc` to restore) |
 
 ---
 
@@ -60,11 +62,12 @@ HELP_MARKDOWN = """
 ## 💬 Interactive Chat Screen (`ChatScreen`)
 | Key | Action | Description |
 |:---|:---|:---|
+| `f` / `F11` | **Fullscreen** | Toggle maximize/fullscreen for conversation history or logs (`Esc` to restore) |
 | `Up` / `Down` | **Input History** | Navigate through your past sent messages in the chat input field |
 | `Enter` | **Send Message** | Send the message in input field to the assistant |
 | `Ctrl+E` | **Export Chat** | Save the entire markdown chat history to a file |
 | `Ctrl+L` | **Export Logs** | Save all activity & engine execution logs to a file |
-| `Esc` | **Back** | Return to recipe list |
+| `Esc` | **Back** | Restore normal view if maximized, or return to recipe list |
 
 ---
 

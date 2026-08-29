@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from textual import events, on, work
 from textual.app import ComposeResult
@@ -53,6 +53,8 @@ class ChatScreen(Screen[None]):
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
         Binding("escape", "dismiss_screen", "Back", show=True),
+        Binding("f", "toggle_fullscreen", "Fullscreen (f)", show=True),
+        Binding("f11", "toggle_fullscreen", "Fullscreen", show=False),
         Binding("ctrl+e", "export_chat", "Export Chat", show=True),
         Binding("ctrl+l", "export_logs", "Export Logs", show=True),
         Binding("question_mark", "open_help", "Help (?)", show=True),
@@ -77,6 +79,7 @@ class ChatScreen(Screen[None]):
         self._current_draft: str = ""
         self._log_buffer: list[str] = []
         self._log_handler: RichLogHandler | None = None
+        self._maximized_pane: str | None = None
 
     def compose(self) -> ComposeResult:
         """Build the chat screen layout with action buttons."""
@@ -101,9 +104,18 @@ class ChatScreen(Screen[None]):
             # Right pane: Chat history + Dedicated Log View + Input area
             with Vertical(id="chat-main-pane"):
                 with VerticalScroll(id="chat-messages"):
+                    with Horizontal(classes="pane-header"):
+                        yield Label("Conversation History", classes="pane-title")
+                        yield Button(
+                            "⛶", id="chat-messages-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (f)"
+                        )
                     yield Markdown("# Chat Session Started\nType a message below to begin.", id="chat-markdown")
                 with Vertical(id="chat-log-pane"):
-                    yield Label("Activity / Execution Logs", id="chat-log-title")
+                    with Horizontal(classes="pane-header"):
+                        yield Label("Activity / Execution Logs", classes="pane-title")
+                        yield Button(
+                            "⛶", id="chat-log-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (f)"
+                        )
                     yield RichLog(id="chat-rich-log", highlight=True, markup=True)
                 yield Static("", id="chat-status-bar")
                 with Horizontal(id="chat-input-bar"):
@@ -136,12 +148,88 @@ class ChatScreen(Screen[None]):
             self._log_handler = None
 
     def action_dismiss_screen(self) -> None:
-        """Dismiss chat screen."""
+        """Dismiss chat screen or restore fullscreen if currently maximized."""
+        if self._maximized_pane is not None:
+            self._restore_fullscreen()
+            return
         self.dismiss()
 
     def action_open_help(self) -> None:
         """Open the keyboard shortcuts help modal."""
         self.app.push_screen(HelpScreen())
+
+    # ------------------------------------------------------------------
+    # Fullscreen / Maximize Actions
+    # ------------------------------------------------------------------
+
+    def action_toggle_fullscreen(self) -> None:
+        """Toggle fullscreen for chat messages or execution logs."""
+        if self._maximized_pane is not None:
+            self._restore_fullscreen()
+            return
+
+        focused = self.focused
+        if focused is not None and (focused.id == "chat-rich-log" or self._is_descendant_of(focused, "chat-log-pane")):
+            self._maximize_chat_log()
+        else:
+            self._maximize_chat_messages()
+
+    def _is_descendant_of(self, widget: Any, ancestor_id: str) -> bool:
+        """Check if widget is a descendant of a container with ancestor_id."""
+        curr = widget
+        while curr is not None:
+            if getattr(curr, "id", None) == ancestor_id:
+                return True
+            curr = getattr(curr, "parent", None)
+        return False
+
+    def _maximize_chat_messages(self) -> None:
+        """Maximize the chat messages scroll pane."""
+        self._restore_fullscreen(notify=False)
+        try:
+            self.query_one("#chat-screen-layout").add_class("maximized-messages")
+            self._maximized_pane = "chat-messages"
+            self.notify("Maximized Conversation History (press 'f' or Esc to restore)", timeout=3.0)
+        except Exception:
+            pass
+
+    def _maximize_chat_log(self) -> None:
+        """Maximize the chat logs pane."""
+        self._restore_fullscreen(notify=False)
+        try:
+            self.query_one("#chat-screen-layout").add_class("maximized-log")
+            self._maximized_pane = "chat-log"
+            self.notify("Maximized Chat Logs (press 'f' or Esc to restore)", timeout=3.0)
+        except Exception:
+            pass
+
+    def _restore_fullscreen(self, notify: bool = True) -> None:
+        """Restore chat screen to normal layout."""
+        if self._maximized_pane is None:
+            return
+        try:
+            self.query_one("#chat-screen-layout").remove_class("maximized-messages", "maximized-log")
+        except Exception:
+            pass
+        self._maximized_pane = None
+        if notify:
+            self.notify("Restored normal view", timeout=2.0)
+
+    @on(Button.Pressed, "#chat-messages-max-btn")
+    def on_chat_messages_max_btn(self) -> None:
+        """Handle conversation history maximize button."""
+        if self._maximized_pane == "chat-messages":
+            self._restore_fullscreen()
+        else:
+            self._maximize_chat_messages()
+
+    @on(Button.Pressed, "#chat-log-max-btn")
+    def on_chat_log_max_btn(self) -> None:
+        """Handle chat log maximize button."""
+        if self._maximized_pane == "chat-log":
+            self._restore_fullscreen()
+        else:
+            self._maximize_chat_log()
 
     @on(Button.Pressed, "#chat-back-btn")
     def on_back_btn(self) -> None:
