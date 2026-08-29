@@ -14,15 +14,19 @@ ToastRack {
 #recipes-toolbar, #agents-toolbar, #tools-toolbar {
     height: 3;
     padding: 0 1;
+    align-vertical: middle;
 }
 #recipes-search, #agents-search, #tools-search {
     width: 1fr;
+    height: 3;
 }
 #recipes-llm-btn, #agents-llm-btn, #tools-llm-btn {
-    width: 14;
+    width: 16;
+    height: 3;
 }
 #recipes-sort, #agents-sort, #tools-sort {
     width: 18;
+    height: 3;
 }
 
 /* Body */
@@ -194,14 +198,17 @@ LoadingIndicator {
     color: $accent;
 }
 #gen-input-bar {
-    height: 3;
+    height: 4;
+    align-vertical: middle;
 }
 #gen-input {
     width: 1fr;
+    height: 4;
 }
 #gen-submit-btn {
-    width: 14;
+    width: 20;
     margin-left: 1;
+    height: 4;
 }
 
 /* Fullscreen / Maximized state rules for GenerateTab */
@@ -336,14 +343,17 @@ LoadingIndicator {
     color: $accent;
 }
 #chat-input-bar {
-    height: 3;
+    height: 4;
+    align-vertical: middle;
 }
 #chat-input {
     width: 1fr;
+    height: 4;
 }
 #chat-send-btn {
-    width: 12;
+    width: 16;
     margin-left: 1;
+    height: 4;
 }
 
 /* Fullscreen / Maximized state rules for ChatScreen */

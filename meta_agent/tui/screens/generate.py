@@ -8,7 +8,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
-from textual.widgets import Button, Footer, Header, Input, Label, Markdown, RichLog, Static
+from textual.widgets import Button, Footer, Header, Label, Markdown, RichLog, Static, TextArea
 
 from ...gen import generate_assistant, GenRequest
 from .chat_options import ChatOptionsScreen
@@ -64,16 +64,19 @@ class GenerateScreen(Screen[bool]):
                     yield RichLog(id="gen-rich-log", highlight=True, markup=True)
                 yield Static("", id="gen-status-bar")
                 with Horizontal(id="gen-input-bar"):
-                    yield Input(
-                        placeholder="e.g. A Python testing specialist that runs pytest and explains errors",
+                    yield TextArea(
+                        placeholder="Describe the assistant to create... (Enter: newline, Ctrl+J / Send: generate)",
+                        show_line_numbers=False,
+                        soft_wrap=True,
+                        tab_behavior="focus",
                         id="gen-input",
                     )
-                    yield Button("Generate", id="gen-submit-btn", variant="primary")
+                    yield Button("Generate  [Ctrl+J]", id="gen-submit-btn", variant="primary")
         yield Footer()
 
     def on_mount(self) -> None:
         """Focus input on mount and initialize button states."""
-        self.query_one("#gen-input", Input).focus()
+        self.query_one("#gen-input", TextArea).focus()
         self.query_one("#gen-chat-btn", Button).display = False
         log = self.query_one("#gen-rich-log", RichLog)
         log.write("[green]Meta-agent ready. Enter a prompt below to generate a new assistant recipe.[/green]")
@@ -109,44 +112,52 @@ class GenerateScreen(Screen[bool]):
     # ------------------------------------------------------------------
 
     def on_key(self, event: events.Key) -> None:
-        """Handle Up/Down arrow navigation for generation input history."""
-        inp = self.query_one("#gen-input", Input)
-        if not inp.has_focus or not self._user_inputs:
+        """Handle submission via Ctrl+J/Ctrl+Enter and Up/Down history navigation for generation input."""
+        inp = self.query_one("#gen-input", TextArea)
+        if not inp.has_focus:
             return
 
-        if event.key == "up":
+        if event.key in ("ctrl+j", "ctrl+enter", "ctrl+s"):
+            event.prevent_default()
+            event.stop()
+            self.on_submit()
+            return
+
+        if not self._user_inputs:
+            return
+
+        if event.key == "up" and inp.cursor_location[0] == 0:
             event.prevent_default()
             event.stop()
             if self._history_cursor == -1:
-                self._current_draft = inp.value
+                self._current_draft = inp.text
                 self._history_cursor = len(self._user_inputs) - 1
             elif self._history_cursor > 0:
                 self._history_cursor -= 1
 
-            inp.value = self._user_inputs[self._history_cursor]
-            inp.cursor_position = len(inp.value)
+            inp.load_text(self._user_inputs[self._history_cursor])
+            inp.move_cursor((inp.document.line_count - 1, len(inp.document.lines[-1])))
 
-        elif event.key == "down":
+        elif event.key == "down" and inp.cursor_location[0] == inp.document.line_count - 1:
             event.prevent_default()
             event.stop()
             if self._history_cursor != -1:
                 if self._history_cursor < len(self._user_inputs) - 1:
                     self._history_cursor += 1
-                    inp.value = self._user_inputs[self._history_cursor]
+                    inp.load_text(self._user_inputs[self._history_cursor])
                 else:
                     self._history_cursor = -1
-                    inp.value = self._current_draft
-                inp.cursor_position = len(inp.value)
+                    inp.load_text(self._current_draft)
+                inp.move_cursor((inp.document.line_count - 1, len(inp.document.lines[-1])))
 
     @on(Button.Pressed, "#gen-submit-btn")
-    @on(Input.Submitted, "#gen-input")
     def on_submit(self) -> None:
         """Handle generate request submission."""
-        inp = self.query_one("#gen-input", Input)
-        query = inp.value.strip()
+        inp = self.query_one("#gen-input", TextArea)
+        query = inp.text.strip()
         if not query:
             return
-        inp.value = ""
+        inp.clear()
         self._user_inputs.append(query)
         self._history_cursor = -1
         self._current_draft = ""

@@ -2,7 +2,7 @@ from pathlib import Path
 import tempfile
 
 import pytest
-from textual.widgets import Input, ListView, Static, TabbedContent
+from textual.widgets import Button, ListView, Static, TabbedContent, TextArea
 
 from meta_agent.api import Recipe
 from meta_agent.tui.app import MetaAgentTUI
@@ -28,16 +28,16 @@ async def test_tui_app_tabs_and_search_focus() -> None:
             await pilot.pause()
             assert tabs.active == "tab-agents"
 
-            # Press '/' to focus search input in agents tab
+            # Press '/' to focus search TextArea in agents tab
             await pilot.press("slash")
             await pilot.pause()
-            assert app.query_one("#agents-search", Input).has_focus
+            assert app.query_one("#agents-search", TextArea).has_focus
 
             # Switch to Generate tab via action
             app.action_open_generate()
             await pilot.pause()
             assert tabs.active == "tab-generate"
-            assert app.query_one("#gen-input", Input).has_focus
+            assert app.query_one("#gen-input", TextArea).has_focus
 
 
 @pytest.mark.anyio
@@ -219,7 +219,7 @@ async def test_tui_fullscreen_toggle_resource_tabs() -> None:
             # Switch to Generate tab
             app.action_open_generate()
             await pilot.pause()
-            await pilot.click("#gen-preview-max-btn")
+            app.query_one("#gen-preview-max-btn", Button).press()
             await pilot.pause()
             assert app._maximized_pane == "gen-preview"
 
@@ -252,7 +252,7 @@ async def test_tui_chat_screen_fullscreen_toggle() -> None:
             await pilot.pause()
 
             # Maximize messages via button or 'm' key
-            await pilot.click("#chat-messages-max-btn")
+            chat_screen.query_one("#chat-messages-max-btn", Button).press()
             await pilot.pause()
             assert chat_screen._maximized_pane == "chat-messages"
 
@@ -281,3 +281,51 @@ async def test_tui_chat_screen_fullscreen_toggle() -> None:
             await pilot.press("escape")
             await pilot.pause()
             assert not isinstance(app.screen, ChatScreen)
+
+
+@pytest.mark.anyio
+async def test_tui_multiline_messages_and_submission() -> None:
+    """Test sending multi-line messages in chat screen and generate tab via Ctrl+J."""
+    from meta_agent.asking import AskingOpts
+    from meta_agent.tui.screens.chat import ChatScreen
+
+    opts = AskingOpts(engine="ollama", model="llama3", agent=None, tools="", system="You are a bot")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        async with app.run_test() as pilot:
+            chat_screen = ChatScreen("test_bot", opts, export_dir=tmpdir)
+            app.push_screen(chat_screen)
+            await pilot.pause()
+
+            # Type multi-line message in chat TextArea
+            chat_ta = chat_screen.query_one("#chat-input", TextArea)
+            chat_ta.text = "Hello world\nThis is line 2\nThis is line 3"
+            await pilot.pause()
+
+            # Submit using Ctrl+J
+            await pilot.press("ctrl+j")
+            await pilot.pause()
+
+            # Input should be cleared and message added to history
+            assert chat_ta.text == ""
+            assert len(chat_screen._history) >= 1
+            assert chat_screen._history[0][0] == "User"
+            assert "This is line 2" in chat_screen._history[0][1]
+
+            # Dismiss chat screen
+            await pilot.press("escape")
+            await pilot.pause()
+
+            # Test multi-line submission in Generate tab
+            app.action_open_generate()
+            await pilot.pause()
+            gen_ta = app.query_one("#gen-input", TextArea)
+            gen_ta.text = "Create a pytest assistant\nWith coverage analysis"
+            await pilot.pause()
+
+            # Submit using Ctrl+J
+            await pilot.press("ctrl+j")
+            await pilot.pause()
+            assert gen_ta.text == ""
+            assert len(app._gen_user_inputs) == 1
+            assert "coverage analysis" in app._gen_user_inputs[0]
