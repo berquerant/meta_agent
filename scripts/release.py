@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Release script to bump version, create git tag, and push to remote."""
+"""Release script to bump version, write VERSION file, and push release branch."""
 
 import argparse
+from pathlib import Path
 import re
 import subprocess
 import sys
-from pathlib import Path
 
 SEMVER_REGEX = re.compile(
     r"^v?(?P<version>(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(?:\+[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*)?)$"
@@ -49,6 +49,25 @@ def get_existing_tags() -> set[str]:
     return tags
 
 
+def create_release_branch(branch_name: str, dry_run: bool = False) -> None:
+    """Create and switch to a release branch."""
+    cmd = ["git", "checkout", "-b", branch_name]
+    if dry_run:
+        print(f"[DRY-RUN] Executing: {' '.join(cmd)}")
+    else:
+        print(f"Creating release branch '{branch_name}'...")
+        subprocess.run(cmd, check=True)
+
+
+def update_version_file(version_file_path: Path, new_version: str, dry_run: bool = False) -> None:
+    """Write new_version into VERSION file."""
+    if dry_run:
+        print(f"[DRY-RUN] Would write '{new_version}' to {version_file_path}")
+    else:
+        version_file_path.write_text(f"{new_version}\n", encoding="utf-8")
+        print(f"Updated {version_file_path} with '{new_version}'")
+
+
 def update_pyproject_version(pyproject_path: Path, new_version: str, dry_run: bool = False) -> None:
     """Update version in pyproject.toml."""
     content = pyproject_path.read_text(encoding="utf-8")
@@ -78,22 +97,18 @@ def update_uv_lock(dry_run: bool = False) -> None:
         subprocess.run(["uv", "lock"], check=True)
 
 
-def commit_tag_push(version: str, dry_run: bool = False, no_push: bool = False) -> None:
-    """Stage, commit, tag, and push changes."""
-    cmd_stage = ["git", "add", "pyproject.toml", "uv.lock"]
+def commit_and_push(branch_name: str, version: str, dry_run: bool = False, no_push: bool = False) -> None:
+    """Stage, commit, and push changes without creating or pushing tags."""
+    cmd_stage = ["git", "add", "VERSION", "pyproject.toml", "uv.lock"]
     cmd_commit = ["git", "commit", "-m", f"bump version to {version}"]
-    cmd_tag = ["git", "tag", "-a", version, "-m", f"Release {version}"]
-    cmd_push_head = ["git", "push", "origin", "HEAD"]
-    cmd_push_tag = ["git", "push", "origin", version]
+    cmd_push_branch = ["git", "push", "-u", "origin", branch_name]
 
     if dry_run:
         print("[DRY-RUN] Executing git operations:")
         print(f"  {' '.join(cmd_stage)}")
         print(f"  {' '.join(cmd_commit)}")
-        print(f"  {' '.join(cmd_tag)}")
         if not no_push:
-            print(f"  {' '.join(cmd_push_head)}")
-            print(f"  {' '.join(cmd_push_tag)}")
+            print(f"  {' '.join(cmd_push_branch)}")
         return
 
     print("Staging modified version files...")
@@ -102,25 +117,20 @@ def commit_tag_push(version: str, dry_run: bool = False, no_push: bool = False) 
     print(f"Creating commit for version {version}...")
     subprocess.run(cmd_commit, check=True)
 
-    print(f"Creating git tag {version}...")
-    subprocess.run(cmd_tag, check=True)
-
     if no_push:
         print("Skipping push as --no-push was set.")
     else:
-        print("Pushing commit to remote...")
-        subprocess.run(cmd_push_head, check=True)
-        print(f"Pushing tag {version} to remote...")
-        subprocess.run(cmd_push_tag, check=True)
+        print(f"Pushing release branch '{branch_name}' to remote...")
+        subprocess.run(cmd_push_branch, check=True)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Bump project version, tag, and push.")
+    parser = argparse.ArgumentParser(description="Bump project version on a release branch and push.")
     parser.add_argument("version", help="New version string (e.g. 0.5.0)")
     parser.add_argument(
         "--dry-run", action="store_true", help="Perform validation and show changes without committing/pushing."
     )
-    parser.add_argument("--no-push", action="store_true", help="Commit and tag locally, but do not push to remote.")
+    parser.add_argument("--no-push", action="store_true", help="Commit locally, but do not push branch to remote.")
     args = parser.parse_args()
 
     # 1. Validate SemVer
@@ -138,29 +148,39 @@ def main() -> None:
         print(f"Error: Version tag '{version}' (or 'v{version}') already exists in git history!", file=sys.stderr)
         sys.exit(1)
 
-    # 3. Locate pyproject.toml
+    # 3. Locate files
     root_dir = Path(__file__).resolve().parent.parent
     pyproject_path = root_dir / "pyproject.toml"
+    version_file_path = root_dir / "VERSION"
     if not pyproject_path.exists():
         print(f"Error: pyproject.toml not found at {pyproject_path}", file=sys.stderr)
         sys.exit(1)
 
-    # 4. Update files
+    # 4. Create and checkout release branch
+    branch_name = f"release-{version}"
     try:
+        create_release_branch(branch_name, dry_run=args.dry_run)
+    except Exception as e:
+        print(f"Error creating release branch: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # 5. Update files
+    try:
+        update_version_file(version_file_path, version, dry_run=args.dry_run)
         update_pyproject_version(pyproject_path, version, dry_run=args.dry_run)
         update_uv_lock(dry_run=args.dry_run)
     except Exception as e:
         print(f"Error updating project version: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # 5. Git operations
+    # 6. Git commit & push branch
     try:
-        commit_tag_push(version, dry_run=args.dry_run, no_push=args.no_push)
+        commit_and_push(branch_name, version, dry_run=args.dry_run, no_push=args.no_push)
     except Exception as e:
         print(f"Error executing git operations: {e}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Successfully released version {version}!")
+    print(f"Successfully prepared release branch '{branch_name}' for version {version}!")
 
 
 if __name__ == "__main__":
