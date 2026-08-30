@@ -287,8 +287,8 @@ async def test_tui_chat_screen_export_and_history_navigation() -> None:
             app.push_screen(chat_screen)
             await pilot.pause()
 
-            # Export chat via button
-            await pilot.click("#chat-export-btn")
+            # Export chat via button press
+            chat_screen.query_one("#chat-export-btn", Button).press()
             await pilot.pause()
             exported_chats = list(Path(tmpdir).glob("chat_test_bot_*.md"))
             assert len(exported_chats) >= 1
@@ -302,7 +302,7 @@ async def test_tui_chat_screen_export_and_history_navigation() -> None:
             # Test history navigation with Up/Down arrows
             chat_ta = chat_screen.query_one("#chat-input", TextArea)
             chat_ta.focus()
-            chat_ta.text = "Draft in progress"
+            chat_ta.load_text("Draft in progress")
             chat_ta.move_cursor((0, 0))
             await pilot.pause()
 
