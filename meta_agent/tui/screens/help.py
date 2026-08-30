@@ -52,16 +52,13 @@ HELP_MARKDOWN = """
 | *Buttons* | **Copy Command** | Copy untruncated `meta_agent chat ...` command to system clipboard |
 
 ---
-| `Ctrl+L` | **Maximize Logs** | Toggle fullscreen for logs pane (`Esc` to restore) |
-| `Ctrl+C` | **Chat** | Open chat options for selected recipe |
-| `Ctrl+R` | **Resume Chat** | Select and resume a past saved chat session |
-| `Ctrl+E` | **Edit Recipe** | Edit selected recipe TOML in modal editor |
-| `Ctrl+D` | **Delete Recipe** | Safely delete selected recipe |
-| `Ctrl+G` | **Generate Tab** | Jump to recipe generation tab |
-| `Ctrl+Q` | **Quit** | Exit the application directly |
-| `Esc` | **Back / Defocus** | Restore fullscreen pane, defocus input, or close modals |
 
----
+## 📜 Logs Tab (`LogTab`)
+| Key | Action | Description |
+|:---|:---|:---|
+| `Ctrl+K` | **Clear Logs** | Clear application execution logs buffer |
+| `Ctrl+S` | **Export Logs** | Export full activity and event logs to file |
+| `Ctrl+L` | **Maximize Logs** | Toggle fullscreen for application logs (`Esc` to restore) |
 
 ## 💬 Chat Screen (`ChatScreen`) Shortcuts
 | Key | Action | Description |

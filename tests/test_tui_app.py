@@ -226,14 +226,14 @@ async def test_tui_log_tab_clear_and_export() -> None:
             await pilot.pause()
             assert app._maximized_pane is None
 
-            # Export logs via button
-            await pilot.click("#app-log-export-btn")
+            # Export logs via Ctrl+S
+            await pilot.press("ctrl+s")
             await pilot.pause()
             exported_files = list(Path(tmpdir).glob("app_logs_*.log"))
             assert len(exported_files) >= 1
 
-            # Clear logs via button
-            await pilot.click("#app-log-clear-btn")
+            # Clear logs via Ctrl+K
+            await pilot.press("ctrl+k")
             await pilot.pause()
             assert len(app._app_log_buffer) == 0
 

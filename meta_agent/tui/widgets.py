@@ -1,9 +1,10 @@
 """Custom Textual widgets for the TUI."""
 
-from typing import Any
+from typing import Any, ClassVar
 
 from textual import events
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import (
     Button,
@@ -42,10 +43,12 @@ class OrderedFooter(Footer):
                     return 3
                 if w.key == "ctrl+s":
                     return 4
-                if w.key == "ctrl+g":
+                if w.key == "ctrl+k":
                     return 5
-                if w.key == "ctrl+q":
+                if w.key == "ctrl+g":
                     return 6
+                if w.key == "ctrl+q":
+                    return 7
             return 10
 
         yield from sorted(items, key=_sort_order)
@@ -216,12 +219,24 @@ class GenerateTab(Vertical):
 class LogTab(Vertical):
     """A tab panel displaying application logs, search activity, and execution events."""
 
+    BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
+        Binding("ctrl+k", "clear_logs", "Clear Logs (Ctrl+K)", show=True, priority=True),
+        Binding("ctrl+s", "export_logs", "Export Logs (Ctrl+S)", show=True, priority=True),
+    ]
+
     def compose(self) -> ComposeResult:
         """Build the application log tab layout."""
         with Horizontal(id="app-log-toolbar"):
             yield Label("Application Activity & Event Logs", id="app-log-title")
-            yield Button("Clear Logs", id="app-log-clear-btn", variant="default")
-            yield Button("Export Logs", id="app-log-export-btn", variant="primary")
-            yield Button("^l", id="app-log-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (Ctrl+L)")
         with Vertical(id="app-log-container"):
             yield RichLog(id="app-rich-log", highlight=True, markup=True, wrap=True)
+
+    def action_clear_logs(self) -> None:
+        """Clear application logs via app action."""
+        if hasattr(self.app, "action_clear_logs"):
+            self.app.action_clear_logs()
+
+    def action_export_logs(self) -> None:
+        """Export application logs via app action."""
+        if hasattr(self.app, "action_export_logs"):
+            self.app.action_export_logs()

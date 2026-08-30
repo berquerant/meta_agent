@@ -568,8 +568,8 @@ LoadingIndicator {
 
 /* App-level Log Tab */
 #app-log-toolbar {
-    height: 3;
-    margin: 1 2 0 2;
+    height: 1;
+    margin: 0 2;
     align-vertical: middle;
 }
 #app-log-title {
@@ -577,12 +577,9 @@ LoadingIndicator {
     text-style: bold;
     color: $accent;
 }
-#app-log-clear-btn {
-    margin-right: 1;
-}
 #app-log-container {
     height: 1fr;
-    margin: 1 2;
+    margin: 0 2;
     padding: 1;
     border: solid $warning;
     background: $surface;
