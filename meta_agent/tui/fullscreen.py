@@ -90,7 +90,7 @@ class FullscreenManager:
             self._app.query_one(f"#{tid}-body").add_class("maximized-detail")
             self._app.query_one(f"#{tid}-toolbar").add_class("pane-hidden")
             self._maximized_pane = f"{tid}-detail"
-            self._app.notify(f"Maximized {tid.capitalize()} Details (press '^b' or Esc to restore)", timeout=3.0)
+            self._app.notify(f"Maximized {tid.capitalize()} Details (press 'Ctrl+O' or Esc to restore)", timeout=3.0)
         except Exception:
             pass
 
@@ -101,7 +101,7 @@ class FullscreenManager:
             self._app.query_one(f"#{tid}-body").add_class("maximized-log")
             self._app.query_one(f"#{tid}-toolbar").add_class("pane-hidden")
             self._maximized_pane = f"{tid}-log"
-            self._app.notify(f"Maximized {tid.capitalize()} Logs (press '^l' or Esc to restore)", timeout=3.0)
+            self._app.notify(f"Maximized {tid.capitalize()} Logs (press 'Ctrl+L' or Esc to restore)", timeout=3.0)
         except Exception:
             pass
 
@@ -111,7 +111,7 @@ class FullscreenManager:
         try:
             self._app.query_one("#gen-screen-layout").add_class("maximized-preview")
             self._maximized_pane = "gen-preview"
-            self._app.notify("Maximized Recipe Preview (press '^b' or Esc to restore)", timeout=3.0)
+            self._app.notify("Maximized Recipe Preview (press 'Ctrl+O' or Esc to restore)", timeout=3.0)
         except Exception:
             pass
 
@@ -121,7 +121,7 @@ class FullscreenManager:
         try:
             self._app.query_one("#gen-screen-layout").add_class("maximized-log")
             self._maximized_pane = "gen-log"
-            self._app.notify("Maximized Generation Logs (press '^l' or Esc to restore)", timeout=3.0)
+            self._app.notify("Maximized Generation Logs (press 'Ctrl+L' or Esc to restore)", timeout=3.0)
         except Exception:
             pass
 
@@ -133,7 +133,7 @@ class FullscreenManager:
         try:
             self._app.query_one(LogTab).add_class("maximized-log")
             self._maximized_pane = "app-log"
-            self._app.notify("Maximized Application Logs (press '^l' or Esc to restore)", timeout=3.0)
+            self._app.notify("Maximized Application Logs (press 'Ctrl+L' or Esc to restore)", timeout=3.0)
         except Exception:
             pass
 

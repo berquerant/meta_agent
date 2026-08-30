@@ -2,7 +2,8 @@ from pathlib import Path
 import tempfile
 
 import pytest
-from textual.widgets import Button, Input, ListView, Markdown, Static, TextArea
+from textual.containers import VerticalScroll
+from textual.widgets import Button, Input, Label, ListView, Markdown, Static, TextArea
 
 from meta_agent.api import Recipe
 from meta_agent.asking import AskingOpts
@@ -244,8 +245,8 @@ async def test_tui_chat_screen_fullscreen_toggle() -> None:
             await pilot.click("#chat-messages")
             await pilot.pause()
 
-            # Maximize messages via 'ctrl+b' key
-            await pilot.press("ctrl+b")
+            # Maximize messages via 'ctrl+o' key
+            await pilot.press("ctrl+o")
             await pilot.pause()
             assert chat_screen._maximized_pane == "chat-messages"
 
@@ -475,3 +476,53 @@ async def test_tui_chat_screen_back_and_empty_submission() -> None:
             chat_screen.query_one("#chat-back-btn", Button).press()
             await pilot.pause()
             assert not isinstance(app.screen, ChatScreen)
+
+
+@pytest.mark.anyio
+async def test_tui_chat_screen_sidebar_layout_and_notifications() -> None:
+    """Test ChatScreen sidebar widgets (system prompt, tools display, export button) and notify text."""
+    opts_with_str_tools = AskingOpts(
+        engine="ollama",
+        model="llama3",
+        agent="native_react",
+        tools="file_read,bash",
+        system="You are a helpful assistant.",
+    )
+    with tempfile.TemporaryDirectory() as tmpdir:
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        async with app.run_test() as pilot:
+            chat_screen = ChatScreen("custom_bot", opts_with_str_tools, export_dir=tmpdir)
+            app.push_screen(chat_screen)
+            await pilot.pause()
+
+            # Verify sidebar layout and tools formatting
+            sidebar = chat_screen.query_one("#chat-sidebar")
+            assert sidebar is not None
+
+            # Verify Tools is not character-split (e.g. not 'f, i, l, e, ...')
+            labels = [str(lbl.render()) for lbl in sidebar.query(Label)]
+            tools_label = next(lbl for lbl in labels if "Tools:" in lbl)
+            assert "Tools: file_read,bash" in tools_label
+            assert "Tools: f, i, l, e" not in tools_label
+
+            # Verify System Prompt is present and rendered
+            prompt_pane = chat_screen.query_one("#chat-sidebar-prompt", VerticalScroll)
+            assert prompt_pane is not None
+            assert chat_screen.query_one("#chat-prompt-max-btn", Button) is not None
+
+            # Verify Export Chat button is styled with primary variant
+            export_btn = chat_screen.query_one("#chat-export-btn", Button)
+            assert export_btn.variant == "primary"
+
+            # Maximize messages and verify notification mentions Ctrl+O
+            chat_screen.action_toggle_messages_fullscreen()
+            await pilot.pause()
+            assert chat_screen._maximized_pane == "chat-messages"
+
+            # Restore and toggle prompt fullscreen and verify
+            chat_screen.action_toggle_prompt_fullscreen()
+            await pilot.pause()
+            assert chat_screen._maximized_pane == "chat-prompt"
+            chat_screen.action_toggle_prompt_fullscreen()
+            await pilot.pause()
+            assert chat_screen._maximized_pane is None

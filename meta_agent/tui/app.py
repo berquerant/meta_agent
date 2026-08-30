@@ -80,11 +80,11 @@ class MetaAgentTUI(App[None]):
         Binding("ctrl+left_square_bracket", "previous_tab", "Prev Tab (Ctrl+[)", show=False, priority=True),
         Binding("ctrl+right_square_bracket", "next_tab", "Next Tab (Ctrl+])", show=False, priority=True),
         Binding("ctrl+q", "quit", "Quit (Ctrl+Q)", show=True, priority=True),
-        Binding("ctrl+b", "toggle_detail_fullscreen", "Detail Max (Ctrl+B)", show=False, priority=True),
+        Binding("ctrl+o", "toggle_detail_fullscreen", "Detail Max (Ctrl+O)", show=False, priority=True),
         Binding("ctrl+l", "toggle_log_fullscreen", "Logs Max (Ctrl+L)", show=False, priority=True),
         Binding("ctrl+r", "resume_chat", "Resume (Ctrl+R)", show=False, priority=True),
-        Binding("ctrl+e", "edit_recipe", "Edit (Ctrl+E)", show=False, priority=True),
-        Binding("ctrl+d", "delete_recipe", "Delete (Ctrl+D)", show=False, priority=True),
+        Binding("ctrl+e", "edit_recipe", "Edit (Ctrl+E)", show=False, priority=False),
+        Binding("ctrl+d", "delete_recipe", "Delete (Ctrl+D)", show=False, priority=False),
         Binding("ctrl+p", "toggle_prompt_fullscreen", show=False, priority=True),
         Binding("escape", "handle_escape", "Back (Esc)", show=False, priority=False),
     ]
@@ -713,6 +713,28 @@ class MetaAgentTUI(App[None]):
             self.action_next_tab()
             return
 
+        if event.key == "ctrl+s":
+            try:
+                tabs = self.query_one(TabbedContent)
+                if tabs.active == "tab-logs":
+                    event.prevent_default()
+                    event.stop()
+                    self.action_export_logs()
+                    return
+            except Exception:
+                pass
+
+        if event.key == "ctrl+k":
+            try:
+                tabs = self.query_one(TabbedContent)
+                if tabs.active == "tab-logs":
+                    event.prevent_default()
+                    event.stop()
+                    self.action_clear_logs()
+                    return
+            except Exception:
+                pass
+
         if event.key in ("ctrl+j", "ctrl+m"):
             focused = self.focused
             if isinstance(focused, TextArea) and focused.id in (
@@ -800,15 +822,16 @@ class MetaAgentTUI(App[None]):
     # Log Tab Actions
     # ------------------------------------------------------------------
 
-    @on(Button.Pressed, "#app-log-clear-btn")
-    def on_clear_app_logs(self) -> None:
+    def action_clear_logs(self) -> None:
         """Clear application rich log and internal log buffer."""
-        self.query_one("#app-rich-log", RichLog).clear()
-        self._app_log_buffer.clear()
-        self.notify("Application logs cleared", severity="information")
+        try:
+            self.query_one("#app-rich-log", RichLog).clear()
+            self._app_log_buffer.clear()
+            self.notify("Application logs cleared", severity="information")
+        except Exception:
+            pass
 
-    @on(Button.Pressed, "#app-log-export-btn")
-    def on_export_app_logs(self) -> None:
+    def action_export_logs(self) -> None:
         """Save application execution log buffer to file."""
         if not self._app_log_buffer:
             self.notify("No logs to export", severity="warning")
@@ -822,6 +845,16 @@ class MetaAgentTUI(App[None]):
             self.notify(f"Exported app logs to {out_path}", severity="information")
         except Exception as e:
             self.notify(f"Failed to export logs: {e}", severity="error")
+
+    @on(Button.Pressed, "#app-log-clear-btn")
+    def on_clear_app_logs(self) -> None:
+        """Clear application rich log and internal log buffer."""
+        self.action_clear_logs()
+
+    @on(Button.Pressed, "#app-log-export-btn")
+    def on_export_app_logs(self) -> None:
+        """Save application execution log buffer to file."""
+        self.action_export_logs()
 
     # ------------------------------------------------------------------
     # Escape & Fullscreen Layout Actions

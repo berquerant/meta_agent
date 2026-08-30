@@ -81,13 +81,13 @@ async def test_tui_fullscreen_maximize_and_restore() -> None:
             # Default state: not maximized
             assert app._maximized_pane is None
 
-            # Toggle detail fullscreen via 'ctrl+b' key on recipes tab
-            await pilot.press("ctrl+b")
+            # Toggle detail fullscreen via 'ctrl+o' key on recipes tab
+            await pilot.press("ctrl+o")
             await pilot.pause()
             assert app._maximized_pane == "recipes-detail"
 
-            # Press 'ctrl+b' again to restore
-            await pilot.press("ctrl+b")
+            # Press 'ctrl+o' again to restore
+            await pilot.press("ctrl+o")
             await pilot.pause()
             assert app._maximized_pane is None
 
@@ -106,8 +106,8 @@ async def test_tui_fullscreen_maximize_and_restore() -> None:
             await pilot.pause()
             assert app._maximized_pane == "recipes-log"
 
-            # Switch to detail via 'ctrl+b' key directly
-            await pilot.press("ctrl+b")
+            # Switch to detail via 'ctrl+o' key directly
+            await pilot.press("ctrl+o")
             await pilot.pause()
             assert app._maximized_pane == "recipes-detail"
 
@@ -226,14 +226,14 @@ async def test_tui_log_tab_clear_and_export() -> None:
             await pilot.pause()
             assert app._maximized_pane is None
 
-            # Export logs via button
-            await pilot.click("#app-log-export-btn")
+            # Export logs via Ctrl+S
+            await pilot.press("ctrl+s")
             await pilot.pause()
             exported_files = list(Path(tmpdir).glob("app_logs_*.log"))
             assert len(exported_files) >= 1
 
-            # Clear logs via button
-            await pilot.click("#app-log-clear-btn")
+            # Clear logs via Ctrl+K
+            await pilot.press("ctrl+k")
             await pilot.pause()
             assert len(app._app_log_buffer) == 0
 
@@ -390,3 +390,65 @@ async def test_tui_list_focus_auto_selects_first_item() -> None:
                 await pilot.pause()
                 assert lv.index == 1
                 assert app._selected_recipe == app._displayed_recipes[1]
+
+
+@pytest.mark.anyio
+async def test_tui_textarea_focus_ignores_recipe_shortcuts() -> None:
+    """Test that focusing a TextArea disables global shortcuts like Ctrl+D, Ctrl+A, Ctrl+E, Ctrl+B."""
+    from meta_agent.api import Recipe
+    from meta_agent.tui.screens.delete_recipe import DeleteRecipeScreen
+    from meta_agent.tui.screens.edit_recipe import EditRecipeScreen
+
+    rec = Recipe(
+        name="sample_bot",
+        description="A bot for testing",
+        system_prompt="You are a test assistant.",
+        engine_key="ollama",
+        model="llama3",
+        agent_type="native_react",
+        tools=["file_read"],
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        recipe_file = Path(tmpdir) / "sample_bot.toml"
+        recipe_file.write_text('[recipe]\nname = "sample_bot"\n', encoding="utf-8")
+
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app._selected_recipe = rec
+            assert app._selected_recipe is not None
+
+            # Now focus the search TextArea
+            search_ta = app.query_one("#recipes-search", TextArea)
+            search_ta.focus()
+            await pilot.pause()
+            assert search_ta.has_focus
+
+            # Type some text
+            search_ta.load_text("hello world")
+            await pilot.pause()
+
+            # Press Ctrl+D while TextArea is focused: should NOT trigger DeleteRecipeScreen
+            await pilot.press("ctrl+d")
+            await pilot.pause()
+            assert not isinstance(app.screen, DeleteRecipeScreen)
+            assert search_ta.has_focus
+
+            # Press Ctrl+E while TextArea is focused: should NOT trigger EditRecipeScreen
+            await pilot.press("ctrl+e")
+            await pilot.pause()
+            assert not isinstance(app.screen, EditRecipeScreen)
+            assert search_ta.has_focus
+
+            # Press Ctrl+A while TextArea is focused:
+            # should select text or move cursor in TextArea, not trigger app actions
+            await pilot.press("ctrl+a")
+            await pilot.pause()
+            assert search_ta.has_focus
+
+            # Press Ctrl+B while TextArea is focused: should NOT toggle fullscreen (Ctrl+B is removed/unbound)
+            await pilot.press("ctrl+b")
+            await pilot.pause()
+            assert app._maximized_pane is None
+            assert search_ta.has_focus
