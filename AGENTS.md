@@ -106,7 +106,7 @@ Always run `make check` before committing.
 
 ## Releasing
 
-To release a new version (updates `pyproject.toml` and `uv.lock`, commits, tags, and pushes):
+To release a new version (creates `release-X.Y.Z` branch, updates `VERSION`, `pyproject.toml`, and `uv.lock`, commits, and pushes branch):
 
 ```shell
 make release VERSION=X.Y.Z
@@ -114,6 +114,12 @@ make release VERSION=X.Y.Z
 make release VERSION=X.Y.Z ARGS="--dry-run"
 # or directly via uv:
 uv run python scripts/release.py X.Y.Z
+```
+
+After merging the release branch into `main`, publish the git tag:
+
+```shell
+make tag
 ```
 
 ## Architecture Notes

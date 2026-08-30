@@ -23,5 +23,12 @@ release:
 	@test -n "$(VERSION)" || (echo "Error: VERSION is required. Usage: make release VERSION=x.y.z [ARGS=...]" && exit 1)
 	uv run python scripts/release.py $(VERSION) $(ARGS)
 
-.PHONY: init check test ci dev install update-golden release
+tag:
+	@test -f VERSION || (echo "Error: VERSION file not found." && exit 1)
+	@VER=$$(cat VERSION | tr -d '[:space:]'); \
+	test -n "$$VER" || (echo "Error: VERSION file is empty." && exit 1); \
+	echo "Tagging and pushing version $$VER..."; \
+	git tag -a "$$VER" -m "Release $$VER" && \
+	git push origin "$$VER"
 
+.PHONY: init check test ci dev install update-golden release tag
