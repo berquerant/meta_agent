@@ -117,7 +117,9 @@ def commit_tag_push(version: str, dry_run: bool = False, no_push: bool = False) 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Bump project version, tag, and push.")
     parser.add_argument("version", help="New version string (e.g. 0.5.0)")
-    parser.add_argument("--dry-run", action="store_true", help="Perform validation and show changes without committing/pushing.")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Perform validation and show changes without committing/pushing."
+    )
     parser.add_argument("--no-push", action="store_true", help="Commit and tag locally, but do not push to remote.")
     args = parser.parse_args()
 

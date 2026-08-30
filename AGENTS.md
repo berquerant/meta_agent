@@ -52,8 +52,8 @@ meta_agent/
 │       │   └── resume_chat.py  # ResumeChatScreen (restore session from exported markdown)
 │       └── widgets.py     # ResourceTab, GenerateTab, LogTab & SearchableSelect widgets
 │   └── utils.py       # Shared utilities (formatting, file reading, etc.)
-├── scripts/           # Helper scripts (e.g. release.py)
-├── tests/             # pytest test suite
+├── scripts/           # Helper scripts (release.py, update_golden.py)
+├── tests/             # pytest test suite (including golden SVG snapshots)
 ├── pyproject.toml     # Project metadata and tool configuration
 ├── tox.ini            # Test/lint environment definitions
 └── Makefile           # Developer convenience targets
