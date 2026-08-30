@@ -3,7 +3,7 @@ name = "meta_agent"
 description = ""
 
 readme = "README.md"
-version = "0.12.0"
+version = "0.12.1"
 requires-python = ">=3.14"
 license = { file = "LICENSE" }
 classifiers = [
