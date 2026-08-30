@@ -49,7 +49,8 @@ async def test_golden_main_recipes_tab() -> None:
         export_dir=FIXED_TEST_DIR,
         auto_load=False,
     )
-    async with app.run_test(size=(100, 30)):
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
         svg = app.export_screenshot(title="MainScreen")
         assert_matches_golden(svg, "main_recipes.svg")
 

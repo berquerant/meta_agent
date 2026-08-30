@@ -171,7 +171,9 @@ class ChatScreen(Screen[None]):
 
     def on_mount(self) -> None:
         """Configure initial widget state and hook logging."""
-        self.query_one("#chat-input", TextArea).focus()
+        chat_input = self.query_one("#chat-input", TextArea)
+        chat_input.cursor_blink = False
+        chat_input.focus()
         log = self.query_one("#chat-rich-log", RichLog)
         init_msg = "System initialized. Ready for chat session."
         if self._history:
