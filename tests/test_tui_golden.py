@@ -94,9 +94,9 @@ async def test_golden_generate_tab() -> None:
         recipes_dir=FIXED_TEST_DIR,
         export_dir=FIXED_TEST_DIR,
         auto_load=False,
+        initial_tab="tab-generate",
     )
     async with app.run_test(size=(100, 30)) as pilot:
-        app.action_open_generate()
         await pilot.pause()
         svg = app.export_screenshot(title="GenerateTab")
         assert_matches_golden(svg, "generate_tab.svg")
@@ -111,9 +111,9 @@ async def test_golden_logs_tab() -> None:
         recipes_dir=FIXED_TEST_DIR,
         export_dir=FIXED_TEST_DIR,
         auto_load=False,
+        initial_tab="tab-logs",
     )
     async with app.run_test(size=(100, 30)) as pilot:
-        app.query_one("TabbedContent").active = "tab-logs"
         await pilot.pause()
         svg = app.export_screenshot(title="LogTab")
         assert_matches_golden(svg, "logs_tab.svg")

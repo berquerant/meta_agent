@@ -96,6 +96,7 @@ class MetaAgentTUI(App[None]):
         recipes_dir: str,
         export_dir: str | None = None,
         auto_load: bool = True,
+        initial_tab: str = "tab-recipes",
     ) -> None:
         """Initialize the TUI with LLM settings and export directory."""
         super().__init__()
@@ -104,6 +105,7 @@ class MetaAgentTUI(App[None]):
         self._recipes_dir = recipes_dir
         self._export_dir = export_dir or get_default_export_dir()
         self._auto_load = auto_load
+        self._initial_tab = initial_tab
         self._recipes: list[Recipe] = []
         self._agents: list[Agent] = []
         self._tools: list[Tool] = []
@@ -143,7 +145,7 @@ class MetaAgentTUI(App[None]):
     def compose(self) -> ComposeResult:
         """Build the main TUI layout."""
         yield Header()
-        with TabbedContent(initial="tab-recipes"):
+        with TabbedContent(initial=self._initial_tab):
             with TabPane("Recipes", id="tab-recipes"):
                 yield ResourceTab("recipes", show_chat=True)
             with TabPane("Agents", id="tab-agents"):
