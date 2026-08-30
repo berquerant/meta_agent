@@ -190,7 +190,7 @@ LoadingIndicator {
     height: 8;
     border: solid $warning;
     padding: 0 1;
-    margin-bottom: 1;
+    margin-bottom: 0;
     background: $surface;
 }
 #gen-log-title {
@@ -202,7 +202,7 @@ LoadingIndicator {
 }
 #gen-status-bar {
     height: 1;
-    margin-bottom: 1;
+    margin-bottom: 0;
     color: $accent;
 }
 #gen-input-bar {
@@ -341,7 +341,7 @@ LoadingIndicator {
     height: 8;
     border: solid $warning;
     padding: 0 1;
-    margin-bottom: 1;
+    margin-bottom: 0;
     background: $surface;
 }
 #chat-log-title {
@@ -353,7 +353,7 @@ LoadingIndicator {
 }
 #chat-status-bar {
     height: 1;
-    margin-bottom: 1;
+    margin-bottom: 0;
     color: $accent;
 }
 #chat-input-bar {
