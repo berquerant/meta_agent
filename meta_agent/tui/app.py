@@ -192,12 +192,17 @@ class MetaAgentTUI(App[None]):
                     self.query_one(f"#{tid}-loading", LoadingIndicator).display = False
                 except Exception:
                     pass
+        if self._initial_tab != "tab-recipes":
+            try:
+                self.query_one(TabbedContent).active = self._initial_tab
+            except Exception:
+                pass
+
         try:
-            self.query_one("#gen-chat-btn", Button).display = False
-        except Exception:
-            pass
-        try:
-            self.query_one("#recipes-search", TextArea).focus()
+            if self._initial_tab == "tab-generate":
+                self.query_one("#gen-input", TextArea).focus()
+            elif self._initial_tab == "tab-recipes":
+                self.query_one("#recipes-search", TextArea).focus()
         except Exception:
             pass
 
