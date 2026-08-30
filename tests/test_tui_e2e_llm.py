@@ -98,7 +98,7 @@ async def test_e2e_tui_generate_recipe_workflow() -> None:
     set_llm_client(mock_client)
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir, auto_load=False)
         async with app.run_test() as pilot:
             # Switch to GenerateTab
             app.action_open_generate()
@@ -151,7 +151,7 @@ async def test_e2e_tui_chat_streaming_workflow() -> None:
 
     opts = AskingOpts(engine="ollama", model="llama3", agent=None, tools="", system="You are helpful.")
     with tempfile.TemporaryDirectory() as tmpdir:
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir, auto_load=False)
         async with app.run_test() as pilot:
             chat_screen = ChatScreen("stream_bot", opts, export_dir=tmpdir)
             app.push_screen(chat_screen)
@@ -190,7 +190,7 @@ async def test_e2e_tui_chat_agent_execution_workflow() -> None:
         engine="ollama", model="llama3", agent="orchestrator", tools="file_read,bash", system="You are a test runner."
     )
     with tempfile.TemporaryDirectory() as tmpdir:
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir, auto_load=False)
         async with app.run_test() as pilot:
             chat_screen = ChatScreen("agent_bot", opts, export_dir=tmpdir)
             app.push_screen(chat_screen)
@@ -231,7 +231,7 @@ async def test_e2e_tui_ask_llm_action_workflow() -> None:
     set_llm_client(mock_client)
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir, auto_load=False)
         async with app.run_test() as pilot:
             await pilot.pause()
             # Type natural language search in recipes tab
