@@ -81,3 +81,23 @@ End-to-end integration tests using `MockLLMClient` verifying complete UI loops a
 | `test_e2e_tui_chat_streaming_workflow` | <ul><li>Open `ChatScreen` in direct engine mode</li><li>Submit user question</li><li>`MockLLMClient` streams tokens progressively</li></ul> | Validates real-time token streaming and assembly in `ChatScreen` markdown view and history capture without UI blocking. |
 | `test_e2e_tui_chat_agent_execution_workflow` | <ul><li>Open `ChatScreen` in agent mode (`orchestrator`) with tools</li><li>Submit agent task</li><li>`MockLLMClient` responds with final output</li></ul> | Verifies multi-turn agent execution, tools invocation logging, and assistant response capturing. |
 | `test_e2e_tui_ask_llm_action_workflow` | <ul><li>Type natural language query in `Recipes` tab</li><li>Click Ask LLM button</li><li>`MockLLMClient` returns JSON action intent</li></ul> | Verifies end-to-end semantic intent parsing, automatic switching to `GenerateTab`, and query pre-population. |
+
+---
+
+### 5. Golden Layout & Visual Snapshot Tests (`test_tui_golden.py`)
+
+Visual snapshot tests ensuring UI layout structure, margins, header/footer placement, and pane boundaries remain consistent without depending on host OS terminal decorations or dynamic timestamps:
+
+| Test Function | Screen / Tab | Assertions & Significance |
+|---|---|---|
+| `test_golden_main_recipes_tab` | `tab-recipes` (Main Screen, empty) | Verifies header, tab strip, search input, empty recipe list, detail placeholder, and footer layout. |
+| `test_golden_main_recipes_with_item` | `tab-recipes` (Main Screen, with item) | Verifies recipe item selection in list, populated detail markdown preview, and action buttons. |
+| `test_golden_generate_tab` | `tab-generate` (Generate Tab) | Verifies preview scroll, warning log pane, compact status bar, and prompt input bar. |
+| `test_golden_logs_tab` | `tab-logs` (Logs Tab) | Verifies compact title toolbar, application rich log container, and footer shortcuts (`Ctrl+K`, `Ctrl+S`). |
+| `test_golden_help_screen` | `HelpScreen` Modal | Verifies shortcuts markdown tables, close button, and modal container styling. |
+| `test_golden_chat_screen` | `ChatScreen` | Verifies fixed 32-column sidebar, system prompt pane, chat messages, dedicated log pane, and multiline input bar. |
+
+To regenerate or update golden SVG snapshots after intentional UI modifications:
+```shell
+make update-golden
+```

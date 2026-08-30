@@ -89,13 +89,21 @@ class MetaAgentTUI(App[None]):
         Binding("escape", "handle_escape", "Back (Esc)", show=False, priority=False),
     ]
 
-    def __init__(self, engine: str, model: str, recipes_dir: str, export_dir: str | None = None) -> None:
+    def __init__(
+        self,
+        engine: str,
+        model: str,
+        recipes_dir: str,
+        export_dir: str | None = None,
+        auto_load: bool = True,
+    ) -> None:
         """Initialize the TUI with LLM settings and export directory."""
         super().__init__()
         self._engine = engine
         self._model = model
         self._recipes_dir = recipes_dir
         self._export_dir = export_dir or get_default_export_dir()
+        self._auto_load = auto_load
         self._recipes: list[Recipe] = []
         self._agents: list[Agent] = []
         self._tools: list[Tool] = []
@@ -170,11 +178,18 @@ class MetaAgentTUI(App[None]):
         except Exception:
             pass
 
-        self._load_recipes()
-        self._load_agents()
-        self._load_tools()
-        self._load_engines()
-        self._load_models()
+        if self._auto_load:
+            self._load_recipes()
+            self._load_agents()
+            self._load_tools()
+            self._load_engines()
+            self._load_models()
+        else:
+            for tid in ("recipes", "agents", "tools", "engines", "models"):
+                try:
+                    self.query_one(f"#{tid}-loading", LoadingIndicator).display = False
+                except Exception:
+                    pass
         try:
             self.query_one("#gen-chat-btn", Button).display = False
         except Exception:
@@ -628,6 +643,7 @@ class MetaAgentTUI(App[None]):
     def action_open_generate(self) -> None:
         """Switch to GenerateTab and focus input prompt."""
         try:
+            self._fullscreen.restore_fullscreen()
             self.query_one(TabbedContent).active = "tab-generate"
             self.query_one("#gen-input", TextArea).focus()
         except Exception:

@@ -96,6 +96,11 @@ class PromptTextArea(TextArea):
         ("ctrl+right_square_bracket", "app.next_tab", "Next Tab"),
     ]
 
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Initialize PromptTextArea with cursor blinking disabled."""
+        super().__init__(*args, **kwargs)
+        self.cursor_blink = False
+
     async def _on_key(self, event: events.Key) -> None:
         """Forward tab navigation shortcuts to app navigation actions."""
         if event.key in ("ctrl+left", "ctrl+left_square_bracket", "ctrl+[", "ctrl__"):

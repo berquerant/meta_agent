@@ -21,7 +21,7 @@ from meta_agent.tui.widgets import SearchableSelect
 async def test_tui_help_modal_open_and_dismiss() -> None:
     """Test opening and closing HelpScreen."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir, auto_load=False)
         async with app.run_test() as pilot:
             # Press 'ctrl+h' to open help modal
             await pilot.press("ctrl+h")
@@ -61,7 +61,7 @@ async def test_tui_chat_options_screen_interaction() -> None:
         tools=["file_read"],
     )
     with tempfile.TemporaryDirectory() as tmpdir:
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir, auto_load=False)
         async with app.run_test() as pilot:
             screen = ChatOptionsScreen(rec, default_engine="ollama", default_model="llama3", export_dir=tmpdir)
             app.push_screen(screen)
@@ -96,7 +96,7 @@ async def test_tui_chat_options_dropdown_search_and_sync() -> None:
         tools=["file_read"],
     )
     with tempfile.TemporaryDirectory() as tmpdir:
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir, auto_load=False)
         async with app.run_test() as pilot:
             screen = ChatOptionsScreen(rec, default_engine="ollama", default_model="llama3", export_dir=tmpdir)
             app.push_screen(screen)
@@ -134,7 +134,7 @@ async def test_tui_edit_recipe_screen_save() -> None:
         recipe_path = Path(tmpdir) / "test_bot.toml"
         recipe_path.write_text('[recipe]\nname = "test_bot"\n', encoding="utf-8")
 
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir, auto_load=False)
         async with app.run_test() as pilot:
             screen = EditRecipeScreen("test_bot", [str(recipe_path)])
             app.push_screen(screen)
@@ -154,7 +154,7 @@ async def test_tui_edit_recipe_validation_error() -> None:
         recipe_path = Path(tmpdir) / "invalid_bot.toml"
         recipe_path.write_text('[recipe]\nname = "invalid_bot"\n', encoding="utf-8")
 
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir, auto_load=False)
         async with app.run_test() as pilot:
             screen = EditRecipeScreen("invalid_bot", [str(recipe_path)])
             app.push_screen(screen)
@@ -185,7 +185,7 @@ async def test_tui_delete_recipe_screen_dismiss() -> None:
         recipe_path = Path(tmpdir) / "delete_bot.toml"
         recipe_path.write_text('[recipe]\nname = "delete_bot"\n', encoding="utf-8")
 
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir, auto_load=False)
         async with app.run_test() as pilot:
             screen = DeleteRecipeScreen("delete_bot", [str(recipe_path)])
             app.push_screen(screen)
@@ -209,7 +209,7 @@ async def test_tui_resume_chat_screen() -> None:
         )
         chat_file.write_text(content, encoding="utf-8")
 
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir, auto_load=False)
         async with app.run_test() as pilot:
             screen = ResumeChatScreen(tmpdir, initial_filter="bot")
             app.push_screen(screen)
@@ -231,7 +231,7 @@ async def test_tui_chat_screen_fullscreen_toggle() -> None:
     """Test toggling fullscreen for chat messages, logs, and prompt in ChatScreen."""
     opts = AskingOpts(engine="ollama", model="llama3", agent=None, tools="", system="You are a bot")
     with tempfile.TemporaryDirectory() as tmpdir:
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir, auto_load=False)
         async with app.run_test() as pilot:
             chat_screen = ChatScreen("test_bot", opts, export_dir=tmpdir)
             app.push_screen(chat_screen)
@@ -247,28 +247,23 @@ async def test_tui_chat_screen_fullscreen_toggle() -> None:
 
             # Maximize messages via 'ctrl+o' key
             await pilot.press("ctrl+o")
-            await pilot.pause()
             assert chat_screen._maximized_pane == "chat-messages"
 
             # Press Escape: should restore normal view, NOT dismiss screen
             await pilot.press("escape")
-            await pilot.pause()
             assert chat_screen._maximized_pane is None
             assert isinstance(app.screen, ChatScreen)
 
             # Maximize logs via 'ctrl+l' key
             await pilot.press("ctrl+l")
-            await pilot.pause()
             assert chat_screen._maximized_pane == "chat-log"
 
             # Maximize prompt via 'ctrl+p' key
             await pilot.press("ctrl+p")
-            await pilot.pause()
             assert chat_screen._maximized_pane == "chat-prompt"
 
             # Press 'ctrl+p' to toggle restore
             await pilot.press("ctrl+p")
-            await pilot.pause()
             assert chat_screen._maximized_pane is None
 
             # Press Escape when normal: should dismiss screen
@@ -286,14 +281,14 @@ async def test_tui_chat_screen_export_and_history_navigation() -> None:
         ("Assistant", "First answer", "2026-01-01 10:00:01"),
     ]
     with tempfile.TemporaryDirectory() as tmpdir:
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir, auto_load=False)
         async with app.run_test() as pilot:
             chat_screen = ChatScreen("test_bot", opts, export_dir=tmpdir, initial_history=initial_history)
             app.push_screen(chat_screen)
             await pilot.pause()
 
-            # Export chat via button
-            await pilot.click("#chat-export-btn")
+            # Export chat via button press
+            chat_screen.query_one("#chat-export-btn", Button).press()
             await pilot.pause()
             exported_chats = list(Path(tmpdir).glob("chat_test_bot_*.md"))
             assert len(exported_chats) >= 1
@@ -307,7 +302,7 @@ async def test_tui_chat_screen_export_and_history_navigation() -> None:
             # Test history navigation with Up/Down arrows
             chat_ta = chat_screen.query_one("#chat-input", TextArea)
             chat_ta.focus()
-            chat_ta.text = "Draft in progress"
+            chat_ta.load_text("Draft in progress")
             chat_ta.move_cursor((0, 0))
             await pilot.pause()
 
@@ -336,7 +331,7 @@ async def test_tui_delete_recipe_multi_file_and_confirm() -> None:
         f1.write_text('[recipe]\nname = "dup"\n', encoding="utf-8")
         f2.write_text('[recipe]\nname = "dup"\n', encoding="utf-8")
 
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir, auto_load=False)
         async with app.run_test() as pilot:
             # Test multi-file delete all
             screen = DeleteRecipeScreen("dup", [str(f1), str(f2)])
@@ -361,7 +356,7 @@ async def test_tui_edit_recipe_multi_file_switch_and_ctrl_s() -> None:
         f1.write_text('[recipe]\nname = "edit1"\n', encoding="utf-8")
         f2.write_text('[recipe]\nname = "edit2"\n', encoding="utf-8")
 
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir, auto_load=False)
         async with app.run_test() as pilot:
             screen = EditRecipeScreen("edit_bot", [str(f1), str(f2)])
             app.push_screen(screen)
@@ -396,7 +391,7 @@ async def test_tui_resume_chat_preview_and_confirm() -> None:
         )
         chat_file.write_text(content, encoding="utf-8")
 
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir, auto_load=False)
         async with app.run_test() as pilot:
             screen = ResumeChatScreen(tmpdir)
             app.push_screen(screen)
@@ -431,7 +426,7 @@ async def test_tui_chat_options_tool_append_and_start() -> None:
         tools=["file_read"],
     )
     with tempfile.TemporaryDirectory() as tmpdir:
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir, auto_load=False)
         async with app.run_test() as pilot:
             screen = ChatOptionsScreen(rec, default_engine="ollama", default_model="llama3", export_dir=tmpdir)
             app.push_screen(screen)
@@ -459,7 +454,7 @@ async def test_tui_chat_screen_back_and_empty_submission() -> None:
     """Test Back button in ChatScreen and empty input submission handling."""
     opts = AskingOpts(engine="ollama", model="llama3", agent=None, tools="", system="You are a bot")
     with tempfile.TemporaryDirectory() as tmpdir:
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir, auto_load=False)
         async with app.run_test() as pilot:
             chat_screen = ChatScreen("test_bot", opts, export_dir=tmpdir)
             app.push_screen(chat_screen)
@@ -489,7 +484,7 @@ async def test_tui_chat_screen_sidebar_layout_and_notifications() -> None:
         system="You are a helpful assistant.",
     )
     with tempfile.TemporaryDirectory() as tmpdir:
-        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir)
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir, auto_load=False)
         async with app.run_test() as pilot:
             chat_screen = ChatScreen("custom_bot", opts_with_str_tools, export_dir=tmpdir)
             app.push_screen(chat_screen)
