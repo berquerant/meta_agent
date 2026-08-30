@@ -83,9 +83,9 @@ async def generate_all_golden() -> None:
         recipes_dir=FIXED_TEST_DIR,
         export_dir=FIXED_TEST_DIR,
         auto_load=False,
+        initial_tab="tab-generate",
     )
     async with app.run_test(size=(100, 30)) as pilot:
-        app.action_open_generate()
         await pilot.pause()
         (GOLDEN_DIR / "generate_tab.svg").write_text(
             normalize_svg(app.export_screenshot(title="GenerateTab")),
@@ -99,9 +99,9 @@ async def generate_all_golden() -> None:
         recipes_dir=FIXED_TEST_DIR,
         export_dir=FIXED_TEST_DIR,
         auto_load=False,
+        initial_tab="tab-logs",
     )
     async with app.run_test(size=(100, 30)) as pilot:
-        app.query_one("TabbedContent").active = "tab-logs"
         await pilot.pause()
         (GOLDEN_DIR / "logs_tab.svg").write_text(
             normalize_svg(app.export_screenshot(title="LogTab")),
