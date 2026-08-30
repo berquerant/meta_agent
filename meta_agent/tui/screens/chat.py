@@ -104,7 +104,7 @@ class ChatScreen(Screen[None]):
 
     def compose(self) -> ComposeResult:
         """Build 3-pane chat layout: sidebar, messages + log + input."""
-        yield Header(show_clock=True)
+        yield Header()
         with Horizontal(id="chat-screen-layout"):
             # Left sidebar: recipe details summary
             with Vertical(id="chat-sidebar"):

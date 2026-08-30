@@ -17,7 +17,7 @@ install:
 	pip install .
 
 update-golden:
-	uv run python scripts/update_golden.py
+	uv run pytest tests/test_tui_golden.py --snapshot-update
 
 release:
 	@test -n "$(VERSION)" || (echo "Error: VERSION is required. Usage: make release VERSION=x.y.z [ARGS=...]" && exit 1)

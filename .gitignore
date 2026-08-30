@@ -9,3 +9,4 @@ __pycache__/
 build/
 dist/
 tmp/
+snapshot_report.html
