@@ -69,7 +69,7 @@ class ChatScreen(Screen[None]):
         Binding("f1", "open_help", "Help", show=False, priority=True),
         Binding("escape", "dismiss_screen", "Back (Esc)", show=True, priority=True),
         Binding("ctrl+s", "export_chat", "Export Chat (Ctrl+S)", show=True, priority=True),
-        Binding("ctrl+b", "toggle_messages_fullscreen", "Messages Max (Ctrl+B)", show=False, priority=True),
+        Binding("ctrl+o", "toggle_messages_fullscreen", "Messages Max (Ctrl+O)", show=False, priority=True),
         Binding("ctrl+l", "toggle_log_fullscreen", "Logs Max (Ctrl+L)", show=False, priority=True),
         Binding("ctrl+p", "toggle_prompt_fullscreen", "Prompt Max (Ctrl+P)", show=False, priority=True),
         Binding("ctrl+shift+l", "export_logs", "Export Logs", show=False, priority=True),
@@ -99,19 +99,26 @@ class ChatScreen(Screen[None]):
         self._log_buffer: list[str] = []
         self._log_handler: RichLogHandler | None = None
         self._maximized_pane: str | None = None
+        self._active_worker: Any = None
+        self._session_export_path: str | None = None
 
     def compose(self) -> ComposeResult:
-        """Build the chat screen layout with action buttons."""
-        yield Header()
+        """Build 3-pane chat layout: sidebar, messages + log + input."""
+        yield Header(show_clock=True)
         with Horizontal(id="chat-screen-layout"):
-            # Left pane: Recipe/agent info summary + Actions
-            with Vertical(id="chat-info-sidebar"):
-                yield Label(f"Recipe: {self._recipe_name}", id="chat-sidebar-title")
-                yield Label(f"Engine: {self._opts.engine}", classes="chat-sidebar-item")
-                yield Label(f"Model: {self._opts.model}", classes="chat-sidebar-item")
-                yield Label(f"Agent: {self._opts.agent or 'direct engine'}", classes="chat-sidebar-item")
-                if self._opts.tools:
-                    yield Label(f"Tools: {self._opts.tools}", classes="chat-sidebar-item")
+            # Left sidebar: recipe details summary
+            with Vertical(id="chat-sidebar"):
+                yield Label("Chat Session", id="chat-sidebar-title")
+                yield Label(f"Recipe: {self._recipe_name}", classes="chat-sidebar-item")
+                yield Label(f"Agent: {self._opts.agent or 'default'}", classes="chat-sidebar-item")
+                yield Label(f"Engine: {self._opts.engine or 'default'}", classes="chat-sidebar-item")
+                yield Label(f"Model: {self._opts.model or 'default'}", classes="chat-sidebar-item")
+                if isinstance(self._opts.tools, list):
+                    tools_display = ", ".join(self._opts.tools) if self._opts.tools else "none"
+                else:
+                    tools_display = self._opts.tools or "none"
+                yield Label(f"Tools: {tools_display}", classes="chat-sidebar-item")
+
                 if self._opts.system:
                     with Horizontal(classes="pane-header"):
                         yield Label("System Prompt:", classes="pane-title")
@@ -122,10 +129,11 @@ class ChatScreen(Screen[None]):
                             tooltip="Toggle Fullscreen (Ctrl+P)",
                         )
                     yield VerticalScroll(Markdown(self._opts.system), id="chat-sidebar-prompt")
+
                 with Vertical(id="chat-sidebar-actions"):
-                    yield Button("Export Chat", id="chat-export-btn", variant="primary")
-                    yield Button("Export Logs", id="chat-export-logs-btn", variant="default")
-                    yield Button("Back  [Esc]", id="chat-back-btn", variant="default")
+                    yield Button("Export Chat  [Ctrl+S]", id="chat-export-btn", variant="primary")
+                    yield Button("Export Logs", id="chat-export-log-btn", variant="default")
+                    yield Button("Back to Recipes  [Esc]", id="chat-back-btn", variant="error")
 
             # Right pane: Chat history + Dedicated Log View + Input area
             with Vertical(id="chat-main-pane"):
@@ -133,10 +141,10 @@ class ChatScreen(Screen[None]):
                     with Horizontal(classes="pane-header"):
                         yield Label("Conversation History", classes="pane-title")
                         yield Button(
-                            "^b",
+                            "^o",
                             id="chat-messages-max-btn",
                             classes="pane-max-btn",
-                            tooltip="Toggle Fullscreen (Ctrl+B)",
+                            tooltip="Toggle Fullscreen (Ctrl+O)",
                         )
                     yield Markdown("# Chat Session Started\nType a message below to begin.", id="chat-markdown")
                 with Vertical(id="chat-log-pane"):
@@ -232,7 +240,7 @@ class ChatScreen(Screen[None]):
         try:
             self.query_one("#chat-screen-layout").add_class("maximized-messages")
             self._maximized_pane = "chat-messages"
-            self.notify("Maximized Conversation History (press 'm' or Esc to restore)", timeout=3.0)
+            self.notify("Maximized Conversation History (press 'Ctrl+O' or Esc to restore)", timeout=3.0)
         except Exception:
             pass
 
@@ -242,7 +250,7 @@ class ChatScreen(Screen[None]):
         try:
             self.query_one("#chat-screen-layout").add_class("maximized-log")
             self._maximized_pane = "chat-log"
-            self.notify("Maximized Chat Logs (press 'l' or Esc to restore)", timeout=3.0)
+            self.notify("Maximized Chat Logs (press 'Ctrl+L' or Esc to restore)", timeout=3.0)
         except Exception:
             pass
 
@@ -252,7 +260,7 @@ class ChatScreen(Screen[None]):
         try:
             self.query_one("#chat-screen-layout").add_class("maximized-prompt")
             self._maximized_pane = "chat-prompt"
-            self.notify("Maximized System Prompt (press 'p' or Esc to restore)", timeout=3.0)
+            self.notify("Maximized System Prompt (press 'Ctrl+P' or Esc to restore)", timeout=3.0)
         except Exception:
             pass
 
@@ -380,7 +388,7 @@ class ChatScreen(Screen[None]):
             self.action_toggle_prompt_fullscreen()
             return
 
-        if event.key == "ctrl+b":
+        if event.key == "ctrl+o":
             event.prevent_default()
             event.stop()
             self.action_toggle_messages_fullscreen()

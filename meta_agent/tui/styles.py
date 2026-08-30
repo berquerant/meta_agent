@@ -296,10 +296,11 @@ LoadingIndicator {
 #chat-screen-layout {
     height: 1fr;
 }
-#chat-info-sidebar {
+#chat-sidebar {
     width: 32;
-    border-right: solid $primary;
-    padding: 1 2;
+    background: $surface;
+    border: solid $primary;
+    padding: 1;
     overflow-y: auto;
 }
 #chat-sidebar-title {
@@ -309,20 +310,25 @@ LoadingIndicator {
 }
 .chat-sidebar-item {
     margin-bottom: 1;
+    color: $text;
 }
 #chat-sidebar-prompt {
-    height: 8;
+    height: 5;
     border: solid $secondary;
     padding: 0 1;
     margin-bottom: 1;
 }
-#chat-back-btn {
+#chat-sidebar-actions {
     margin-top: 1;
+}
+#chat-sidebar-actions Button {
+    margin-bottom: 1;
+    width: 100%;
 }
 #chat-main-pane {
     width: 1fr;
     height: 1fr;
-    padding: 1 2;
+    padding: 0 1;
 }
 #chat-messages {
     height: 1fr;
@@ -365,7 +371,7 @@ LoadingIndicator {
 }
 
 /* Fullscreen / Maximized state rules for ChatScreen */
-.maximized-messages #chat-info-sidebar,
+.maximized-messages #chat-sidebar,
 .maximized-messages #chat-log-pane {
     display: none;
 }
@@ -379,7 +385,7 @@ LoadingIndicator {
     margin-bottom: 0;
 }
 
-.maximized-log #chat-info-sidebar,
+.maximized-log #chat-sidebar,
 .maximized-log #chat-messages,
 .maximized-log #chat-status-bar,
 .maximized-log #chat-input-bar {
@@ -398,7 +404,7 @@ LoadingIndicator {
 .maximized-prompt #chat-main-pane {
     display: none;
 }
-.maximized-prompt #chat-info-sidebar {
+.maximized-prompt #chat-sidebar {
     width: 1fr;
     border-right: none;
     padding: 0 1;

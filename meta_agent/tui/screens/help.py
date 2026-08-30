@@ -19,7 +19,7 @@ HELP_MARKDOWN = """
 |:---|:---|:---|
 | `Ctrl+H` / `?` / `F1` | **Help** | Open this keyboard shortcuts help modal |
 | `Ctrl+F` | **Search** | Focus the search input for active tab |
-| `Ctrl+B` | **Maximize Detail** | Toggle fullscreen for details or preview pane (`Esc` to restore) |
+| `Ctrl+O` | **Maximize Detail** | Toggle fullscreen for details or preview pane (`Esc` to restore) |
 | `Ctrl+L` | **Maximize Logs** | Toggle fullscreen for activity / execution logs (`Esc` to restore) |
 | `Ctrl+C` | **Chat** | Open chat setup options for the selected recipe |
 | `Ctrl+R` | **Resume Chat** | Browse and restore previous chat session from exported markdown |
@@ -40,7 +40,7 @@ HELP_MARKDOWN = """
 | `Up` / `Down` | **Select Item** | Move up/down through the items list; details update on selection |
 | `Ctrl+J` / *Button* | **Ask LLM** | In search bar: submit multi-line query to Ask LLM |
 | *Ask LLM* | **Smart Action** | Natural language search, generate (e.g. "create pytest bot"), edit, delete, or resume |
-| `Ctrl+B` / `Ctrl+L` | **Maximize** | Expand details (`Ctrl+B`) or logs (`Ctrl+L`) to fullscreen (`Esc` to restore) |
+| `Ctrl+O` / `Ctrl+L` | **Maximize** | Expand details (`Ctrl+O`) or logs (`Ctrl+L`) to fullscreen (`Esc` to restore) |
 
 ---
 
@@ -68,7 +68,7 @@ HELP_MARKDOWN = """
 |:---|:---|:---|
 | `Enter` | **Newline** | Insert a newline in multiline input |
 | `Ctrl+J` / `Ctrl+Enter` | **Send Message** | Submit input to LLM agent |
-| `Ctrl+B` | **Maximize Messages** | Expand chat messages pane to fullscreen (`Esc` to restore) |
+| `Ctrl+O` | **Maximize Messages** | Expand chat messages pane to fullscreen (`Esc` to restore) |
 | `Ctrl+L` | **Maximize Logs** | Expand streaming debug logs pane to fullscreen (`Esc` to restore) |
 | `Ctrl+P` | **Maximize Prompt** | Expand input prompt area to fullscreen (`Esc` to restore) |
 | `Ctrl+S` | **Export Session** | Save chat history to Markdown file |

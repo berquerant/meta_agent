@@ -137,10 +137,10 @@ class ResourceTab(Vertical):
                     with Horizontal(classes="pane-header"):
                         yield Label("Description & Details", classes="pane-title")
                         yield Button(
-                            "^b",
+                            "^o",
                             id=f"{tid}-detail-max-btn",
                             classes="pane-max-btn",
-                            tooltip="Toggle Fullscreen (Ctrl+B)",
+                            tooltip="Toggle Fullscreen (Ctrl+O)",
                         )
                     yield LoadingIndicator(id=f"{tid}-loading")
                     yield Markdown("", id=f"{tid}-markdown")
@@ -186,7 +186,7 @@ class GenerateTab(Vertical):
                     with Horizontal(classes="pane-header"):
                         yield Label("Recipe Preview", classes="pane-title")
                         yield Button(
-                            "^b", id="gen-preview-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (Ctrl+B)"
+                            "^o", id="gen-preview-max-btn", classes="pane-max-btn", tooltip="Toggle Fullscreen (Ctrl+O)"
                         )
                     yield Markdown(
                         "# Assistant Recipe Generator\n"
