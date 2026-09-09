@@ -310,14 +310,14 @@ def save_refactored_recipe(
         return False, "", result.error_message
 
     if in_place:
-        target_path = Path(result.original_path)
+        target_path = Path(result.original_path).resolve()
         try:
             target_path.write_text(result.refactored_content, encoding="utf-8")
-            return True, str(target_path), f"Updated {target_path.name} in-place (version: {result.new_version})"
+            return True, str(target_path), f"Updated {target_path} in-place (version: {result.new_version})"
         except Exception as e:
             return False, str(target_path), f"Failed to overwrite {target_path}: {e}"
 
-    target_dir = Path(recipes_dir) if recipes_dir else Path(result.original_path).parent
+    target_dir = (Path(recipes_dir) if recipes_dir else Path(result.original_path).parent).resolve()
     target_dir.mkdir(parents=True, exist_ok=True)
 
     semver = SemVer.parse(result.new_version)
@@ -332,6 +332,6 @@ def save_refactored_recipe(
 
     try:
         new_path.write_text(content, encoding="utf-8")
-        return True, str(new_path), f"Saved as new recipe: {new_recipe_name} -> {new_path.name}"
+        return True, str(new_path), f"Saved as new recipe: {new_recipe_name} -> {new_path}"
     except Exception as e:
         return False, str(new_path), f"Failed to create new recipe file {new_path}: {e}"

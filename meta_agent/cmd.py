@@ -127,13 +127,31 @@ def _resolve_save_action(args: RefactorOpts, recipe_name: str, new_version: str)
     """Determine save mode via CLI flags or interactive prompt."""
     if args.dry_run:
         return SaveAction.SKIP
-    if args.in_place:
-        return SaveAction.IN_PLACE
-    if args.as_new:
-        return SaveAction.AS_NEW
+
+    # If --yes is given, save immediately without interactive confirmation
     if args.yes:
+        if args.as_new:
+            return SaveAction.AS_NEW
         return SaveAction.IN_PLACE
 
+    # Specific mode specified without --yes: ask yes/no confirmation
+    if args.in_place:
+        prompt_msg = f"\nSave changes for '{recipe_name}' in-place ({new_version})? [y/N]: "
+        try:
+            choice = input(prompt_msg).strip().lower()
+        except EOFError, KeyboardInterrupt:
+            return SaveAction.ABORT
+        return SaveAction.IN_PLACE if choice in ("y", "yes") else SaveAction.SKIP
+
+    if args.as_new:
+        prompt_msg = f"\nSave changes for '{recipe_name}' as a new file ({new_version})? [y/N]: "
+        try:
+            choice = input(prompt_msg).strip().lower()
+        except EOFError, KeyboardInterrupt:
+            return SaveAction.ABORT
+        return SaveAction.AS_NEW if choice in ("y", "yes") else SaveAction.SKIP
+
+    # Default interactive mode when neither --in-place, --as-new, nor --yes is provided
     prompt_msg = f"\nSave changes for '{recipe_name}'? [i]n-place ({new_version}) / [n]ew file / [s]kip: "
     try:
         choice = input(prompt_msg).strip().lower()
@@ -141,7 +159,7 @@ def _resolve_save_action(args: RefactorOpts, recipe_name: str, new_version: str)
         return SaveAction.ABORT
 
     match choice:
-        case "i" | "in-place" | "inplace" | "y" | "yes":
+        case "i" | "in-place" | "inplace":
             return SaveAction.IN_PLACE
         case "n" | "new":
             return SaveAction.AS_NEW

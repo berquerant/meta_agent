@@ -184,3 +184,75 @@ system_prompt = "Updated test"
         assert expect_in_stdout in out
         # Verify dry-run did not alter the file
         assert 'version = "0.1.0"' in recipe_file.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "in_place, as_new, yes, user_input, expect_saved, expect_in_place",
+    [
+        (True, False, False, "y", True, True),
+        (True, False, False, "n", False, True),
+        (True, False, True, "", True, True),
+        (False, True, False, "y", True, False),
+        (False, True, False, "n", False, False),
+        (False, True, True, "", True, False),
+        (False, False, False, "i", True, True),
+        (False, False, False, "n", True, False),
+        (False, False, False, "s", False, False),
+    ],
+)
+def test_cmd_refactor_interactive_save_modes(
+    tmp_path: Path,
+    in_place: bool,
+    as_new: bool,
+    yes: bool,
+    user_input: str,
+    expect_saved: bool,
+    expect_in_place: bool,
+) -> None:
+    """Test interactive confirmation and --yes behavior with CLI options."""
+    recipe_file = tmp_path / "bot.toml"
+    recipe_file.write_text(
+        """[recipe]
+name = "bot"
+version = "0.1.0"
+[agent]
+type = "native_react"
+tools = []
+system_prompt = "Test"
+""",
+        encoding="utf-8",
+    )
+
+    mock_llm_output = """
+- Done
+
+---TOML---
+[recipe]
+name = "bot"
+version = "0.2.0"
+[agent]
+type = "native_react"
+tools = []
+system_prompt = "Test"
+"""
+    with (
+        patch("meta_agent.api.Script.run", return_value=mock_llm_output),
+        patch("builtins.input", return_value=user_input),
+    ):
+        opts = RefactorOpts(
+            recipes=[str(recipe_file)],
+            in_place=in_place,
+            as_new=as_new,
+            yes=yes,
+            recipes_dir=str(tmp_path),
+        )
+        Cmd.refactor_cmd(opts)
+
+        if expect_saved:
+            if expect_in_place:
+                assert 'version = "0.2.0"' in recipe_file.read_text(encoding="utf-8")
+            else:
+                new_files = list(tmp_path.glob("meta_agent__bot_v0-2-0_*.toml"))
+                assert len(new_files) == 1
+        else:
+            assert 'version = "0.1.0"' in recipe_file.read_text(encoding="utf-8")
