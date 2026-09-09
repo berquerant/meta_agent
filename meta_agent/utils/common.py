@@ -1,6 +1,8 @@
+"""Common serialization, formatting, and file reading utilities."""
+
+from datetime import datetime
 import json
 import sys
-from datetime import datetime
 from typing import Any
 
 
