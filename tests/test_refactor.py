@@ -256,3 +256,60 @@ system_prompt = "Test"
                 assert len(new_files) == 1
         else:
             assert 'version = "0.1.0"' in recipe_file.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "color, expect_ansi",
+    [
+        (True, True),
+        (False, False),
+    ],
+)
+def test_cmd_refactor_color_option(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    color: bool,
+    expect_ansi: bool,
+) -> None:
+    """Test --color and --no-color output rendering."""
+    recipe_file = tmp_path / "bot.toml"
+    recipe_file.write_text(
+        """[recipe]
+name = "bot"
+version = "0.1.0"
+[agent]
+type = "native_react"
+tools = []
+system_prompt = "Test"
+""",
+        encoding="utf-8",
+    )
+
+    mock_llm_output = """
+- Done
+
+---TOML---
+[recipe]
+name = "bot"
+version = "0.2.0"
+[agent]
+type = "native_react"
+tools = []
+system_prompt = "Test"
+"""
+    with (
+        patch("meta_agent.api.Script.run", return_value=mock_llm_output),
+        patch("builtins.input", return_value="n"),
+    ):
+        opts = RefactorOpts(
+            recipes=[str(recipe_file)],
+            dry_run=True,
+            out="diff",
+            color=color,
+        )
+        Cmd.refactor_cmd(opts)
+        captured = capsys.readouterr().out
+        if expect_ansi:
+            assert "\033[32m+" in captured or "\033[31m-" in captured
+        else:
+            assert "\033[" not in captured

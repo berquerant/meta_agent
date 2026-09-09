@@ -2,6 +2,7 @@
 
 from .common import (
     copy_to_system_clipboard,
+    colorize_diff,
     format_obj_into_text,
     format_obj_list_into_text,
     get_default_export_dir,
@@ -18,6 +19,7 @@ __all__ = [
     "now_str",
     "get_default_export_dir",
     "copy_to_system_clipboard",
+    "colorize_diff",
     "format_obj_into_text",
     "format_obj_list_into_text",
     "SemVer",

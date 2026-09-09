@@ -208,3 +208,25 @@ def test_read_file_or_stdin_or_str_table(
 def test_json_dumps_table(data: Any, expected_json: str) -> None:
     """Table-driven test for json_dumps."""
     assert utils.json_dumps(data) == expected_json
+
+
+@pytest.mark.parametrize(
+    "diff_input, expected_colored",
+    [
+        ("", ""),
+        (
+            "--- a/file.toml\n+++ b/file.toml\n@@ -1,2 +1,2 @@\n-old = 1\n+new = 2\n context",
+            (
+                "\033[1m--- a/file.toml\033[0m\n"
+                "\033[1m+++ b/file.toml\033[0m\n"
+                "\033[36m@@ -1,2 +1,2 @@\033[0m\n"
+                "\033[31m-old = 1\033[0m\n"
+                "\033[32m+new = 2\033[0m\n"
+                " context"
+            ),
+        ),
+    ],
+)
+def test_colorize_diff_table(diff_input: str, expected_colored: str) -> None:
+    """Table-driven test for colorize_diff ANSI formatting."""
+    assert utils.colorize_diff(diff_input) == expected_colored

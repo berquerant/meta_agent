@@ -25,6 +25,7 @@ def refactor_cmd(args):  # type: ignore[no-untyped-def]
         yes=args.yes,
         dry_run=args.dry_run,
         out=args.out,
+        color=args.color,
     )
     Cmd.refactor_cmd(r)
 
@@ -167,6 +168,12 @@ def main() -> int:
     ref.add_argument("--yes", "-y", action="store_true", help="skip confirmation prompt when saving")
     ref.add_argument("--dry-run", action="store_true", help="show diff and evaluation without saving changes")
     ref.add_argument("--out", "-o", choices=["diff", "toml", "json"], default="diff", help="output format")
+    ref.add_argument(
+        "--color",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="colorize diff output (default: --color)",
+    )
     ref.add_argument("recipe", nargs="+", help="recipe name(s) or file path(s) to refactor")
     ref.add_argument("--query", "-q", action=QueryAction, help="optional user refactoring instructions or query")
 

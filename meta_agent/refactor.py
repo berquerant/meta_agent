@@ -216,6 +216,13 @@ def refactor_recipe(req: RefactorRequest) -> RefactorResult:
     old_version_str = str(orig_dict.get("recipe", {}).get("version", "0.1.0"))
     old_semver = SemVer.parse(old_version_str)
 
+    logging.info(
+        "refactoring recipe '%s' (version: %s) from file '%s'",
+        recipe_name,
+        old_version_str,
+        orig_path_obj.resolve(),
+    )
+
     val_before = validate_recipe_components(orig_dict, default_engine=req.engine)
 
     prompt = build_refactor_prompt(

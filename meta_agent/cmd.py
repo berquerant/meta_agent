@@ -1,5 +1,6 @@
 from dataclasses import asdict, dataclass
 from enum import Enum
+import logging
 from typing import Any, Callable
 
 from .api import (
@@ -22,7 +23,12 @@ from .refactor import (
     refactor_recipe,
     save_refactored_recipe,
 )
-from .utils import json_dumps, format_obj_list_into_text, format_obj_into_text
+from .utils import (
+    colorize_diff,
+    format_obj_into_text,
+    format_obj_list_into_text,
+    json_dumps,
+)
 
 
 def format_obj(x: dict[str, Any], out: str) -> str:
@@ -73,6 +79,7 @@ class RefactorOpts:
     yes: bool = False
     dry_run: bool = False
     out: str = "diff"
+    color: bool = True
 
 
 class SaveAction(Enum):
@@ -102,7 +109,7 @@ def _print_refactor_assessment(result: RefactorResult) -> None:
             print(f"  - {w}")
 
 
-def _print_refactor_output(result: RefactorResult, out_format: str) -> None:
+def _print_refactor_output(result: RefactorResult, out_format: str, color: bool = True) -> None:
     """Print refactored recipe content or diff according to out format."""
     match out_format:
         case "json":
@@ -120,7 +127,11 @@ def _print_refactor_output(result: RefactorResult, out_format: str) -> None:
             print(result.refactored_content)
         case _:
             print("\n[Diff Preview]:")
-            print(result.diff if result.diff else "(No changes detected)")
+            if result.diff:
+                diff_text = colorize_diff(result.diff) if color else result.diff
+                print(diff_text)
+            else:
+                print("(No changes detected)")
 
 
 def _resolve_save_action(args: RefactorOpts, recipe_name: str, new_version: str) -> SaveAction:
@@ -183,7 +194,7 @@ def _process_single_refactor(recipe_name_or_path: str, args: RefactorOpts) -> bo
         return True
 
     _print_refactor_assessment(result)
-    _print_refactor_output(result, args.out)
+    _print_refactor_output(result, args.out, color=args.color)
 
     if args.dry_run:
         print("\n(Dry-run mode: no changes saved)")
@@ -282,6 +293,16 @@ class Cmd:
     @staticmethod
     def refactor_cmd(args: RefactorOpts) -> None:
         """Run recipe refactor command across specified recipes."""
+        logging.info(
+            "refactor command started (in_place=%s, as_new=%s, yes=%s, dry_run=%s, target=%s, out=%s, recipes=%s)",
+            args.in_place,
+            args.as_new,
+            args.yes,
+            args.dry_run,
+            args.target,
+            args.out,
+            args.recipes,
+        )
         for recipe_name_or_path in args.recipes:
             cont = _process_single_refactor(recipe_name_or_path, args)
             if not cont:
