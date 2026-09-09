@@ -1,6 +1,11 @@
 """CSS styles for meta_agent TUI."""
 
 APP_CSS = """
+/* Modal Screens (Centered) */
+ModalScreen {
+    align: center middle;
+}
+
 /* Toast Notification Positioning (Top-Right) */
 ToastRack {
     dock: top;
@@ -251,6 +256,159 @@ LoadingIndicator {
     padding: 0 1;
     margin-bottom: 0;
 }
+
+/* Refactor screen layout */
+#refactor-screen-layout {
+    height: 1fr;
+}
+#refactor-sidebar {
+    width: 48;
+    background: $surface;
+    border: solid $primary;
+    padding: 1;
+}
+#refactor-sidebar-title {
+    text-style: bold;
+    color: $accent;
+    margin-bottom: 1;
+}
+#refactor-search {
+    height: 3;
+    margin-bottom: 1;
+}
+#refactor-select-controls {
+    height: 3;
+    margin-bottom: 1;
+}
+#refactor-select-controls Button {
+    width: 1fr;
+    margin-right: 1;
+}
+#refactor-recipe-list {
+    height: 12;
+    border: solid $primary;
+    margin-bottom: 1;
+}
+#refactor-selected-label {
+    text-style: bold;
+    color: $accent;
+    margin-top: 1;
+}
+#refactor-selected-box {
+    height: 8;
+    border: solid $secondary;
+    padding: 0 1;
+    margin-bottom: 1;
+    background: $background;
+}
+#refactor-target-label {
+    text-style: bold;
+    color: $text;
+    margin-top: 1;
+}
+#refactor-target-list {
+    height: 6;
+    border: solid $primary;
+    margin-bottom: 1;
+}
+#refactor-sidebar-actions {
+    margin-top: 1;
+}
+#refactor-sidebar-actions Button {
+    margin-bottom: 1;
+    width: 100%;
+}
+#refactor-save-inplace-btn, #refactor-save-new-btn, #refactor-discard-btn {
+    display: none;
+}
+#refactor-main-pane {
+    width: 1fr;
+    padding: 0 1;
+}
+#refactor-preview-scroll {
+    height: 1fr;
+    border: solid $primary;
+    padding: 1 2;
+    margin-bottom: 1;
+    overflow-y: auto;
+}
+#refactor-log-pane {
+    height: 8;
+    border: solid $warning;
+    padding: 0 1;
+    margin-bottom: 0;
+    background: $surface;
+}
+#refactor-rich-log {
+    height: 1fr;
+}
+#refactor-status-bar {
+    height: 1;
+    margin-bottom: 0;
+    color: $accent;
+}
+#refactor-input-bar {
+    height: 4;
+    align-vertical: middle;
+}
+#refactor-input {
+    width: 1fr;
+    height: 4;
+}
+#refactor-submit-btn {
+    width: 20;
+    margin-left: 1;
+    height: 4;
+}
+
+/* Fullscreen / Maximized state rules for RefactorTab */
+.maximized-sidebar #refactor-main-pane {
+    display: none;
+}
+.maximized-sidebar #refactor-sidebar {
+    width: 100%;
+    height: 1fr;
+    border: none;
+}
+.maximized-sidebar #refactor-recipe-list {
+    height: 14;
+}
+.maximized-sidebar #refactor-selected-box {
+    height: 10;
+}
+
+.maximized-preview #refactor-sidebar,
+.maximized-preview #refactor-log-pane,
+.maximized-preview #refactor-status-bar,
+.maximized-preview #refactor-input-bar {
+    display: none;
+}
+.maximized-preview #refactor-main-pane {
+    padding: 0;
+}
+.maximized-preview #refactor-preview-scroll {
+    height: 1fr;
+    border: none;
+    padding: 0 1;
+    margin-bottom: 0;
+}
+
+.maximized-log #refactor-sidebar,
+.maximized-log #refactor-preview-scroll,
+.maximized-log #refactor-status-bar,
+.maximized-log #refactor-input-bar {
+    display: none;
+}
+.maximized-log #refactor-main-pane {
+    padding: 0;
+}
+.maximized-log #refactor-log-pane {
+    height: 1fr;
+    border: none;
+    padding: 0 1;
+    margin-bottom: 0;
+}
+
 
 /* Chat options screen */
 #chat-opts-title {
@@ -664,6 +822,70 @@ LoadingIndicator {
     align-horizontal: right;
 }
 #resume-modal-buttons Button {
+    margin-left: 1;
+}
+
+/* Confirm refactor modal */
+#confirm-refactor-modal-container {
+    width: 65%;
+    height: 65%;
+    background: $surface;
+    border: solid $accent;
+    padding: 1 2;
+    align: center middle;
+}
+#confirm-refactor-modal-title {
+    text-style: bold;
+    color: $accent;
+    margin-bottom: 1;
+}
+#confirm-refactor-modal-subtitle {
+    margin-bottom: 1;
+    color: $text;
+}
+#confirm-refactor-preview-box {
+    height: 1fr;
+    padding: 1;
+    border: solid $primary;
+    background: $background;
+    margin-bottom: 1;
+    overflow-y: auto;
+}
+#confirm-refactor-modal-buttons {
+    height: 3;
+    align-horizontal: right;
+}
+#confirm-refactor-modal-buttons Button {
+    margin-left: 1;
+}
+
+/* Recipe detail modal */
+#recipe-detail-modal-container {
+    width: 75%;
+    height: 75%;
+    background: $surface;
+    border: solid $accent;
+    padding: 1 2;
+    align: center middle;
+}
+#recipe-detail-modal-title {
+    text-style: bold;
+    color: $accent;
+    margin-bottom: 1;
+}
+#recipe-detail-modal-scroll {
+    height: 1fr;
+    padding: 1;
+    border: solid $primary;
+    background: $background;
+    margin-bottom: 1;
+    overflow-y: auto;
+}
+#recipe-detail-modal-buttons {
+    height: 3;
+    align-horizontal: right;
+}
+#recipe-detail-modal-buttons Button {
     margin-left: 1;
 }
 """

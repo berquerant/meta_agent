@@ -162,6 +162,19 @@ def test_golden_generate_tab(snap_compare: "SnapCompareType") -> None:
     assert snap_compare(app, terminal_size=(100, 30))
 
 
+def test_golden_refactor_tab(snap_compare: "SnapCompareType") -> None:
+    """Golden test for RefactorTab layout, selection list, target select, and input bar."""
+    app = MetaAgentTUI(
+        engine="ollama",
+        model="llama3",
+        recipes_dir=FIXED_TEST_DIR,
+        export_dir=FIXED_TEST_DIR,
+        auto_load=False,
+        initial_tab="tab-refactor",
+    )
+    assert snap_compare(app, terminal_size=(100, 30))
+
+
 def test_golden_logs_tab(snap_compare: "SnapCompareType") -> None:
     """Golden test for LogsTab toolbar, log container, and footer bindings."""
     app = MetaAgentTUI(
@@ -262,6 +275,61 @@ def test_golden_resume_chat_screen(snap_compare: "SnapCompareType") -> None:
 
     async def run_before(pilot) -> None:
         screen = ResumeChatScreen(export_dir=FIXED_TEST_DIR)
+        app.push_screen(screen)
+        await pilot.pause()
+
+    assert snap_compare(app, terminal_size=(100, 30), run_before=run_before)
+
+
+def test_golden_confirm_refactor_screen(snap_compare: "SnapCompareType") -> None:
+    """Golden test for ConfirmRefactorScreen modal layout with recipe details."""
+    from meta_agent.tui.screens import ConfirmRefactorScreen
+
+    app = MetaAgentTUI(
+        engine="ollama",
+        model="llama3",
+        recipes_dir=FIXED_TEST_DIR,
+        export_dir=FIXED_TEST_DIR,
+        auto_load=False,
+    )
+
+    async def run_before(pilot) -> None:
+        screen = ConfirmRefactorScreen(
+            recipes=["sample_bot", "helper_bot"],
+            target="all",
+            query="Improve tool usage and clarify system prompt",
+            engine="ollama",
+            model="llama3",
+        )
+        app.push_screen(screen)
+        await pilot.pause()
+
+    assert snap_compare(app, terminal_size=(100, 30), run_before=run_before)
+
+
+def test_golden_recipe_detail_screen(snap_compare: "SnapCompareType") -> None:
+    """Golden test for RecipeDetailScreen modal layout with recipe details."""
+    from meta_agent.tui.screens import RecipeDetailScreen
+
+    rec = Recipe(
+        name="sample_bot",
+        description="A sample AI assistant.",
+        system_prompt="You are a helpful assistant.",
+        engine_key="ollama",
+        model="llama3",
+        agent_type="native_react",
+        tools=["file_read", "bash"],
+    )
+    app = MetaAgentTUI(
+        engine="ollama",
+        model="llama3",
+        recipes_dir=FIXED_TEST_DIR,
+        export_dir=FIXED_TEST_DIR,
+        auto_load=False,
+    )
+
+    async def run_before(pilot) -> None:
+        screen = RecipeDetailScreen(rec)
         app.push_screen(screen)
         await pilot.pause()
 

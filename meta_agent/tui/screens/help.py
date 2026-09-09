@@ -21,10 +21,12 @@ HELP_MARKDOWN = """
 | `Ctrl+F` | **Search** | Focus the search input for active tab |
 | `Ctrl+O` | **Maximize Detail** | Toggle fullscreen for details or preview pane (`Esc` to restore) |
 | `Ctrl+L` | **Maximize Logs** | Toggle fullscreen for activity / execution logs (`Esc` to restore) |
+| `Ctrl+U` | **Maximize Sidebar** | Toggle fullscreen for recipe selection list in Refactor tab (`Esc` to restore) |
 | `Ctrl+C` | **Chat** | Open chat setup options for the selected recipe |
+| `Ctrl+X` | **Refactor** | Switch to Refactor tab with selected recipe pre-selected |
 | `Ctrl+R` | **Resume Chat** | Browse and restore previous chat session from exported markdown |
 | `Ctrl+E` | **Edit** | Edit selected recipe TOML file in interactive editor (`Ctrl+S` to save) |
-| `Ctrl+D` | **Delete** | Prompt to delete selected recipe file with preview/multi-choice selection |
+| `Ctrl+D` | **Delete / Detail** | Delete on Recipes tab; Inspect recipe details on Refactor tab |
 | `Ctrl+G` | **Generate** | Switch to the Generate tab to create a new assistant |
 | `Ctrl+Left` / `Ctrl+[` | **Previous Tab** | Switch to the previous tab (wraps around) |
 | `Ctrl+Right` / `Ctrl+]` | **Next Tab** | Switch to the next tab (wraps around) |
@@ -39,8 +41,23 @@ HELP_MARKDOWN = """
 | `Tab` / `Shift+Tab` | **Navigate** | Move focus between tabs, inputs, selects, and buttons |
 | `Up` / `Down` | **Select Item** | Move up/down through the items list; details update on selection |
 | `Ctrl+J` / *Button* | **Ask LLM** | In search bar: submit multi-line query to Ask LLM |
-| *Ask LLM* | **Smart Action** | Natural language search, generate (e.g. "create pytest bot"), edit, delete, or resume |
+| *Ask LLM* | **Smart Action** | Natural language search, generate, refactor, edit, delete, or resume |
 | `Ctrl+O` / `Ctrl+L` | **Maximize** | Expand details (`Ctrl+O`) or logs (`Ctrl+L`) to fullscreen (`Esc` to restore) |
+
+---
+
+## 🔧 Refactor Tab (`RefactorTab`)
+| Key / Control | Action | Description |
+|:---|:---|:---|
+| `Ctrl+F` | **Filter Recipes** | Focus the filter input in sidebar to filter recipes by name |
+| `Space` | **Toggle Recipe** | Check/uncheck individual recipes in the selection list |
+| `Select / Clear All` | **Bulk Select** | Select or clear all recipes for batch refactoring |
+| `Ctrl+D` | **Inspect Details** | View full recipe details (description, tools, system prompt) in a modal |
+| `Ctrl+U` / *Button* | **Maximize Sidebar** | Toggle fullscreen for recipe selection sidebar (`Esc` to restore) |
+| `Ctrl+J` / *Button* | **Refactor** | Submit refactoring instructions, confirm, and execute LLM evaluation |
+| `Save In-Place` | **Overwrite** | Apply SemVer-bumped refactored recipe directly to original file |
+| `Save as New` | **Save Versioned** | Create a new recipe file with SemVer suffix (e.g. `_v0-2-0`) |
+| `Discard Changes` | **Cancel / Discard** | Discard refactored results and diffs without saving |
 
 ---
 

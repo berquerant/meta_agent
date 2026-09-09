@@ -55,6 +55,10 @@ async def test_tui_app_tabs_and_search_focus() -> None:
             # Test Next Tab and Prev Tab keyboard shortcuts from within focused inputs
             await pilot.press("ctrl+right")
             await pilot.pause()
+            assert tabs.active == "tab-refactor"
+
+            await pilot.press("ctrl+right")
+            await pilot.pause()
             assert tabs.active == "tab-logs"
 
             await pilot.press("ctrl+right")
@@ -410,3 +414,167 @@ async def test_tui_textarea_focus_ignores_recipe_shortcuts() -> None:
             await pilot.press("ctrl+b")
             assert app._maximized_pane is None
             assert search_ta.has_focus
+
+
+@pytest.mark.anyio
+async def test_tui_refactor_tab_workflow() -> None:
+    """Test RefactorTab selection, select all, clear all, and refactor submission."""
+    from unittest.mock import patch
+    from textual.widgets import Label, SelectionList, TabbedContent, TextArea
+
+    rec1 = Recipe(name="bot1", description="bot 1", system_prompt="p1")
+    rec2 = Recipe(name="bot2", description="bot 2", system_prompt="p2")
+
+    mock_llm_output = """
+- Refactored prompt
+
+---TOML---
+[recipe]
+name = "bot1"
+version = "0.2.0"
+[agent]
+type = "native_react"
+tools = []
+system_prompt = "Refactored"
+"""
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        recipe_file1 = Path(tmpdir) / "bot1.toml"
+        recipe_file1.write_text('[recipe]\nname = "bot1"\nversion = "0.1.0"\n', encoding="utf-8")
+        recipe_file2 = Path(tmpdir) / "bot2.toml"
+        recipe_file2.write_text('[recipe]\nname = "bot2"\nversion = "0.1.0"\n', encoding="utf-8")
+
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir, auto_load=False)
+        async with app.run_test() as pilot:
+            app._recipes = [rec1, rec2]
+            app._update_refactor_selection_list(app._recipes)
+
+            # Switch to Refactor tab
+            tabs = app.query_one(TabbedContent)
+            tabs.active = "tab-refactor"
+            await pilot.pause()
+
+            sl = app.query_one("#refactor-recipe-list", SelectionList)
+            assert len(sl.selected) == 0
+
+            # Test Select All button
+            app.query_one("#refactor-select-all-btn", Button).press()
+            await pilot.pause()
+            assert len(sl.selected) == 2
+            assert "Selected Recipes (2):" in str(app.query_one("#refactor-selected-label", Label).render())
+
+            # Test Clear All button
+            app.query_one("#refactor-clear-all-btn", Button).press()
+            await pilot.pause()
+            assert len(sl.selected) == 0
+            assert "Selected Recipes (0):" in str(app.query_one("#refactor-selected-label", Label).render())
+
+            # Select bot1
+            sl.select("bot1")
+            app.on_refactor_selection_changed(SelectionList.SelectedChanged(sl))
+            assert "bot1" in sl.selected
+
+            # Test filter recipes by search text
+            search_ta = app.query_one("#refactor-search", TextArea)
+            search_ta.load_text("bot2")
+            await pilot.pause()
+
+            # Visible options in sl should now only have bot2, but bot1 should stay in _selected_refactor_recipes
+            assert len(sl._options) == 1
+            assert sl._options[0].value == "bot2"
+            assert "bot1" in app._selected_refactor_recipes
+
+            # Select bot2 as well
+            sl.select("bot2")
+            app.on_refactor_selection_changed(SelectionList.SelectedChanged(sl))
+            assert "bot2" in app._selected_refactor_recipes
+            assert "bot1" in app._selected_refactor_recipes
+            assert len(app._selected_refactor_recipes) == 2
+
+            # Clear search
+            search_ta.load_text("")
+            await pilot.pause()
+            assert len(sl._options) == 2
+            assert len(sl.selected) == 2
+
+            # Enter instructions in input
+            inp = app.query_one("#refactor-input", TextArea)
+            inp.load_text("Improve prompt clarity")
+
+            with patch("meta_agent.api.Script.run", return_value=mock_llm_output):
+                # Press refactor submit -> triggers ConfirmRefactorScreen modal
+                app.query_one("#refactor-submit-btn", Button).press()
+                await pilot.pause()
+
+                # Modal should be open
+                from meta_agent.tui.screens import ConfirmRefactorScreen
+
+                assert isinstance(app.screen, ConfirmRefactorScreen)
+                app.screen.action_confirm_refactor()
+                await pilot.pause()
+
+                # Action buttons should now be visible
+                assert app.query_one("#refactor-save-inplace-btn", Button).display
+                assert app.query_one("#refactor-save-new-btn", Button).display
+                assert app.query_one("#refactor-discard-btn", Button).display
+
+                # Click Save In-Place
+                app.query_one("#refactor-save-inplace-btn", Button).press()
+                await pilot.pause()
+
+                # Verify file was updated
+                content = recipe_file1.read_text(encoding="utf-8")
+                assert 'version = "0.2.0"' in content
+
+                # Test discard action
+                app.query_one("#refactor-discard-btn", Button).press()
+                await pilot.pause()
+                assert not app.query_one("#refactor-discard-btn", Button).display
+
+
+@pytest.mark.anyio
+async def test_tui_refactor_button_from_recipes() -> None:
+    """Test clicking Refactor button from Recipes tab jumps to Refactor tab with recipe selected."""
+    from textual.widgets import SelectionList, TabbedContent
+
+    rec = Recipe(name="my_bot", description="My Bot", system_prompt="Test")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir, auto_load=False)
+        async with app.run_test() as pilot:
+            app._recipes = [rec]
+            app._displayed_recipes = [rec]
+            app._select_recipe_by_index(0)
+            await pilot.pause()
+
+            assert app.query_one("#recipes-refactor-btn", Button).display
+
+            # Focus recipes list or button to test Ctrl+X keybinding
+            app.query_one("#recipes-list", ListView).focus()
+            await pilot.pause()
+
+            # Test Ctrl+X keybinding to refactor recipe
+            await pilot.press("ctrl+x")
+            await pilot.pause()
+
+            tabs = app.query_one(TabbedContent)
+            assert tabs.active == "tab-refactor"
+
+            sl = app.query_one("#refactor-recipe-list", SelectionList)
+            assert "my_bot" in sl.selected
+
+            # Test Ctrl+U to maximize refactor sidebar
+            await pilot.press("ctrl+u")
+            assert app._maximized_pane == "refactor-sidebar"
+            await pilot.press("escape")
+            assert app._maximized_pane is None
+
+            # Test Ctrl+D on RefactorTab to inspect recipe details
+            from meta_agent.tui.screens import RecipeDetailScreen
+
+            await pilot.press("ctrl+d")
+            await pilot.pause()
+            assert isinstance(app.screen, RecipeDetailScreen)
+            await pilot.press("escape")
+            await pilot.pause()
+            assert not isinstance(app.screen, RecipeDetailScreen)

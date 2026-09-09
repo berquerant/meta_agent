@@ -172,6 +172,12 @@ def test_prompt_builders() -> None:
         ),
         ('{"action": "delete", "target": "old_bot"}', "delete", "target", "old_bot"),
         ('{"action": "edit", "target": "custom_bot", "instruction": "change tools"}', "edit", "target", "custom_bot"),
+        (
+            '{"action": "refactor", "target": "refactor_bot", "instruction": "improve tools"}',
+            "refactor",
+            "target",
+            "refactor_bot",
+        ),
         ("bot_alpha\nbot_beta\nbot_gamma", "search", "ranked_names", ["bot_alpha", "bot_beta", "bot_gamma"]),
     ],
 )

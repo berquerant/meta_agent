@@ -15,11 +15,14 @@ from textual.widgets import (
     Markdown,
     RichLog,
     Select,
+    SelectionList,
     Static,
     TextArea,
 )
+
 from textual.widgets._footer import FooterKey
 from textual.widgets._select import SelectOverlay
+from textual.widgets.selection_list import Selection
 
 
 class OrderedFooter(Footer):
@@ -41,14 +44,18 @@ class OrderedFooter(Footer):
                     return 2
                 if w.key == "ctrl+c":
                     return 3
-                if w.key == "ctrl+s":
+                if w.key == "ctrl+r":
                     return 4
-                if w.key == "ctrl+k":
+                if w.key == "ctrl+x":
                     return 5
-                if w.key == "ctrl+g":
+                if w.key == "ctrl+s":
                     return 6
-                if w.key == "ctrl+q":
+                if w.key == "ctrl+k":
                     return 7
+                if w.key == "ctrl+g":
+                    return 8
+                if w.key == "ctrl+q":
+                    return 9
             return 10
 
         yield from sorted(items, key=_sort_order)
@@ -155,6 +162,7 @@ class ResourceTab(Vertical):
                     if self._show_chat:
                         with Horizontal(id=f"{tid}-actions"):
                             yield Button("Chat with this recipe  [Ctrl+C]", id=f"{tid}-chat-btn", variant="success")
+                            yield Button("Refactor  [Ctrl+X]", id=f"{tid}-refactor-btn", variant="primary")
                             yield Button("Edit  [Ctrl+E]", id=f"{tid}-edit-btn", variant="default")
                             yield Button("Delete  [Ctrl+D]", id=f"{tid}-delete-btn", variant="error")
                 with Vertical(id=f"{tid}-log-pane"):
@@ -219,6 +227,95 @@ class GenerateTab(Vertical):
                         id="gen-input",
                     )
                     yield Button("Generate  [Ctrl+J]", id="gen-submit-btn", variant="primary")
+
+
+class RefactorTab(Vertical):
+    """A tab panel for evaluating and refactoring recipes with multi-select and diff preview."""
+
+    def __init__(self, engine: str, model: str) -> None:
+        """Initialize the refactor tab."""
+        super().__init__()
+        self._engine = engine
+        self._model = model
+
+    def compose(self) -> ComposeResult:
+        """Build the refactor tab layout."""
+        with Horizontal(id="refactor-screen-layout"):
+            # Left Sidebar: Recipe Selection List & Target options
+            with VerticalScroll(id="refactor-sidebar"):
+                with Horizontal(classes="pane-header"):
+                    yield Label("Select Recipes to Refactor", id="refactor-sidebar-title", classes="pane-title")
+                    yield Button(
+                        "^u",
+                        id="refactor-sidebar-max-btn",
+                        classes="pane-max-btn",
+                        tooltip="Toggle Fullscreen Sidebar (Ctrl+U)",
+                    )
+                yield PromptTextArea(
+                    placeholder="Filter recipes...  [Ctrl+F]",
+                    show_line_numbers=False,
+                    soft_wrap=True,
+                    tab_behavior="focus",
+                    id="refactor-search",
+                )
+                with Horizontal(id="refactor-select-controls"):
+                    yield Button("Select All", id="refactor-select-all-btn", variant="default")
+                    yield Button("Clear All", id="refactor-clear-all-btn", variant="default")
+                yield SelectionList[str](id="refactor-recipe-list")
+                yield Label("Selected Recipes (0):", id="refactor-selected-label")
+                with VerticalScroll(id="refactor-selected-box"):
+                    yield Label("*(None)*", id="refactor-selected-items", classes="dim")
+                yield Label("Refactoring Target:", id="refactor-target-label")
+                yield SelectionList[str](
+                    Selection("System Prompt (prompt)", "prompt", True),
+                    Selection("Tools (tools)", "tools", True),
+                    Selection("Agent Type (agent)", "agent", True),
+                    Selection("Model/Engine (model)", "model", True),
+                    id="refactor-target-list",
+                )
+                with Vertical(id="refactor-sidebar-actions"):
+                    yield Button("Save Changes (In-Place)", id="refactor-save-inplace-btn", variant="success")
+                    yield Button("Save as New Recipe", id="refactor-save-new-btn", variant="primary")
+                    yield Button("Discard Changes", id="refactor-discard-btn", variant="error")
+
+            # Right Main Pane: Diff/Review Preview + RichLog + Input Bar
+            with Vertical(id="refactor-main-pane"):
+                with VerticalScroll(id="refactor-preview-scroll"):
+                    with Horizontal(classes="pane-header"):
+                        yield Label("Refactoring Review & Diff Preview", classes="pane-title")
+                        yield Button(
+                            "^o",
+                            id="refactor-preview-max-btn",
+                            classes="pane-max-btn",
+                            tooltip="Toggle Fullscreen (Ctrl+O)",
+                        )
+                    yield Markdown(
+                        "# Recipe Refactoring & Optimization\n"
+                        "Select one or more recipes from the sidebar, choose a target component, "
+                        "and enter optional refactoring instructions below.\n"
+                        "The LLM will evaluate and suggest optimized recipes with SemVer versioning and unified diffs.",
+                        id="refactor-markdown",
+                    )
+                with Vertical(id="refactor-log-pane"):
+                    with Horizontal(classes="pane-header"):
+                        yield Label("Refactoring Execution Logs", classes="pane-title")
+                        yield Button(
+                            "^l",
+                            id="refactor-log-max-btn",
+                            classes="pane-max-btn",
+                            tooltip="Toggle Fullscreen (Ctrl+L)",
+                        )
+                    yield RichLog(id="refactor-rich-log", highlight=True, markup=True, wrap=True)
+                yield Static("", id="refactor-status-bar")
+                with Horizontal(id="refactor-input-bar"):
+                    yield PromptTextArea(
+                        placeholder="Optional refactoring instructions... (Enter: newline, Ctrl+J: refactor)",
+                        show_line_numbers=False,
+                        soft_wrap=True,
+                        tab_behavior="focus",
+                        id="refactor-input",
+                    )
+                    yield Button("Refactor  [Ctrl+J]", id="refactor-submit-btn", variant="primary")
 
 
 class LogTab(Vertical):

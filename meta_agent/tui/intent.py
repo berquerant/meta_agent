@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 class RecipeActionIntent:
     """Action intent parsed from user LLM query in the recipes tab."""
 
-    action: str  # "search" | "edit" | "delete" | "resume" | "generate"
+    action: str  # "search" | "edit" | "delete" | "resume" | "generate" | "refactor"
     target: str | None = None
     instruction: str | None = None
     ranked_names: list[str] | None = None
@@ -33,6 +33,8 @@ def build_recipe_action_prompt(query: str, catalogue: str, chat_catalogue: str) 
         "Determine the user's intent:\n"
         "- If the user wants to CREATE, GENERATE, or BUILD a new assistant recipe, return JSON: "
         '{"action": "generate", "generate_query": "<extracted_assistant_requirements>"}\n'
+        "- If the user wants to REFACTOR, IMPROVE, OPTIMIZE, or EVALUATE a recipe, return JSON: "
+        '{"action": "refactor", "target": "<recipe_name>", "instruction": "<refactor instruction>"}\n'
         "- If the user wants to RESUME, RESTORE, or CONTINUE a previous chat session/topic, return JSON: "
         '{"action": "resume", "chat_file": "<matched_file_name_or_keyword>", "recipe": "<recipe_name>"}\n'
         "- If the user wants to DELETE or REMOVE a recipe, return JSON: "
@@ -68,6 +70,8 @@ def parse_recipe_action_intent(raw_response: str) -> RecipeActionIntent:
                 action = "delete"
             elif action in ("edit", "update", "modify"):
                 action = "edit"
+            elif action in ("refactor", "improve", "optimize", "evaluate"):
+                action = "refactor"
             elif action in ("resume", "restore", "continue", "history", "session"):
                 action = "resume"
             elif action in ("generate", "gen", "create", "new", "build", "make"):
@@ -116,10 +120,12 @@ class IntentDispatcher:
         query: str,
         log_fn: Any,
     ) -> bool:
-        """Handle matched recipe action intent (generate, resume, delete, edit). Returns True if handled."""
+        """Handle matched recipe action intent (generate, resume, delete, edit, refactor). Returns True if handled."""
         match intent.action:
             case "generate":
                 return self.handle_intent_generate(intent.generate_query or query, log_fn)
+            case "refactor" if intent.target:
+                return self.handle_intent_refactor(intent.target, intent.instruction or query, log_fn)
             case "resume":
                 return self.handle_intent_resume(intent.chat_file or intent.target or query, log_fn)
             case "delete" | "edit" if intent.target:
@@ -168,6 +174,52 @@ class IntentDispatcher:
 
         app.call_from_thread(_start_gen)
         return True
+
+    def handle_intent_refactor(self, target: str, instruction: str, log_fn: Any) -> bool:
+        """Switch to refactor tab, select the target recipe, and populate instruction."""
+        app = self._app
+        from .helpers import find_matching_recipe
+
+        matched_recipe = find_matching_recipe(app._recipes, target)
+        if matched_recipe is not None:
+            target_name = matched_recipe.name
+            log_fn(
+                f"Intent matched refactor target: '{target_name}'. Switching to Refactor tab.",
+                "INFO",
+                "green",
+            )
+
+            def _start_refactor(name: str = target_name, inst: str = instruction) -> None:
+                app.clear_notifications()
+                from textual.widgets import SelectionList, TabbedContent, TextArea
+
+                try:
+                    app.query_one(TabbedContent).active = "tab-refactor"
+                    sl = app.query_one("#refactor-recipe-list", SelectionList)
+                    sl.deselect_all()
+                    sl.select(name)
+                    inp = app.query_one("#refactor-input", TextArea)
+                    if inst:
+                        inp.load_text(inst)
+                    inp.focus()
+                except Exception:
+                    pass
+
+            app.call_from_thread(_start_refactor)
+            return True
+
+        log_fn(f"Refactor target '{target}' not found.", "WARNING", "yellow")
+
+        def _target_not_found(tgt: str = target) -> None:
+            app.clear_notifications()
+            app.notify(
+                f"⚠️ Target recipe '{tgt}' to refactor was not found",
+                severity="warning",
+                timeout=6.0,
+            )
+
+        app.call_from_thread(_target_not_found)
+        return False
 
     def handle_intent_resume(self, search_term: str, log_fn: Any) -> bool:
         """Open chat resume modal with the requested search filter."""
