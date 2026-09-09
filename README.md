@@ -54,6 +54,46 @@ meta_agent tui --engine ollama --model llama3 --export-dir ~/Documents/meta_agen
 
 ---
 
+## 🐳 Docker Usage
+
+### Build Image
+
+BuildKit cache mount is supported for faster builds:
+
+```shell
+docker build -t meta_agent .
+```
+
+### Running with Host Ollama
+
+To communicate with an Ollama instance running on the host machine:
+
+1. **Host Setup**:
+   Ensure Ollama is listening on all interfaces (or accessible to containers).
+   - On macOS: Default Ollama app binds to localhost; if needed, launch with `OLLAMA_HOST=0.0.0.0 ollama serve`.
+   - On Linux: Make sure Ollama service is accessible from the Docker bridge/gateway.
+
+2. **Run Container**:
+   - **macOS**:
+     ```shell
+     docker run -it --rm \
+       -v ~/.openjarvis/recipes:/root/.openjarvis/recipes \
+       -v ~/Documents/meta_agent:/var/log/meta_agent \
+       -e OLLAMA_HOST=http://host.docker.internal:11434 \
+       meta_agent meta_agent tui -d /var/log/meta_agent
+     ```
+   - **Linux**:
+     ```shell
+     docker run -it --rm \
+       --add-host=host.docker.internal:host-gateway \
+       -v ~/.openjarvis/recipes:/root/.openjarvis/recipes \
+       -e OLLAMA_HOST=http://host.docker.internal:11434 \
+       meta_agent meta_agent tui -d /var/log/meta_agent
+     ```
+     *(Or run with `--network host` and `-e OLLAMA_HOST=http://127.0.0.1:11434` on Linux)*
+
+---
+
 ## 🛠️ Development
 
 Requires **Python ≥ 3.14** and [uv](https://github.com/astral-sh/uv).
@@ -70,3 +110,4 @@ make check
 make test
 make ci
 ```
+
