@@ -51,6 +51,11 @@ class FullscreenManager:
                 self.restore_fullscreen()
             else:
                 self.maximize_gen_preview()
+        elif active_tab == "tab-refactor":
+            if self._maximized_pane == "refactor-preview":
+                self.restore_fullscreen()
+            else:
+                self.maximize_refactor_preview()
 
     def toggle_log_fullscreen(self) -> None:
         """Toggle fullscreen for logs pane."""
@@ -77,11 +82,34 @@ class FullscreenManager:
                 self.restore_fullscreen()
             else:
                 self.maximize_gen_log()
+        elif active_tab == "tab-refactor":
+            if self._maximized_pane == "refactor-log":
+                self.restore_fullscreen()
+            else:
+                self.maximize_refactor_log()
         elif active_tab == "tab-logs":
             if self._maximized_pane == "app-log":
                 self.restore_fullscreen()
             else:
                 self.maximize_app_log()
+
+    def toggle_sidebar_fullscreen(self) -> None:
+        """Toggle fullscreen for sidebar selection pane."""
+        app = self._app
+        if len(app.screen_stack) > 1:
+            return
+
+        try:
+            tabbed_content = app.query_one(TabbedContent)
+            active_tab = tabbed_content.active
+        except Exception:
+            return
+
+        if active_tab == "tab-refactor":
+            if self._maximized_pane == "refactor-sidebar":
+                self.restore_fullscreen()
+            else:
+                self.maximize_refactor_sidebar()
 
     def maximize_resource_detail(self, tid: str) -> None:
         """Maximize detail pane in resource tab."""
@@ -125,6 +153,36 @@ class FullscreenManager:
         except Exception:
             pass
 
+    def maximize_refactor_sidebar(self) -> None:
+        """Maximize sidebar selection pane in refactor tab."""
+        self.restore_fullscreen(notify=False)
+        try:
+            self._app.query_one("#refactor-screen-layout").add_class("maximized-sidebar")
+            self._maximized_pane = "refactor-sidebar"
+            self._app.notify("Maximized Recipe Selection (press Esc to restore)", timeout=3.0)
+        except Exception:
+            pass
+
+    def maximize_refactor_preview(self) -> None:
+        """Maximize preview pane in refactor tab."""
+        self.restore_fullscreen(notify=False)
+        try:
+            self._app.query_one("#refactor-screen-layout").add_class("maximized-preview")
+            self._maximized_pane = "refactor-preview"
+            self._app.notify("Maximized Refactor Review (press 'Ctrl+O' or Esc to restore)", timeout=3.0)
+        except Exception:
+            pass
+
+    def maximize_refactor_log(self) -> None:
+        """Maximize log pane in refactor tab."""
+        self.restore_fullscreen(notify=False)
+        try:
+            self._app.query_one("#refactor-screen-layout").add_class("maximized-log")
+            self._maximized_pane = "refactor-log"
+            self._app.notify("Maximized Refactoring Logs (press 'Ctrl+L' or Esc to restore)", timeout=3.0)
+        except Exception:
+            pass
+
     def maximize_app_log(self) -> None:
         """Maximize application log tab."""
         self.restore_fullscreen(notify=False)
@@ -149,6 +207,12 @@ class FullscreenManager:
                 pass
         try:
             self._app.query_one("#gen-screen-layout").remove_class("maximized-preview", "maximized-log")
+        except Exception:
+            pass
+        try:
+            self._app.query_one("#refactor-screen-layout").remove_class(
+                "maximized-sidebar", "maximized-preview", "maximized-log"
+            )
         except Exception:
             pass
         from .widgets import LogTab

@@ -1,6 +1,8 @@
+"""Common serialization, formatting, and file reading utilities."""
+
+from datetime import datetime
 import json
 import sys
-from datetime import datetime
 from typing import Any
 
 
@@ -113,3 +115,24 @@ def format_obj_into_text(title_key: str, x: dict[str, Any]) -> str:
 def format_obj_list_into_text(title_key: str, xs: list[dict[str, Any]]) -> str:
     """Format objects as a markdown."""
     return "\n\n".join(format_obj_into_text(title_key, x) for x in xs)
+
+
+def colorize_diff(diff_text: str) -> str:
+    """Add ANSI color codes to a unified diff string."""
+    if not diff_text:
+        return diff_text
+
+    colored_lines = []
+    for line in diff_text.splitlines():
+        if line.startswith("---") or line.startswith("+++"):
+            colored_lines.append(f"\033[1m{line}\033[0m")
+        elif line.startswith("+"):
+            colored_lines.append(f"\033[32m{line}\033[0m")
+        elif line.startswith("-"):
+            colored_lines.append(f"\033[31m{line}\033[0m")
+        elif line.startswith("@@"):
+            colored_lines.append(f"\033[36m{line}\033[0m")
+        else:
+            colored_lines.append(line)
+
+    return "\n".join(colored_lines)

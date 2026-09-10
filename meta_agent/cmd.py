@@ -1,4 +1,6 @@
 from dataclasses import asdict, dataclass
+from enum import Enum
+import logging
 from typing import Any, Callable
 
 from .api import (
@@ -15,7 +17,18 @@ from .api import (
 )
 from .asking import AskingRequest, AskingOpts, AskingRawRequest
 from .gen import generate_assistant, GenRequest
-from .utils import json_dumps, format_obj_list_into_text, format_obj_into_text
+from .refactor import (
+    RefactorRequest,
+    RefactorResult,
+    refactor_recipe,
+    save_refactored_recipe,
+)
+from .utils import (
+    colorize_diff,
+    format_obj_into_text,
+    format_obj_list_into_text,
+    json_dumps,
+)
 
 
 def format_obj(x: dict[str, Any], out: str) -> str:
@@ -51,6 +64,159 @@ class InspectOpts:
     out: str
     name: str
     engine: str = "ollama"
+
+
+@dataclass
+class RefactorOpts:
+    recipes: list[str]
+    query: str = ""
+    engine: str = "ollama"
+    model: str = "gemma4:12b"
+    recipes_dir: str = ""
+    target: str = "all"
+    in_place: bool = False
+    as_new: bool = False
+    yes: bool = False
+    dry_run: bool = False
+    out: str = "diff"
+    color: bool = True
+
+
+class SaveAction(Enum):
+    """Action to perform for saving refactored recipe."""
+
+    IN_PLACE = "in_place"
+    AS_NEW = "as_new"
+    SKIP = "skip"
+    ABORT = "abort"
+
+
+def _print_refactor_assessment(result: RefactorResult) -> None:
+    """Print evaluation report and validation findings."""
+    print(f"=== Refactor Assessment for '{result.recipe_name}' ({result.old_version} -> {result.new_version}) ===")
+    if result.review_comments:
+        print("\n[Evaluation & Changes Summary]:")
+        print(result.review_comments)
+
+    if result.validation_before.has_issues:
+        print("\n[Issues Detected Before Refactor]:")
+        for w in result.validation_before.warnings:
+            print(f"  - {w}")
+
+    if result.validation_after.has_issues:
+        print("\n[Remaining Issues After Refactor]:")
+        for w in result.validation_after.warnings:
+            print(f"  - {w}")
+
+
+def _print_refactor_output(result: RefactorResult, out_format: str, color: bool = True) -> None:
+    """Print refactored recipe content or diff according to out format."""
+    match out_format:
+        case "json":
+            out_dict = {
+                "recipe": result.recipe_name,
+                "old_version": result.old_version,
+                "new_version": result.new_version,
+                "review": result.review_comments,
+                "diff": result.diff,
+                "refactored_content": result.refactored_content,
+            }
+            print("\n" + json_dumps(out_dict))
+        case "toml":
+            print("\n[Refactored TOML Content]:")
+            print(result.refactored_content)
+        case _:
+            print("\n[Diff Preview]:")
+            if result.diff:
+                diff_text = colorize_diff(result.diff) if color else result.diff
+                print(diff_text)
+            else:
+                print("(No changes detected)")
+
+
+def _resolve_save_action(args: RefactorOpts, recipe_name: str, new_version: str) -> SaveAction:
+    """Determine save mode via CLI flags or interactive prompt."""
+    if args.dry_run:
+        return SaveAction.SKIP
+
+    # If --yes is given, save immediately without interactive confirmation
+    if args.yes:
+        if args.as_new:
+            return SaveAction.AS_NEW
+        return SaveAction.IN_PLACE
+
+    # Specific mode specified without --yes: ask yes/no confirmation
+    if args.in_place:
+        prompt_msg = f"\nSave changes for '{recipe_name}' in-place ({new_version})? [y/N]: "
+        try:
+            choice = input(prompt_msg).strip().lower()
+        except EOFError, KeyboardInterrupt:
+            return SaveAction.ABORT
+        return SaveAction.IN_PLACE if choice in ("y", "yes") else SaveAction.SKIP
+
+    if args.as_new:
+        prompt_msg = f"\nSave changes for '{recipe_name}' as a new file ({new_version})? [y/N]: "
+        try:
+            choice = input(prompt_msg).strip().lower()
+        except EOFError, KeyboardInterrupt:
+            return SaveAction.ABORT
+        return SaveAction.AS_NEW if choice in ("y", "yes") else SaveAction.SKIP
+
+    # Default interactive mode when neither --in-place, --as-new, nor --yes is provided
+    prompt_msg = f"\nSave changes for '{recipe_name}'? [i]n-place ({new_version}) / [n]ew file / [s]kip: "
+    try:
+        choice = input(prompt_msg).strip().lower()
+    except EOFError, KeyboardInterrupt:
+        return SaveAction.ABORT
+
+    match choice:
+        case "i" | "in-place" | "inplace":
+            return SaveAction.IN_PLACE
+        case "n" | "new":
+            return SaveAction.AS_NEW
+        case _:
+            return SaveAction.SKIP
+
+
+def _process_single_refactor(recipe_name_or_path: str, args: RefactorOpts) -> bool:
+    """Execute refactor on a single recipe. Returns False if aborted, True otherwise."""
+    req = RefactorRequest(
+        recipe_name_or_path=recipe_name_or_path,
+        query=args.query,
+        engine=args.engine,
+        model=args.model,
+        recipes_dir=args.recipes_dir,
+        target=args.target,
+    )
+    result = refactor_recipe(req)
+    if not result.success:
+        print(f"❌ Failed to refactor {recipe_name_or_path}: {result.error_message}")
+        return True
+
+    _print_refactor_assessment(result)
+    _print_refactor_output(result, args.out, color=args.color)
+
+    if args.dry_run:
+        print("\n(Dry-run mode: no changes saved)")
+        return True
+
+    action = _resolve_save_action(args, result.recipe_name, result.new_version)
+    match action:
+        case SaveAction.ABORT:
+            print("\nAborted.")
+            return False
+        case SaveAction.SKIP:
+            print(f"Skipped saving changes for '{result.recipe_name}'.")
+            return True
+        case SaveAction.IN_PLACE | SaveAction.AS_NEW:
+            in_place = action == SaveAction.IN_PLACE
+            ok, _, msg = save_refactored_recipe(
+                result,
+                in_place=in_place,
+                recipes_dir=args.recipes_dir or None,
+            )
+            print(f"✅ {msg}" if ok else f"❌ Failed to save recipe: {msg}")
+            return True
 
 
 class Cmd:
@@ -123,3 +289,21 @@ class Cmd:
     @staticmethod
     def raw_cmd(args: AskingRawRequest) -> None:
         args.run()
+
+    @staticmethod
+    def refactor_cmd(args: RefactorOpts) -> None:
+        """Run recipe refactor command across specified recipes."""
+        logging.info(
+            "refactor command started (in_place=%s, as_new=%s, yes=%s, dry_run=%s, target=%s, out=%s, recipes=%s)",
+            args.in_place,
+            args.as_new,
+            args.yes,
+            args.dry_run,
+            args.target,
+            args.out,
+            args.recipes,
+        )
+        for recipe_name_or_path in args.recipes:
+            cont = _process_single_refactor(recipe_name_or_path, args)
+            if not cont:
+                break

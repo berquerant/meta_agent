@@ -4,10 +4,30 @@ import argparse
 from os.path import expanduser
 
 from .asking import AskingRequest, AskingRawRequest
-from .cmd import Cmd, ListOpts, InspectOpts
+from .cmd import Cmd, ListOpts, InspectOpts, RefactorOpts
 from .gen import GenRequest
 from .tui import run_tui
 from .utils import read_file_or_stdin_or_str
+
+
+def refactor_cmd(args):  # type: ignore[no-untyped-def]
+    """Run refactor command."""
+    query = args.query if hasattr(args, "query") and args.query else ""
+    r = RefactorOpts(
+        recipes=args.recipe,
+        query=query,
+        engine=args.engine,
+        model=args.model,
+        recipes_dir=args.recipes,
+        target=args.target,
+        in_place=args.in_place,
+        as_new=args.new,
+        yes=args.yes,
+        dry_run=args.dry_run,
+        out=args.out,
+        color=args.color,
+    )
+    Cmd.refactor_cmd(r)
 
 
 def get_resources(args):  # type: ignore[no-untyped-def]
@@ -131,6 +151,31 @@ def main() -> int:
     # https://github.com/open-jarvis/OpenJarvis/blob/main/src/openjarvis/recipes/loader.py#L282
     gen.add_argument("--recipes", "-r", default=expanduser("~/.openjarvis/recipes"), help="recipes directory")
     gen.add_argument("query", action=QueryAction)
+
+    ref = sp.add_parser("refactor", help="Evaluate and refactor AI assistant recipes")
+    ref.set_defaults(func=refactor_cmd)
+    add_chat_base_opts(ref)
+    ref.add_argument("--recipes", "-r", default=expanduser("~/.openjarvis/recipes"), help="recipes directory")
+    ref.add_argument(
+        "--target",
+        "-t",
+        choices=["all", "prompt", "tools", "agent", "model"],
+        default="all",
+        help="refactoring target component",
+    )
+    ref.add_argument("--in-place", "-i", action="store_true", help="overwrite recipe file in-place with bumped semver")
+    ref.add_argument("--new", "-n", action="store_true", help="save refactored recipe as a new file with semver name")
+    ref.add_argument("--yes", "-y", action="store_true", help="skip confirmation prompt when saving")
+    ref.add_argument("--dry-run", action="store_true", help="show diff and evaluation without saving changes")
+    ref.add_argument("--out", "-o", choices=["diff", "toml", "json"], default="diff", help="output format")
+    ref.add_argument(
+        "--color",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="colorize diff output (default: --color)",
+    )
+    ref.add_argument("recipe", nargs="+", help="recipe name(s) or file path(s) to refactor")
+    ref.add_argument("--query", "-q", action=QueryAction, help="optional user refactoring instructions or query")
 
     def add_chat_opts(x: argparse.ArgumentParser) -> None:
         x.add_argument("--recipe", "-r", required=True, type=str, help="recipe name")

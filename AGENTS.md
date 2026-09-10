@@ -10,16 +10,17 @@ When you make structural changes to the project (adding/removing modules, comman
 
 **meta_agent** is a Python CLI tool that acts as a *meta-agent* — an AI-powered assistant that generates, manages, and executes AI assistant recipes using the [OpenJarvis](https://github.com/open-jarvis/OpenJarvis) framework.
 
-It exposes six sub-commands:
+It exposes seven sub-commands:
 
-| Command   | Description                                              |
-|-----------|----------------------------------------------------------|
-| `get`     | List or inspect recipes, agents, tools, engines, and models |
-| `gen`     | Generate a new AI assistant recipe via an LLM            |
-| `chat`    | Start an interactive multi-turn chat session             |
-| `ask`     | Ask a single question using a recipe-configured agent    |
-| `jarvis`  | Pass raw arguments directly to the underlying jarvis CLI |
-| `tui`     | Launch an interactive terminal UI (Textual-based)        |
+| Command    | Description                                              |
+|------------|----------------------------------------------------------|
+| `get`      | List or inspect recipes, agents, tools, engines, and models |
+| `gen`      | Generate a new AI assistant recipe via an LLM            |
+| `refactor` | Evaluate and refactor recipes via an LLM                 |
+| `chat`     | Start an interactive multi-turn chat session             |
+| `ask`      | Ask a single question using a recipe-configured agent    |
+| `jarvis`   | Pass raw arguments directly to the underlying jarvis CLI |
+| `tui`      | Launch an interactive terminal UI (Textual-based)        |
 
 ## Repository Layout
 
@@ -30,28 +31,36 @@ meta_agent/
 │   ├── api.py         # OpenJarvis wrappers (agents, tools, recipes)
 │   ├── asking.py      # Chat/ask request building and execvp dispatch
 │   ├── cli.py         # argparse entry point
-│   ├── cmd.py         # High-level Cmd class wiring CLI args to api/gen
+│   ├── cmd.py         # High-level Cmd class wiring CLI args to api/gen/refactor
 │   ├── gen.py         # Recipe generation logic and meta-agent prompt
 │   ├── llm.py         # LLM client abstraction interface & OpenJarvis wrapper
+│   ├── refactor.py    # Recipe evaluation and refactoring logic
 │   ├── tools.py       # Custom OpenJarvis tool registrations
-│   └── tui/           # Textual-based interactive TUI (package)
-│       ├── __init__.py    # re-exports run_tui
-│       ├── app.py         # MetaAgentTUI app + run_tui entry point
-│       ├── fullscreen.py  # FullscreenManager — pane maximize/restore logic
-│       ├── generation.py  # RecipeGenerator — recipe generation coordinator
-│       ├── helpers.py     # filter / markdown formatting / prompt helpers
-│       ├── intent.py      # RecipeActionIntent, IntentDispatcher — intent parsing and routing
-│       ├── styles.py      # App CSS styles definition
-│       ├── screens/       # TUI screens package
-│       │   ├── __init__.py
-│       │   ├── chat.py         # ChatScreen (with dedicated log pane)
-│       │   ├── chat_options.py # ChatOptionsScreen (command preview & overrides)
-│       │   ├── delete_recipe.py # DeleteRecipeScreen (preview & duplicate file deletion)
-│       │   ├── edit_recipe.py   # EditRecipeScreen (in-TUI editor with syntax validation)
-│       │   ├── help.py         # HelpScreen (shortcuts & guide modal)
-│       │   └── resume_chat.py  # ResumeChatScreen (restore session from exported markdown)
-│       └── widgets.py     # ResourceTab, GenerateTab, LogTab & SearchableSelect widgets
-│   └── utils.py       # Shared utilities (formatting, file reading, etc.)
+│   ├── tui/           # Textual-based interactive TUI (package)
+│   │   ├── __init__.py    # re-exports run_tui
+│   │   ├── app.py         # MetaAgentTUI app + run_tui entry point
+│   │   ├── fullscreen.py  # FullscreenManager — pane maximize/restore logic
+│   │   ├── generation.py  # RecipeGenerator — recipe generation coordinator
+│   │   ├── helpers.py     # filter / markdown formatting / prompt helpers
+│   │   ├── intent.py      # RecipeActionIntent, IntentDispatcher — intent parsing and routing
+│   │   ├── refactoring.py # RecipeRefactorer — recipe refactoring coordinator
+│   │   ├── styles.py      # App CSS styles definition
+│   │   ├── screens/       # TUI screens package
+│   │   │   ├── __init__.py
+│   │   │   ├── chat.py         # ChatScreen (with dedicated log pane)
+│   │   │   ├── chat_options.py # ChatOptionsScreen (command preview & overrides)
+│   │   │   ├── confirm_refactor.py # ConfirmRefactorScreen (modal to confirm refactoring params)
+│   │   │   ├── delete_recipe.py # DeleteRecipeScreen (preview & duplicate file deletion)
+│   │   │   ├── edit_recipe.py   # EditRecipeScreen (in-TUI editor with syntax validation)
+│   │   │   ├── help.py         # HelpScreen (shortcuts & guide modal)
+│   │   │   ├── recipe_detail.py # RecipeDetailScreen (modal preview of recipe info)
+│   │   │   └── resume_chat.py  # ResumeChatScreen (restore session from exported markdown)
+│   │   └── widgets.py     # ResourceTab, GenerateTab, RefactorTab, LogTab & SearchableSelect widgets
+│   └── utils/         # Shared utilities package
+│       ├── __init__.py    # re-exports common utilities, SemVer, and validation
+│       ├── common.py      # formatting, file reading, clipboard utilities
+│       ├── semver.py      # SemVer dataclass and version bumping
+│       └── validation.py  # Recipe component validation against registries
 ├── scripts/           # Helper scripts (release.py)
 ├── tests/             # pytest test suite (including Textual SVG snapshots in __snapshots__/)
 ├── pyproject.toml     # Project metadata and tool configuration
