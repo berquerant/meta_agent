@@ -8,6 +8,7 @@ from .edit_recipe import EditRecipeScreen
 from .help import HelpScreen
 from .recipe_detail import RecipeDetailScreen
 from .resume_chat import ResumeChatScreen
+from .routing import ScreenNavigator
 
 __all__ = [
     "ChatScreen",
@@ -18,4 +19,5 @@ __all__ = [
     "HelpScreen",
     "RecipeDetailScreen",
     "ResumeChatScreen",
+    "ScreenNavigator",
 ]

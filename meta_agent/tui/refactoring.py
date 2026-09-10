@@ -2,16 +2,17 @@
 
 from typing import TYPE_CHECKING
 
-from textual.widgets import Button, Markdown, RichLog, Static
+from textual.widgets import Button, Label, Markdown, RichLog, SelectionList, Static, TextArea
 
-
+from ..api import Recipe
 from ..refactor import (
     RefactorRequest,
     RefactorResult,
     refactor_recipe,
     save_refactored_recipe,
 )
-from .helpers import now_datetime_str
+from .helpers import filter_items, now_datetime_str
+from .screens.confirm_refactor import ConfirmRefactorScreen
 
 if TYPE_CHECKING:
     from .app import MetaAgentTUI
@@ -24,6 +25,120 @@ class RecipeRefactorer:
         """Initialize with app reference."""
         self._app = app
         self._last_results: list[RefactorResult] = []
+
+    def sync_selected_box(self, selected_values: list[str]) -> None:
+        """Sync the Selected Recipes preview box in the Refactor sidebar."""
+        try:
+            lbl_count = self._app.query_one("#refactor-selected-label", Label)
+            lbl_count.update(f"Selected Recipes ({len(selected_values)}):")
+            lbl_items = self._app.query_one("#refactor-selected-items", Label)
+            if selected_values:
+                lbl_items.update("\n".join(f"• {name}" for name in selected_values))
+                lbl_items.remove_class("dim")
+            else:
+                lbl_items.update("*(None)*")
+                lbl_items.add_class("dim")
+        except Exception:
+            pass
+
+    def filter_recipes(self, search_query: str) -> None:
+        """Filter recipes displayed in refactor tab based on search query while preserving selection."""
+        filtered = filter_items(self._app._recipes, search_query)
+        self.update_selection_list(filtered)
+
+    def update_selection_list(self, recipes: list[Recipe]) -> None:
+        """Populate refactor tab SelectionList with available recipes."""
+        try:
+            sl = self._app.query_one("#refactor-recipe-list", SelectionList)
+            self._app._selected_refactor_recipes.update(sl.selected)
+            sl.clear_options()
+            for r in recipes:
+                is_selected = r.name in self._app._selected_refactor_recipes
+                desc_first_line = r.description.split("\n", 1)[0].strip() if r.description else ""
+                if desc_first_line:
+                    desc_display = desc_first_line[:80] + "..." if len(desc_first_line) > 80 else desc_first_line
+                    label_prompt = f"{r.name} ({desc_display})"
+                else:
+                    label_prompt = r.name
+                sl.add_option((label_prompt, r.name, is_selected))
+            self.sync_selected_box(sorted(self._app._selected_refactor_recipes))
+        except Exception:
+            pass
+
+    def select_all(self) -> None:
+        """Select all currently displayed recipes in RefactorTab SelectionList."""
+        try:
+            sl = self._app.query_one("#refactor-recipe-list", SelectionList)
+            sl.select_all()
+            self._app._selected_refactor_recipes.update(sl.selected)
+            self.sync_selected_box(sorted(self._app._selected_refactor_recipes))
+        except Exception:
+            pass
+
+    def clear_all(self) -> None:
+        """Deselect all recipes in RefactorTab."""
+        try:
+            sl = self._app.query_one("#refactor-recipe-list", SelectionList)
+            sl.deselect_all()
+            self._app._selected_refactor_recipes.clear()
+            self.sync_selected_box([])
+        except Exception:
+            pass
+
+    def prompt_and_submit(self) -> None:
+        """Prompt confirmation modal and start recipe refactoring in a background worker."""
+        try:
+            sl = self._app.query_one("#refactor-recipe-list", SelectionList)
+            self._app._selected_refactor_recipes.update(sl.selected)
+        except Exception:
+            pass
+        selected_recipes = sorted(self._app._selected_refactor_recipes)
+        if not selected_recipes:
+            self._app.notify("Please select at least one recipe to refactor", severity="warning")
+            return
+
+        target_sl = self._app.query_one("#refactor-target-list", SelectionList)
+        selected_targets = list(target_sl.selected)
+        if not selected_targets or len(selected_targets) == 4:
+            target_str = "all"
+        else:
+            target_str = ", ".join(selected_targets)
+
+        inp = self._app.query_one("#refactor-input", TextArea)
+        query = inp.text.strip()
+
+        def _on_confirm(confirmed: bool | None) -> None:
+            if not confirmed:
+                return
+
+            inp.clear()
+            if query:
+                self._app._refactor_input_history.append(query)
+
+            self._app.query_one("#refactor-status-bar", Static).update(
+                "⏳ Evaluating and refactoring recipes (you can switch tabs anytime)..."
+            )
+            self._app.query_one("#refactor-submit-btn", Button).disabled = True
+            self._app.query_one("#refactor-save-inplace-btn", Button).display = False
+            self._app.query_one("#refactor-save-new-btn", Button).display = False
+            self._app.query_one("#refactor-discard-btn", Button).display = False
+
+            self._app.run_worker(
+                lambda: self.execute_refactor(selected_recipes, query, target_str),
+                thread=True,
+                name=f"recipe_refactor_{len(selected_recipes)}",
+            )
+
+        self._app.push_screen(
+            ConfirmRefactorScreen(
+                recipes=selected_recipes,
+                target=target_str,
+                query=query,
+                engine=self._app._engine,
+                model=self._app._model,
+            ),
+            _on_confirm,
+        )
 
     def execute_refactor(
         self,
