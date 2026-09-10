@@ -17,7 +17,8 @@ ToastRack {
 
 /* Toolbar */
 #recipes-toolbar, #agents-toolbar, #tools-toolbar, #engines-toolbar, #models-toolbar {
-    height: 3;
+    height: auto;
+    min-height: 3;
     padding: 0 1;
     align-vertical: middle;
 }
@@ -26,7 +27,7 @@ ToastRack {
     height: 3;
 }
 #recipes-llm-btn, #agents-llm-btn, #tools-llm-btn, #engines-llm-btn, #models-llm-btn {
-    width: 16;
+    width: 18;
     height: 3;
 }
 
@@ -211,17 +212,18 @@ LoadingIndicator {
     color: $accent;
 }
 #gen-input-bar {
-    height: 4;
+    height: auto;
+    min-height: 4;
     align-vertical: middle;
 }
 #gen-input {
     width: 1fr;
-    height: 4;
+    height: 3;
 }
 #gen-submit-btn {
     width: 20;
     margin-left: 1;
-    height: 4;
+    height: 3;
 }
 
 /* Fullscreen / Maximized state rules for GenerateTab */
@@ -348,17 +350,18 @@ LoadingIndicator {
     color: $accent;
 }
 #refactor-input-bar {
-    height: 4;
+    height: auto;
+    min-height: 4;
     align-vertical: middle;
 }
 #refactor-input {
     width: 1fr;
-    height: 4;
+    height: 3;
 }
 #refactor-submit-btn {
     width: 20;
     margin-left: 1;
-    height: 4;
+    height: 3;
 }
 
 /* Fullscreen / Maximized state rules for RefactorTab */
@@ -515,17 +518,18 @@ LoadingIndicator {
     color: $accent;
 }
 #chat-input-bar {
-    height: 4;
+    height: auto;
+    min-height: 4;
     align-vertical: middle;
 }
 #chat-input {
     width: 1fr;
-    height: 4;
+    height: 3;
 }
 #chat-send-btn {
     width: 16;
     margin-left: 1;
-    height: 4;
+    height: 3;
 }
 
 /* Fullscreen / Maximized state rules for ChatScreen */

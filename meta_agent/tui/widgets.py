@@ -108,6 +108,24 @@ class PromptTextArea(TextArea):
         super().__init__(*args, **kwargs)
         self.cursor_blink = False
 
+    def on_mount(self) -> None:
+        """Initialize height according to initial text line count."""
+        self._update_height()
+
+    def _update_height(self) -> None:
+        """Update height dynamically based on document line count (max 3 lines)."""
+        lines = min(max(1, self.document.line_count), 3)
+        self.styles.height = lines + 2
+
+    def _on_text_area_changed(self, event: TextArea.Changed) -> None:
+        """Update height when text content changes."""
+        self._update_height()
+
+    def load_text(self, text: str) -> None:
+        """Load text and adjust widget height."""
+        super().load_text(text)
+        self._update_height()
+
     async def _on_key(self, event: events.Key) -> None:
         """Forward tab navigation shortcuts to app navigation actions."""
         if event.key in ("ctrl+left", "ctrl+left_square_bracket", "ctrl+[", "ctrl__"):
@@ -143,7 +161,7 @@ class ResourceTab(Vertical):
                 tab_behavior="focus",
                 id=f"{tid}-search",
             )
-            yield Button("Ask LLM", id=f"{tid}-llm-btn", variant="default")
+            yield Button("Ask LLM  [Ctrl+J]", id=f"{tid}-llm-btn", variant="default")
         with Horizontal(id=f"{tid}-body"):
             with Vertical(id=f"{tid}-sidebar"):
                 yield ListView(id=f"{tid}-list")

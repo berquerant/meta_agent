@@ -14,7 +14,7 @@ from textual.widgets import Button, Header, Label, Markdown, RichLog, Static, Te
 from ...asking import AskingOpts
 from ...utils import get_default_export_dir, now_str
 from ..helpers import build_chat_prompt, InputHistory, now_datetime_str
-from ..widgets import OrderedFooter
+from ..widgets import OrderedFooter, PromptTextArea
 from .help import HelpScreen
 
 
@@ -159,7 +159,7 @@ class ChatScreen(Screen[None]):
                     yield RichLog(id="chat-rich-log", highlight=True, markup=True, wrap=True)
                 yield Static("", id="chat-status-bar")
                 with Horizontal(id="chat-input-bar"):
-                    yield TextArea(
+                    yield PromptTextArea(
                         placeholder="Type your message here... (Enter: newline, Ctrl+J / Send: submit)",
                         show_line_numbers=False,
                         soft_wrap=True,
@@ -171,8 +171,7 @@ class ChatScreen(Screen[None]):
 
     def on_mount(self) -> None:
         """Configure initial widget state and hook logging."""
-        chat_input = self.query_one("#chat-input", TextArea)
-        chat_input.cursor_blink = False
+        chat_input = self.query_one("#chat-input", PromptTextArea)
         chat_input.focus()
         log = self.query_one("#chat-rich-log", RichLog)
         init_msg = "System initialized. Ready for chat session."
