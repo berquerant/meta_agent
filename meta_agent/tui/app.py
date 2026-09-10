@@ -10,11 +10,8 @@ from textual.binding import Binding
 from textual.widgets import (
     Button,
     Header,
-    Label,
-    ListItem,
     ListView,
     LoadingIndicator,
-    Markdown,
     RichLog,
     SelectionList,
     Static,
@@ -26,12 +23,6 @@ from textual.widgets import (
 from ..api import (
     Agent,
     Engine,
-    find_recipe_files,
-    list_agents,
-    list_engines,
-    list_models,
-    list_recipes,
-    list_tools,
     Model,
     Recipe,
     Script,
@@ -41,14 +32,8 @@ from ..utils import get_default_export_dir, now_str
 from .fullscreen import FullscreenManager
 from .generation import RecipeGenerator
 from .helpers import (
-    agent_markdown,
-    engine_markdown,
-    filter_items,
     InputHistory,
-    model_markdown,
     now_datetime_str,
-    recipe_markdown,
-    tool_markdown,
 )
 from .intent import (
     build_recipe_action_prompt,
@@ -57,16 +42,10 @@ from .intent import (
     parse_recipe_action_intent,
     RecipeActionIntent,
 )
+from .nav import KeyNavigator
 from .refactoring import RecipeRefactorer
-from .screens import (
-    ChatOptionsScreen,
-    ConfirmRefactorScreen,
-    DeleteRecipeScreen,
-    EditRecipeScreen,
-    HelpScreen,
-    RecipeDetailScreen,
-    ResumeChatScreen,
-)
+from .resources import ResourceManager
+from .screens import ScreenNavigator
 from .screens.chat import RichLogHandler
 from .styles import APP_CSS
 from .widgets import GenerateTab, LogTab, OrderedFooter, RefactorTab, ResourceTab
@@ -146,6 +125,9 @@ class MetaAgentTUI(App[None]):
         self._intent_dispatcher = IntentDispatcher(self)
         self._recipe_generator = RecipeGenerator(self)
         self._recipe_refactorer = RecipeRefactorer(self)
+        self._resource_manager = ResourceManager(self)
+        self._key_navigator = KeyNavigator(self)
+        self._screen_navigator = ScreenNavigator(self)
 
     @property
     def _maximized_pane(self) -> str | None:
@@ -236,83 +218,28 @@ class MetaAgentTUI(App[None]):
     @work(thread=True)
     def _load_resource(self, tid: str) -> None:
         """Load resources in a background thread and render."""
-        if tid == "recipes":
-            self._recipes = list_recipes()
-        elif tid == "agents":
-            self._agents = list_agents()
-        elif tid == "tools":
-            self._tools = list_tools()
-        elif tid == "engines":
-            self._engines = list_engines(default_engine=self._engine)
-        elif tid == "models":
-            self._models = list_models(engine=self._engine)
-        self.app.call_from_thread(self._render_tab, tid)
+        self._resource_manager.load_resource(tid)
 
     def _load_recipes(self) -> None:
-        """Trigger background loading of recipes."""
         self._load_resource("recipes")
 
     def _load_agents(self) -> None:
-        """Trigger background loading of agents."""
         self._load_resource("agents")
 
     def _load_tools(self) -> None:
-        """Trigger background loading of tools."""
         self._load_resource("tools")
 
     def _load_engines(self) -> None:
-        """Trigger background loading of engines."""
         self._load_resource("engines")
 
     def _load_models(self) -> None:
-        """Trigger background loading of models."""
         self._load_resource("models")
 
     def _render_list(self, tid: str, items: list[Any]) -> None:
-        """Populate ListView with resource items."""
-        lv = self.query_one(f"#{tid}-list", ListView)
-        lv.clear()
-        for item in items:
-            lv.append(ListItem(Label(item.name)))
-        self.query_one(f"#{tid}-loading", LoadingIndicator).display = False
+        self._resource_manager.render_list(tid, items)
 
     def _render_tab(self, tid: str) -> None:
-        """Render the current filtered resource list for a given tab."""
-        items_map: dict[str, list[Any]] = {
-            "recipes": self._recipes,
-            "agents": self._agents,
-            "tools": self._tools,
-            "engines": self._engines,
-            "models": self._models,
-        }
-        all_items = items_map.get(tid, [])
-        try:
-            search = self.query_one(f"#{tid}-search", TextArea).text
-        except Exception:
-            return
-        items = filter_items(all_items, search)
-
-        if tid == "recipes":
-            self._displayed_recipes = items
-            self._selected_recipe = None
-            try:
-                self.query_one("#recipes-chat-btn", Button).display = False
-                self.query_one("#recipes-refactor-btn", Button).display = False
-                self.query_one("#recipes-edit-btn", Button).display = False
-                self.query_one("#recipes-delete-btn", Button).display = False
-            except Exception:
-                pass
-            self._update_refactor_selection_list(self._recipes)
-        elif tid == "agents":
-            self._displayed_agents = items
-        elif tid == "tools":
-            self._displayed_tools = items
-        elif tid == "engines":
-            self._displayed_engines = items
-        elif tid == "models":
-            self._displayed_models = items
-
-        self._render_list(tid, items)
+        self._resource_manager.render_tab(tid)
 
     # ------------------------------------------------------------------
     # Search & LLM Intent Handler
@@ -326,26 +253,7 @@ class MetaAgentTUI(App[None]):
 
     def action_focus_search(self) -> None:
         """Focus the search input on the currently active tab."""
-        try:
-            tabbed_content = self.query_one(TabbedContent)
-            active_tab = tabbed_content.active
-        except Exception:
-            return
-
-        if active_tab == "tab-recipes":
-            self.query_one("#recipes-search", TextArea).focus()
-        elif active_tab == "tab-agents":
-            self.query_one("#agents-search", TextArea).focus()
-        elif active_tab == "tab-tools":
-            self.query_one("#tools-search", TextArea).focus()
-        elif active_tab == "tab-engines":
-            self.query_one("#engines-search", TextArea).focus()
-        elif active_tab == "tab-models":
-            self.query_one("#models-search", TextArea).focus()
-        elif active_tab == "tab-generate":
-            self.query_one("#gen-input", TextArea).focus()
-        elif active_tab == "tab-refactor":
-            self.query_one("#refactor-search", TextArea).focus()
+        self._key_navigator.focus_search()
 
     @on(TextArea.Changed, "#recipes-search")
     @on(TextArea.Changed, "#agents-search")
@@ -361,7 +269,7 @@ class MetaAgentTUI(App[None]):
     @on(TextArea.Changed, "#refactor-search")
     def on_refactor_search_changed(self, event: TextArea.Changed) -> None:
         """Live-filter refactor recipe selection list as user types."""
-        self._filter_refactor_recipes(event.text_area.text)
+        self._recipe_refactorer.filter_recipes(event.text_area.text)
 
     @on(Button.Pressed, "#recipes-llm-btn")
     @on(Button.Pressed, "#agents-llm-btn")
@@ -389,75 +297,80 @@ class MetaAgentTUI(App[None]):
         }
         self._llm_search(tid, query, items_map.get(tid, []))
 
+    def _build_search_prompt(self, tid: str, query: str, items: list[Any]) -> str:
+        """Build prompt for semantic search or recipe action intent."""
+        catalogue = "\n".join(f"- {x.name}: {getattr(x, 'description', '')}" for x in items)
+        if tid != "recipes":
+            return build_semantic_search_prompt(query, catalogue)
+
+        chat_summaries: list[str] = []
+        exp_dir_p = Path(self._export_dir)
+        if exp_dir_p.is_dir():
+            for p in sorted(exp_dir_p.glob("chat_*.md"), key=lambda x: x.stat().st_mtime, reverse=True)[:10]:
+                try:
+                    content_snip = p.read_text(encoding="utf-8")[:600]
+                    chat_summaries.append(f"- File '{p.name}': {content_snip[:200].replace(chr(10), ' ')}")
+                except Exception:
+                    pass
+        chat_cat = "\n".join(chat_summaries) if chat_summaries else "None"
+        return build_recipe_action_prompt(query, catalogue, chat_cat)
+
+    def _broadcast_app_log(self, msg: str, level: str = "INFO", color: str = "white") -> None:
+        """Append log message to buffer and broadcast to all tab RichLog widgets."""
+        ts = now_datetime_str()
+        self._app_log_buffer.append(f"[{ts}] {level}: {msg}")
+        log_line = f"[dim]{ts}[/dim] [{color}]{msg}[/{color}]"
+
+        def _write_all_logs() -> None:
+            for widget_id in (
+                "#app-rich-log",
+                "#recipes-rich-log",
+                "#agents-rich-log",
+                "#tools-rich-log",
+                "#engines-rich-log",
+                "#models-rich-log",
+            ):
+                try:
+                    self.query_one(widget_id, RichLog).write(log_line)
+                except Exception:
+                    pass
+
+        self.app.call_from_thread(_write_all_logs)
+
     @work(thread=True)
     def _llm_search(self, tid: str, query: str, items: list[Any]) -> None:
         """Run LLM semantic action/search in a background thread."""
-        catalogue = "\n".join(f"- {x.name}: {getattr(x, 'description', '')}" for x in items)
-
-        if tid == "recipes":
-            chat_summaries: list[str] = []
-            exp_dir_p = Path(self._export_dir)
-            if exp_dir_p.is_dir():
-                for p in sorted(exp_dir_p.glob("chat_*.md"), key=lambda x: x.stat().st_mtime, reverse=True)[:10]:
-                    try:
-                        content_snip = p.read_text(encoding="utf-8")[:600]
-                        chat_summaries.append(f"- File '{p.name}': {content_snip[:200].replace(chr(10), ' ')}")
-                    except Exception:
-                        pass
-            chat_cat = "\n".join(chat_summaries) if chat_summaries else "None"
-            prompt = build_recipe_action_prompt(query, catalogue, chat_cat)
-        else:
-            prompt = build_semantic_search_prompt(query, catalogue)
-
-        def _log_app(msg: str, level: str = "INFO", color: str = "white") -> None:
-            ts = now_datetime_str()
-            self._app_log_buffer.append(f"[{ts}] {level}: {msg}")
-            log_line = f"[dim]{ts}[/dim] [{color}]{msg}[/{color}]"
-
-            def _write_all_logs() -> None:
-                for widget_id in (
-                    "#app-rich-log",
-                    "#recipes-rich-log",
-                    "#agents-rich-log",
-                    "#tools-rich-log",
-                    "#engines-rich-log",
-                    "#models-rich-log",
-                ):
-                    try:
-                        self.query_one(widget_id, RichLog).write(log_line)
-                    except Exception:
-                        pass
-
-            self.app.call_from_thread(_write_all_logs)
-
-        _log_app(f"LLM Search triggered for '{tid}' with query: '{query}'", "INFO", "cyan")
+        prompt = self._build_search_prompt(tid, query, items)
+        self._broadcast_app_log(f"LLM Search triggered for '{tid}' with query: '{query}'", "INFO", "cyan")
 
         script = Script(agent="native_react", prompt=prompt, tools=[])
         try:
             result = script.run(engine=self._engine, model=self._model)
-            _log_app(f"LLM response received for '{tid}':\n{result.strip()}", "DEBUG", "dim")
+            self._broadcast_app_log(f"LLM response received for '{tid}':\n{result.strip()}", "DEBUG", "dim")
         except Exception as exc:
             err_msg = str(exc)
-            _log_app(f"LLM Search failed for '{tid}': {err_msg}", "ERROR", "bold red")
+            self._broadcast_app_log(f"LLM Search failed for '{tid}': {err_msg}", "ERROR", "bold red")
             self.app.call_from_thread(lambda: self.notify(f"❌ LLM request failed: {err_msg}", severity="error"))
             return
 
         if tid == "recipes":
             intent = parse_recipe_action_intent(result)
-            _log_app(
+            self._broadcast_app_log(
                 f"Parsed recipe intent: action='{intent.action}', target='{intent.target}', "
                 f"file='{intent.chat_file}', gen='{intent.generate_query}'",
                 "INFO",
                 "yellow",
             )
-            handled = self._handle_recipe_action_intent(intent, query, _log_app)
+            handled = self._handle_recipe_action_intent(intent, query, self._broadcast_app_log)
             if handled:
                 return
             ranked_names = intent.ranked_names or []
         else:
             ranked_names = [line.lstrip("- ").strip() for line in result.splitlines() if line.strip()]
 
-        _log_app(f"LLM Search returned {len(ranked_names)} matching candidates for '{tid}'.", "INFO", "green")
+        self._broadcast_app_log(
+            f"LLM Search returned {len(ranked_names)} matching candidates for '{tid}'.", "INFO", "green"
+        )
 
         name_to_item = {x.name: x for x in items}
         ranked: list[Any] = [name_to_item[name] for name in ranked_names if name in name_to_item]
@@ -479,15 +392,12 @@ class MetaAgentTUI(App[None]):
         return self._intent_dispatcher.handle_recipe_action_intent(intent, query, log_fn)
 
     def _handle_intent_generate(self, gen_req: str, log_fn: Any) -> bool:
-        """Switch to generate tab and start recipe generation."""
         return self._intent_dispatcher.handle_intent_generate(gen_req, log_fn)
 
     def _handle_intent_resume(self, search_term: str, log_fn: Any) -> bool:
-        """Open chat resume modal."""
         return self._intent_dispatcher.handle_intent_resume(search_term, log_fn)
 
     def _handle_intent_recipe_mutation(self, action: str, target: str, log_fn: Any) -> bool:
-        """Find target recipe and open delete or edit screen."""
         return self._intent_dispatcher.handle_intent_recipe_mutation(action, target, log_fn)
 
     # ------------------------------------------------------------------
@@ -496,173 +406,81 @@ class MetaAgentTUI(App[None]):
 
     def on_descendant_focus(self, event: events.DescendantFocus) -> None:
         """Auto-select the first item if list gains focus and no item is selected yet."""
-        if isinstance(event.widget, ListView):
-            lv = event.widget
-            if lv.id == "recipes-list" and lv.index is None and len(self._displayed_recipes) > 0:
-                lv.index = 0
-                self._select_recipe_by_index(0)
-            elif lv.id == "agents-list" and lv.index is None and len(self._displayed_agents) > 0:
-                lv.index = 0
-                self._select_agent_by_index(0)
-            elif lv.id == "engines-list" and lv.index is None and len(self._displayed_engines) > 0:
-                lv.index = 0
-                self._select_engine_by_index(0)
-            elif lv.id == "models-list" and lv.index is None and len(self._displayed_models) > 0:
-                lv.index = 0
-                self._select_model_by_index(0)
+        self._resource_manager.handle_descendant_focus(event)
 
     def _sync_refactor_selected_box(self, selected_values: list[str]) -> None:
-        """Sync the Selected Recipes preview box in the Refactor sidebar."""
-        try:
-            lbl_count = self.query_one("#refactor-selected-label", Label)
-            lbl_count.update(f"Selected Recipes ({len(selected_values)}):")
-            lbl_items = self.query_one("#refactor-selected-items", Label)
-            if selected_values:
-                lbl_items.update("\n".join(f"• {name}" for name in selected_values))
-                lbl_items.remove_class("dim")
-            else:
-                lbl_items.update("*(None)*")
-                lbl_items.add_class("dim")
-        except Exception:
-            pass
+        self._recipe_refactorer.sync_selected_box(selected_values)
 
     def _filter_refactor_recipes(self, search_query: str) -> None:
-        """Filter recipes displayed in refactor tab based on search query while preserving selection."""
-        filtered = filter_items(self._recipes, search_query)
-        self._update_refactor_selection_list(filtered)
+        self._recipe_refactorer.filter_recipes(search_query)
 
     def _update_refactor_selection_list(self, recipes: list[Recipe]) -> None:
-        """Populate refactor tab SelectionList with available recipes."""
-        try:
-            from textual.widgets import SelectionList
-
-            sl = self.query_one("#refactor-recipe-list", SelectionList)
-            # Sync currently checked items to persistent set before rebuilding
-            self._selected_refactor_recipes.update(sl.selected)
-            sl.clear_options()
-            for r in recipes:
-                is_selected = r.name in self._selected_refactor_recipes
-                desc_first_line = r.description.split("\n", 1)[0].strip() if r.description else ""
-                if desc_first_line:
-                    desc_display = desc_first_line[:80] + "..." if len(desc_first_line) > 80 else desc_first_line
-                    label_prompt = f"{r.name} ({desc_display})"
-                else:
-                    label_prompt = r.name
-                sl.add_option((label_prompt, r.name, is_selected))
-            self._sync_refactor_selected_box(sorted(self._selected_refactor_recipes))
-        except Exception:
-            pass
+        self._recipe_refactorer.update_selection_list(recipes)
 
     def _select_recipe_by_index(self, index: int) -> None:
-        if 0 <= index < len(self._displayed_recipes):
-            self._selected_recipe = self._displayed_recipes[index]
-            md = recipe_markdown(self._selected_recipe)
-            self.query_one("#recipes-markdown", Markdown).update(md)
-            self.query_one("#recipes-chat-btn", Button).display = True
-            self.query_one("#recipes-refactor-btn", Button).display = True
-            self.query_one("#recipes-edit-btn", Button).display = True
-            self.query_one("#recipes-delete-btn", Button).display = True
+        self._resource_manager.select_recipe_by_index(index)
 
     def _select_agent_by_index(self, index: int) -> None:
-        if 0 <= index < len(self._displayed_agents):
-            self._selected_agent = self._displayed_agents[index]
-            md = agent_markdown(self._selected_agent)
-            self.query_one("#agents-markdown", Markdown).update(md)
+        self._resource_manager.select_agent_by_index(index)
 
     def _select_tool_by_index(self, index: int) -> None:
-        if 0 <= index < len(self._displayed_tools):
-            self._selected_tool = self._displayed_tools[index]
-            md = tool_markdown(self._selected_tool)
-            self.query_one("#tools-markdown", Markdown).update(md)
+        self._resource_manager.select_tool_by_index(index)
 
     def _select_engine_by_index(self, index: int) -> None:
-        if 0 <= index < len(self._displayed_engines):
-            self._selected_engine = self._displayed_engines[index]
-            md = engine_markdown(self._selected_engine)
-            self.query_one("#engines-markdown", Markdown).update(md)
+        self._resource_manager.select_engine_by_index(index)
 
     def _select_model_by_index(self, index: int) -> None:
-        if 0 <= index < len(self._displayed_models):
-            self._selected_model = self._displayed_models[index]
-            md = model_markdown(self._selected_model)
-            self.query_one("#models-markdown", Markdown).update(md)
+        self._resource_manager.select_model_by_index(index)
 
     @on(ListView.Selected, "#recipes-list")
     @on(ListView.Highlighted, "#recipes-list")
     def on_recipe_selected(self, event: ListView.Selected | ListView.Highlighted) -> None:
-        """Render markdown details and show action buttons for selected recipe."""
         if event.list_view.index is not None:
-            self._select_recipe_by_index(event.list_view.index)
+            self._resource_manager.select_recipe_by_index(event.list_view.index)
 
     @on(ListView.Selected, "#agents-list")
     @on(ListView.Highlighted, "#agents-list")
     def on_agent_selected(self, event: ListView.Selected | ListView.Highlighted) -> None:
-        """Render markdown details for selected agent."""
         if event.list_view.index is not None:
-            self._select_agent_by_index(event.list_view.index)
+            self._resource_manager.select_agent_by_index(event.list_view.index)
 
     @on(ListView.Selected, "#tools-list")
     @on(ListView.Highlighted, "#tools-list")
     def on_tool_selected(self, event: ListView.Selected | ListView.Highlighted) -> None:
-        """Render markdown details for selected tool."""
         if event.list_view.index is not None:
-            self._select_tool_by_index(event.list_view.index)
+            self._resource_manager.select_tool_by_index(event.list_view.index)
 
     @on(ListView.Selected, "#engines-list")
     @on(ListView.Highlighted, "#engines-list")
     def on_engine_selected(self, event: ListView.Selected | ListView.Highlighted) -> None:
-        """Render markdown details for selected engine."""
         if event.list_view.index is not None:
-            self._select_engine_by_index(event.list_view.index)
+            self._resource_manager.select_engine_by_index(event.list_view.index)
 
     @on(ListView.Selected, "#models-list")
     @on(ListView.Highlighted, "#models-list")
     def on_model_selected(self, event: ListView.Selected | ListView.Highlighted) -> None:
-        """Render markdown details for selected model."""
         if event.list_view.index is not None:
-            self._select_model_by_index(event.list_view.index)
+            self._resource_manager.select_model_by_index(event.list_view.index)
 
     # ------------------------------------------------------------------
-    # Recipe Actions & Modals
+    # Recipe Actions & Screen Navigation
     # ------------------------------------------------------------------
 
     def _open_chat_options(self, recipe: Recipe) -> None:
-        """Push ChatOptionsScreen to review and start chat."""
-        self.push_screen(
-            ChatOptionsScreen(
-                recipe,
-                self._engine,
-                self._model,
-                export_dir=self._export_dir,
-            )
-        )
+        self._screen_navigator.open_chat_options(recipe)
 
     @on(Button.Pressed, "#recipes-chat-btn")
     def on_chat_btn(self) -> None:
-        """Handle chat button on recipes tab."""
         self.action_chat_recipe()
 
     def action_chat_recipe(self) -> None:
-        """Open chat options for the currently selected recipe."""
-        if self._selected_recipe is not None:
-            self._open_chat_options(self._selected_recipe)
-        else:
-            self.notify("Please select a recipe first", severity="warning")
+        self._screen_navigator.chat_recipe()
 
     def action_handle_ctrl_c(self) -> None:
-        """Handle Ctrl+C: first press warns, second press within timeout quits."""
-        import time
-
-        now = time.monotonic()
-        if now - self._last_ctrl_c < 2.0:
-            self.exit()
-        else:
-            self._last_ctrl_c = now
-            self.notify("Press Ctrl+C again to quit", severity="warning", timeout=2.0)
+        self._key_navigator.handle_ctrl_c()
 
     def action_resume_chat(self) -> None:
-        """Open session picker modal to resume previous chat session."""
-        self.push_screen(ResumeChatScreen(self._export_dir))
+        self._screen_navigator.resume_chat()
 
     def action_refactor_recipe(self) -> None:
         """Switch to Refactor tab with selected recipe pre-selected."""
@@ -673,106 +491,34 @@ class MetaAgentTUI(App[None]):
         try:
             self._fullscreen.restore_fullscreen()
             self.query_one(TabbedContent).active = "tab-refactor"
-            from textual.widgets import SelectionList
-
             sl = self.query_one("#refactor-recipe-list", SelectionList)
             sl.deselect_all()
             sl.select(rec_name)
-            self._sync_refactor_selected_box(list(sl.selected))
+            self._recipe_refactorer.sync_selected_box(list(sl.selected))
             self.query_one("#refactor-input", TextArea).focus()
         except Exception:
             pass
 
     @on(Button.Pressed, "#recipes-refactor-btn")
     def on_refactor_btn(self) -> None:
-        """Handle refactor button on recipes tab."""
         self.action_refactor_recipe()
 
     def action_edit_recipe(self) -> None:
-        """Open editor screen for currently selected recipe."""
-        if self._selected_recipe is None:
-            self.notify("Please select a recipe first", severity="warning")
-            return
-
-        recipe_name = self._selected_recipe.name
-        matched_files = find_recipe_files(recipe_name, self._recipes_dir)
-
-        def _on_edit_done(saved: bool | None) -> None:
-            if saved:
-                self.notify(f"Recipe '{recipe_name}' updated", severity="information")
-                self._load_recipes()
-
-        self.push_screen(
-            EditRecipeScreen(recipe_name, matched_files),
-            _on_edit_done,
-        )
+        self._screen_navigator.edit_recipe()
 
     @on(Button.Pressed, "#recipes-edit-btn")
     def on_edit_btn(self) -> None:
-        """Handle edit button on recipes tab."""
         self.action_edit_recipe()
 
     def action_delete_recipe(self) -> None:
-        """Prompt to delete selected recipe on recipes tab, or show recipe details modal on refactor tab."""
-        try:
-            active_tab = self.query_one(TabbedContent).active
-        except Exception:
-            active_tab = "tab-recipes"
-
-        if active_tab == "tab-refactor":
-            # On RefactorTab: display recipe details for highlighted or selected recipe
-            try:
-                from textual.widgets import SelectionList
-
-                sl = self.query_one("#refactor-recipe-list", SelectionList)
-                rec_name: str | None = None
-                if sl.highlighted is not None and 0 <= sl.highlighted < sl.option_count:
-                    opt = sl.get_option_at_index(sl.highlighted)
-                    rec_name = str(opt.value)
-                elif sl.selected:
-                    rec_name = list(sl.selected)[0]
-                elif self._selected_recipe:
-                    rec_name = self._selected_recipe.name
-
-                if not rec_name:
-                    self.notify("No recipe selected to view details", severity="warning")
-                    return
-
-                # Find matching Recipe object
-                matched = [r for r in self._recipes if r.name == rec_name]
-                if matched:
-                    self.push_screen(RecipeDetailScreen(matched[0]))
-                else:
-                    self.notify(f"Recipe '{rec_name}' not found", severity="warning")
-            except Exception:
-                pass
-            return
-
-        if self._selected_recipe is None:
-            self.notify("Please select a recipe first", severity="warning")
-            return
-
-        recipe_name = self._selected_recipe.name
-        matched_files = find_recipe_files(recipe_name, self._recipes_dir)
-
-        def _on_delete_done(deleted: bool | None) -> None:
-            if deleted:
-                self.notify(f"Recipe '{recipe_name}' deleted", severity="information")
-                self._load_recipes()
-
-        self.push_screen(
-            DeleteRecipeScreen(recipe_name, matched_files),
-            _on_delete_done,
-        )
+        self._screen_navigator.delete_recipe()
 
     @on(Button.Pressed, "#recipes-delete-btn")
     def on_delete_btn(self) -> None:
-        """Handle delete button on recipes tab."""
         self.action_delete_recipe()
 
     def action_open_help(self) -> None:
-        """Display the help and keyboard shortcuts modal."""
-        self.push_screen(HelpScreen())
+        self._screen_navigator.open_help()
 
     def action_open_generate(self) -> None:
         """Switch to GenerateTab and focus input prompt."""
@@ -784,160 +530,17 @@ class MetaAgentTUI(App[None]):
             pass
 
     def action_previous_tab(self) -> None:
-        """Switch to previous tab (wraps around)."""
-        tabs_order = [
-            "tab-recipes",
-            "tab-agents",
-            "tab-tools",
-            "tab-engines",
-            "tab-models",
-            "tab-generate",
-            "tab-refactor",
-            "tab-logs",
-        ]
-        try:
-            tabbed_content = self.query_one(TabbedContent)
-            current = tabbed_content.active
-            if current in tabs_order:
-                idx = tabs_order.index(current)
-                prev_idx = (idx - 1) % len(tabs_order)
-                target_tab = tabs_order[prev_idx]
-                self.set_focus(None)
-                tabbed_content.active = target_tab
-                self._focus_tab_search(target_tab)
-        except Exception:
-            pass
+        self._key_navigator.switch_tab_relative(-1)
 
     def action_next_tab(self) -> None:
-        """Switch to next tab (wraps around)."""
-        tabs_order = [
-            "tab-recipes",
-            "tab-agents",
-            "tab-tools",
-            "tab-engines",
-            "tab-models",
-            "tab-generate",
-            "tab-refactor",
-            "tab-logs",
-        ]
-        try:
-            tabbed_content = self.query_one(TabbedContent)
-            current = tabbed_content.active
-            if current in tabs_order:
-                idx = tabs_order.index(current)
-                next_idx = (idx + 1) % len(tabs_order)
-                target_tab = tabs_order[next_idx]
-                self.set_focus(None)
-                tabbed_content.active = target_tab
-                self._focus_tab_search(target_tab)
-        except Exception:
-            pass
+        self._key_navigator.switch_tab_relative(1)
 
     def _focus_tab_search(self, target_tab: str) -> None:
-        """Focus the search/input widget for the specified tab."""
-        if target_tab == "tab-recipes":
-            self.query_one("#recipes-search", TextArea).focus()
-        elif target_tab == "tab-agents":
-            self.query_one("#agents-search", TextArea).focus()
-        elif target_tab == "tab-tools":
-            self.query_one("#tools-search", TextArea).focus()
-        elif target_tab == "tab-engines":
-            self.query_one("#engines-search", TextArea).focus()
-        elif target_tab == "tab-models":
-            self.query_one("#models-search", TextArea).focus()
-        elif target_tab == "tab-generate":
-            self.query_one("#gen-input", TextArea).focus()
-        elif target_tab == "tab-refactor":
-            self.query_one("#refactor-input", TextArea).focus()
-
-    # ------------------------------------------------------------------
-    # Keyboard & Key Navigation
-    # ------------------------------------------------------------------
+        self._key_navigator.focus_tab_search(target_tab)
 
     def on_key(self, event: events.Key) -> None:
         """Handle Ctrl+J submission, tab navigation, and Up/Down prompt history cycling."""
-        if event.key in ("ctrl+left", "ctrl+left_square_bracket", "ctrl+[", "ctrl__"):
-            event.prevent_default()
-            event.stop()
-            self.action_previous_tab()
-            return
-        elif event.key in ("ctrl+right", "ctrl+right_square_bracket", "ctrl+]"):
-            event.prevent_default()
-            event.stop()
-            self.action_next_tab()
-            return
-
-        if event.key == "ctrl+s":
-            try:
-                tabs = self.query_one(TabbedContent)
-                if tabs.active == "tab-logs":
-                    event.prevent_default()
-                    event.stop()
-                    self.action_export_logs()
-                    return
-            except Exception:
-                pass
-
-        if event.key == "ctrl+k":
-            try:
-                tabs = self.query_one(TabbedContent)
-                if tabs.active == "tab-logs":
-                    event.prevent_default()
-                    event.stop()
-                    self.action_clear_logs()
-                    return
-            except Exception:
-                pass
-
-        if event.key in ("ctrl+j", "ctrl+m"):
-            focused = self.focused
-            if isinstance(focused, TextArea) and focused.id in (
-                "recipes-search",
-                "agents-search",
-                "tools-search",
-                "engines-search",
-                "models-search",
-            ):
-                tid = focused.id.removesuffix("-search")
-                event.prevent_default()
-                event.stop()
-                self._trigger_llm_search(tid)
-                return
-            elif isinstance(focused, TextArea) and focused.id == "gen-input":
-                event.prevent_default()
-                event.stop()
-                self.on_gen_submit()
-                return
-            elif isinstance(focused, TextArea) and focused.id == "refactor-input":
-                event.prevent_default()
-                event.stop()
-                self.on_refactor_submit()
-                return
-
-        if event.key in ("up", "down"):
-            focused = self.focused
-            if isinstance(focused, TextArea) and focused.id in ("gen-input", "refactor-input"):
-                inp = focused
-                history = self._refactor_input_history if focused.id == "refactor-input" else self._gen_input_history
-                cursor_row, _ = inp.cursor_location
-                total_lines = inp.document.line_count
-
-                if event.key == "up" and cursor_row == 0:
-                    val = history.previous(inp.text)
-                    if val is not None:
-                        event.prevent_default()
-                        event.stop()
-                        inp.load_text(val)
-                        inp.move_cursor((0, 0))
-                        return
-                elif event.key == "down" and cursor_row >= total_lines - 1:
-                    val = history.next()
-                    if val is not None:
-                        event.prevent_default()
-                        event.stop()
-                        inp.load_text(val)
-                        inp.move_cursor((inp.document.line_count - 1, len(inp.document.lines[-1])))
-                        return
+        self._key_navigator.handle_key(event)
 
     # ------------------------------------------------------------------
     # Refactor Tab Actions
@@ -948,113 +551,35 @@ class MetaAgentTUI(App[None]):
         """Update selected box when SelectionList state changes."""
         visible_options = {getattr(opt, "value") for opt in event.selection_list._options}
         current_visible_selected = set(event.selection_list.selected)
-        # Remove visible items that became unselected
         self._selected_refactor_recipes.difference_update(visible_options - current_visible_selected)
-        # Add visible items that became selected
         self._selected_refactor_recipes.update(current_visible_selected)
-        self._sync_refactor_selected_box(sorted(self._selected_refactor_recipes))
+        self._recipe_refactorer.sync_selected_box(sorted(self._selected_refactor_recipes))
 
     @on(Button.Pressed, "#refactor-select-all-btn")
     def on_refactor_select_all(self) -> None:
-        """Select all currently displayed recipes in RefactorTab SelectionList."""
-        try:
-            from textual.widgets import SelectionList
-
-            sl = self.query_one("#refactor-recipe-list", SelectionList)
-            sl.select_all()
-            self._selected_refactor_recipes.update(sl.selected)
-            self._sync_refactor_selected_box(sorted(self._selected_refactor_recipes))
-        except Exception:
-            pass
+        self._recipe_refactorer.select_all()
 
     @on(Button.Pressed, "#refactor-clear-all-btn")
     def on_refactor_clear_all(self) -> None:
-        """Deselect all recipes in RefactorTab."""
-        try:
-            from textual.widgets import SelectionList
-
-            sl = self.query_one("#refactor-recipe-list", SelectionList)
-            sl.deselect_all()
-            self._selected_refactor_recipes.clear()
-            self._sync_refactor_selected_box([])
-        except Exception:
-            pass
+        self._recipe_refactorer.clear_all()
 
     @on(Button.Pressed, "#refactor-submit-btn")
     def on_refactor_submit(self) -> None:
-        """Prompt confirmation and start recipe refactoring in a background worker."""
-        from textual.widgets import SelectionList
-
-        try:
-            sl = self.query_one("#refactor-recipe-list", SelectionList)
-            self._selected_refactor_recipes.update(sl.selected)
-        except Exception:
-            pass
-        selected_recipes = sorted(self._selected_refactor_recipes)
-        if not selected_recipes:
-            self.notify("Please select at least one recipe to refactor", severity="warning")
-            return
-
-        target_sl = self.query_one("#refactor-target-list", SelectionList)
-        selected_targets = list(target_sl.selected)
-        if not selected_targets or len(selected_targets) == 4:
-            target_str = "all"
-        else:
-            target_str = ", ".join(selected_targets)
-
-        inp = self.query_one("#refactor-input", TextArea)
-        query = inp.text.strip()
-
-        def _on_confirm(confirmed: bool | None) -> None:
-            if not confirmed:
-                return
-
-            inp.clear()
-            if query:
-                self._refactor_input_history.append(query)
-
-            self.query_one("#refactor-status-bar", Static).update(
-                "⏳ Evaluating and refactoring recipes (you can switch tabs anytime)..."
-            )
-            self.query_one("#refactor-submit-btn", Button).disabled = True
-            self.query_one("#refactor-save-inplace-btn", Button).display = False
-            self.query_one("#refactor-save-new-btn", Button).display = False
-            self.query_one("#refactor-discard-btn", Button).display = False
-
-            self.run_worker(
-                lambda: self._execute_recipe_refactor(selected_recipes, query, target_str),
-                thread=True,
-                name=f"recipe_refactor_{len(selected_recipes)}",
-            )
-
-        self.push_screen(
-            ConfirmRefactorScreen(
-                recipes=selected_recipes,
-                target=target_str,
-                query=query,
-                engine=self._engine,
-                model=self._model,
-            ),
-            _on_confirm,
-        )
+        self._recipe_refactorer.prompt_and_submit()
 
     def _execute_recipe_refactor(self, recipes: list[str], query: str, target: str) -> None:
-        """Run recipe refactoring via coordinator in background worker."""
         self._recipe_refactorer.execute_refactor(recipes=recipes, query=query, target=target)
 
     @on(Button.Pressed, "#refactor-save-inplace-btn")
     def on_refactor_save_inplace(self) -> None:
-        """Save refactored recipes in-place."""
         self._recipe_refactorer.save_results(in_place=True)
 
     @on(Button.Pressed, "#refactor-save-new-btn")
     def on_refactor_save_new(self) -> None:
-        """Save refactored recipes as new files."""
         self._recipe_refactorer.save_results(in_place=False)
 
     @on(Button.Pressed, "#refactor-discard-btn")
     def on_refactor_discard(self) -> None:
-        """Discard refactored results without saving."""
         self._recipe_refactorer.discard_results()
 
     # ------------------------------------------------------------------
@@ -1088,12 +613,10 @@ class MetaAgentTUI(App[None]):
         )
 
     def _execute_recipe_generation(self, query: str) -> None:
-        """Run recipe generation in background worker."""
         self._recipe_generator.execute_generation(query)
 
     @on(Button.Pressed, "#gen-chat-btn")
     def on_gen_chat_btn(self) -> None:
-        """Launch chat options with the newly generated recipe."""
         self._recipe_generator.launch_chat_for_generated()
 
     # ------------------------------------------------------------------
@@ -1126,12 +649,10 @@ class MetaAgentTUI(App[None]):
 
     @on(Button.Pressed, "#app-log-clear-btn")
     def on_clear_app_logs(self) -> None:
-        """Clear application rich log and internal log buffer."""
         self.action_clear_logs()
 
     @on(Button.Pressed, "#app-log-export-btn")
     def on_export_app_logs(self) -> None:
-        """Save application execution log buffer to file."""
         self.action_export_logs()
 
     # ------------------------------------------------------------------
@@ -1165,25 +686,20 @@ class MetaAgentTUI(App[None]):
         self.set_focus(None)
 
     def action_toggle_detail_fullscreen(self) -> None:
-        """Toggle fullscreen for detail or preview pane."""
         self._fullscreen.toggle_detail_fullscreen()
 
     def action_toggle_log_fullscreen(self) -> None:
-        """Toggle fullscreen for logs pane."""
         self._fullscreen.toggle_log_fullscreen()
 
     def action_toggle_sidebar_fullscreen(self) -> None:
-        """Toggle fullscreen for sidebar selection pane."""
         self._fullscreen.toggle_sidebar_fullscreen()
 
     def action_toggle_prompt_fullscreen(self) -> None:
-        """Toggle fullscreen for prompt pane on active screen."""
         if len(self.screen_stack) > 1 and hasattr(self.screen, "action_toggle_prompt_fullscreen"):
             self.screen.action_toggle_prompt_fullscreen()
 
     @on(TabbedContent.TabActivated)
     def on_tab_activated(self) -> None:
-        """Restore normal layout when switching tabs."""
         if self._fullscreen.maximized_pane is not None:
             self._fullscreen.restore_fullscreen(notify=False)
 
@@ -1205,77 +721,11 @@ class MetaAgentTUI(App[None]):
     def _restore_fullscreen(self, notify: bool = True) -> None:
         self._fullscreen.restore_fullscreen(notify=notify)
 
-    @on(Button.Pressed, "#recipes-detail-max-btn")
-    @on(Button.Pressed, "#agents-detail-max-btn")
-    @on(Button.Pressed, "#tools-detail-max-btn")
-    def on_resource_detail_max(self, event: Button.Pressed) -> None:
-        """Handle detail pane maximize button."""
-        if event.button.id:
-            tid = event.button.id.removesuffix("-detail-max-btn")
-            if self._fullscreen.maximized_pane == f"{tid}-detail":
-                self._fullscreen.restore_fullscreen()
-            else:
-                self._fullscreen.maximize_resource_detail(tid)
-
-    @on(Button.Pressed, "#recipes-log-max-btn")
-    @on(Button.Pressed, "#agents-log-max-btn")
-    @on(Button.Pressed, "#tools-log-max-btn")
-    def on_resource_log_max(self, event: Button.Pressed) -> None:
-        """Handle log pane maximize button."""
-        if event.button.id:
-            tid = event.button.id.removesuffix("-log-max-btn")
-            if self._fullscreen.maximized_pane == f"{tid}-log":
-                self._fullscreen.restore_fullscreen()
-            else:
-                self._fullscreen.maximize_resource_log(tid)
-
-    @on(Button.Pressed, "#gen-preview-max-btn")
-    def on_gen_preview_max(self) -> None:
-        """Handle generate preview maximize button."""
-        if self._fullscreen.maximized_pane == "gen-preview":
-            self._fullscreen.restore_fullscreen()
-        else:
-            self._fullscreen.maximize_gen_preview()
-
-    @on(Button.Pressed, "#gen-log-max-btn")
-    def on_gen_log_max(self) -> None:
-        """Handle generate log maximize button."""
-        if self._fullscreen.maximized_pane == "gen-log":
-            self._fullscreen.restore_fullscreen()
-        else:
-            self._fullscreen.maximize_gen_log()
-
-    @on(Button.Pressed, "#refactor-sidebar-max-btn")
-    def on_refactor_sidebar_max(self) -> None:
-        """Handle refactor sidebar maximize button."""
-        if self._fullscreen.maximized_pane == "refactor-sidebar":
-            self._fullscreen.restore_fullscreen()
-        else:
-            self._fullscreen.maximize_refactor_sidebar()
-
-    @on(Button.Pressed, "#refactor-preview-max-btn")
-    def on_refactor_preview_max(self) -> None:
-        """Handle refactor preview maximize button."""
-        if self._fullscreen.maximized_pane == "refactor-preview":
-            self._fullscreen.restore_fullscreen()
-        else:
-            self._fullscreen.maximize_refactor_preview()
-
-    @on(Button.Pressed, "#refactor-log-max-btn")
-    def on_refactor_log_max(self) -> None:
-        """Handle refactor log maximize button."""
-        if self._fullscreen.maximized_pane == "refactor-log":
-            self._fullscreen.restore_fullscreen()
-        else:
-            self._fullscreen.maximize_refactor_log()
-
-    @on(Button.Pressed, "#app-log-max-btn")
-    def on_app_log_max(self) -> None:
-        """Handle application log maximize button."""
-        if self._fullscreen.maximized_pane == "app-log":
-            self._fullscreen.restore_fullscreen()
-        else:
-            self._fullscreen.maximize_app_log()
+    @on(Button.Pressed)
+    def on_any_button_pressed(self, event: Button.Pressed) -> None:
+        """Route maximize buttons to FullscreenManager."""
+        if event.button.id and self._fullscreen.handle_button_press(event.button.id):
+            event.stop()
 
 
 def run_tui(engine: str, model: str, recipes_dir: str, export_dir: str | None = None) -> None:

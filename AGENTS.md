@@ -43,7 +43,9 @@ meta_agent/
 │   │   ├── generation.py  # RecipeGenerator — recipe generation coordinator
 │   │   ├── helpers.py     # filter / markdown formatting / prompt helpers
 │   │   ├── intent.py      # RecipeActionIntent, IntentDispatcher — intent parsing and routing
+│   │   ├── nav.py         # KeyNavigator — keyboard shortcuts & tab navigation coordinator
 │   │   ├── refactoring.py # RecipeRefactorer — recipe refactoring coordinator
+│   │   ├── resources.py   # ResourceManager — resource loading and tab rendering coordinator
 │   │   ├── styles.py      # App CSS styles definition
 │   │   ├── screens/       # TUI screens package
 │   │   │   ├── __init__.py
@@ -54,7 +56,8 @@ meta_agent/
 │   │   │   ├── edit_recipe.py   # EditRecipeScreen (in-TUI editor with syntax validation)
 │   │   │   ├── help.py         # HelpScreen (shortcuts & guide modal)
 │   │   │   ├── recipe_detail.py # RecipeDetailScreen (modal preview of recipe info)
-│   │   │   └── resume_chat.py  # ResumeChatScreen (restore session from exported markdown)
+│   │   │   ├── resume_chat.py  # ResumeChatScreen (restore session from exported markdown)
+│   │   │   └── routing.py      # ScreenNavigator — screen transitions & recipe action dialogs
 │   │   └── widgets.py     # ResourceTab, GenerateTab, RefactorTab, LogTab & SearchableSelect widgets
 │   └── utils/         # Shared utilities package
 │       ├── __init__.py    # re-exports common utilities, SemVer, and validation

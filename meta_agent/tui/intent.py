@@ -59,47 +59,64 @@ def build_semantic_search_prompt(query: str, catalogue: str) -> str:
     )
 
 
+def _normalize_action_type(raw_action: str) -> str:
+    """Normalize action string into canonical intent action."""
+    action = raw_action.lower()
+    match action:
+        case "delete" | "remove" | "del":
+            return "delete"
+        case "edit" | "update" | "modify":
+            return "edit"
+        case "refactor" | "improve" | "optimize" | "evaluate":
+            return "refactor"
+        case "resume" | "restore" | "continue" | "history" | "session":
+            return "resume"
+        case "generate" | "gen" | "create" | "new" | "build" | "make":
+            return "generate"
+        case _:
+            return "search"
+
+
+def _first_non_empty(data: dict[str, Any], *keys: str) -> str | None:
+    """Return the first non-empty string value for the given keys in dict."""
+    for k in keys:
+        val = data.get(k)
+        if val is not None:
+            val_str = str(val).strip()
+            if val_str:
+                return val_str
+    return None
+
+
+def _extract_intent_from_dict(data: dict[str, Any]) -> RecipeActionIntent:
+    """Extract RecipeActionIntent fields from parsed JSON dictionary."""
+    action = _normalize_action_type(str(data.get("action", "search")))
+    target_str = _first_non_empty(data, "target", "recipe", "name")
+    chat_file_str = _first_non_empty(data, "chat_file", "file")
+    instruction_str = _first_non_empty(data, "instruction", "changes", "detail")
+    gen_query_str = _first_non_empty(data, "generate_query", "query", "prompt", "requirements")
+
+    ranked = data.get("ranked_names") or data.get("matches") or []
+    ranked_list = [str(x).strip() for x in ranked if str(x).strip()] if isinstance(ranked, list) else []
+
+    return RecipeActionIntent(
+        action=action,
+        target=target_str,
+        instruction=instruction_str,
+        ranked_names=ranked_list,
+        chat_file=chat_file_str,
+        generate_query=gen_query_str,
+    )
+
+
 def parse_recipe_action_intent(raw_response: str) -> RecipeActionIntent:
     """Parse JSON or structured text response from LLM recipe action prompt."""
     json_match = re.search(r"\{.*\}", raw_response, re.DOTALL)
     if json_match:
         try:
             data = json.loads(json_match.group(0))
-            action = str(data.get("action", "search")).lower()
-            if action in ("delete", "remove", "del"):
-                action = "delete"
-            elif action in ("edit", "update", "modify"):
-                action = "edit"
-            elif action in ("refactor", "improve", "optimize", "evaluate"):
-                action = "refactor"
-            elif action in ("resume", "restore", "continue", "history", "session"):
-                action = "resume"
-            elif action in ("generate", "gen", "create", "new", "build", "make"):
-                action = "generate"
-            else:
-                action = "search"
-
-            target = data.get("target") or data.get("recipe") or data.get("name")
-            target_str = str(target).strip() if target else None
-            chat_file = data.get("chat_file") or data.get("file")
-            chat_file_str = str(chat_file).strip() if chat_file else None
-            instruction = data.get("instruction") or data.get("changes") or data.get("detail")
-            instruction_str = str(instruction).strip() if instruction else None
-            gen_query = (
-                data.get("generate_query") or data.get("query") or data.get("prompt") or data.get("requirements")
-            )
-            gen_query_str = str(gen_query).strip() if gen_query else None
-            ranked = data.get("ranked_names") or data.get("matches") or []
-            ranked_list = [str(x).strip() for x in ranked if str(x).strip()] if isinstance(ranked, list) else []
-
-            return RecipeActionIntent(
-                action=action,
-                target=target_str,
-                instruction=instruction_str,
-                ranked_names=ranked_list,
-                chat_file=chat_file_str,
-                generate_query=gen_query_str,
-            )
+            if isinstance(data, dict):
+                return _extract_intent_from_dict(data)
         except Exception:
             pass
 

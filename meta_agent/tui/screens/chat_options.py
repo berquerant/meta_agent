@@ -46,6 +46,14 @@ class ChatOptionsScreen(Screen[None]):
         self._export_dir = export_dir
         self._runtime_options = fetch_runtime_options(default_engine, default_model)
 
+    @staticmethod
+    def _ensure_preset_option(options: list[tuple[str, str]], value: str) -> list[tuple[str, str]]:
+        """Ensure active value is present in dropdown options list."""
+        opts = list(options)
+        if value and not any(opt[1] == value for opt in opts):
+            opts.insert(0, (value, value))
+        return opts
+
     def compose(self) -> ComposeResult:
         """Build the chat options layout with quick selects."""
         r = self._recipe
@@ -55,18 +63,9 @@ class ChatOptionsScreen(Screen[None]):
         tools = ", ".join(r.tools) if r.tools else ""
         system = r.system_prompt or ""
 
-        # Ensure active recipe values exist in dropdown options
-        engine_opts = list(self._runtime_options.engines)
-        if engine and not any(opt[1] == engine for opt in engine_opts):
-            engine_opts.insert(0, (engine, engine))
-
-        model_opts = list(self._runtime_options.models)
-        if model and not any(opt[1] == model for opt in model_opts):
-            model_opts.insert(0, (model, model))
-
-        agent_opts = list(self._runtime_options.agents)
-        if agent and not any(opt[1] == agent for opt in agent_opts):
-            agent_opts.insert(0, (agent, agent))
+        engine_opts = self._ensure_preset_option(self._runtime_options.engines, engine)
+        model_opts = self._ensure_preset_option(self._runtime_options.models, model)
+        agent_opts = self._ensure_preset_option(self._runtime_options.agents, agent)
 
         yield Header()
         with VerticalScroll():
