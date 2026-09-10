@@ -29,8 +29,8 @@ def inspect_tool(name: str) -> ToolSpec | None:
     logging.debug("inspect_tool: %s", name)
     import openjarvis.tools  # noqa: F401
 
-    tool_cls = ToolRegistry.get(name)
     try:
+        tool_cls = ToolRegistry.get(name)
         tool_instance = tool_cls() if callable(tool_cls) else tool_cls
         spec = tool_instance.spec
         return spec
