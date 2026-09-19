@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 import re
 import tomllib
+from typing import Any
 
 from .api import (
     find_recipe_files,
@@ -168,19 +169,57 @@ def extract_toml_and_review(raw_output: str) -> tuple[str, str]:
     return review, toml_part
 
 
-def refactor_recipe(req: RefactorRequest) -> RefactorResult:
-    """Evaluate and refactor a recipe using LLM."""
-    logging.debug("refactor_recipe start: %s", req.recipe_name_or_path)
-
-    orig_path_obj: Path | None = None
-    candidate_path = Path(req.recipe_name_or_path)
+def _resolve_recipe_path(recipe_name_or_path: str, recipes_dir: str | None = None) -> Path | None:
+    """Resolve recipe path from filename or name."""
+    candidate_path = Path(recipe_name_or_path)
     if candidate_path.is_file():
-        orig_path_obj = candidate_path
-    else:
-        files = find_recipe_files(req.recipe_name_or_path, req.recipes_dir)
-        if files:
-            orig_path_obj = Path(files[0])
+        return candidate_path
+    files = find_recipe_files(recipe_name_or_path, recipes_dir)
+    if files:
+        return Path(files[0])
+    return None
 
+
+def _apply_bumped_version(new_toml: str, new_dict: dict[str, Any], old_semver: SemVer) -> tuple[str, SemVer]:
+    """Calculate and apply bumped semver in refactored TOML if needed."""
+    new_version_str = str(new_dict.get("recipe", {}).get("version", ""))
+    new_semver = SemVer.parse(new_version_str) if new_version_str else old_semver.bump_minor()
+    if str(new_semver) == str(old_semver):
+        new_semver = old_semver.bump_minor()
+
+    if new_dict.get("recipe", {}).get("version") != str(new_semver):
+        if 'version = "' in new_toml:
+            new_toml = re.sub(r'version\s*=\s*"[^"]*"', f'version = "{new_semver}"', new_toml, count=1)
+        else:
+            new_toml = new_toml.replace("[recipe]", f'[recipe]\nversion = "{new_semver}"', 1)
+    return new_toml, new_semver
+
+
+def _run_refactor_llm(
+    prompt: str,
+    engine: str,
+    model: str,
+) -> tuple[str, str, str | None]:
+    """Execute refactor prompt on LLM and return (review_comments, new_toml, error_message)."""
+    s = Script(
+        tools=["think", "list_tools", "list_agents"],
+        agent="orchestrator",
+        prompt=prompt,
+    )
+    try:
+        raw_resp = s.run(engine=engine, model=model)
+    except Exception as e:
+        return "", "", f"LLM execution failed: {e}"
+
+    review_comments, new_toml = extract_toml_and_review(raw_resp)
+    return review_comments, new_toml, None
+
+
+def _load_recipe_for_refactor(
+    req: RefactorRequest,
+) -> tuple[Path, str, dict[str, Any], str, SemVer] | RefactorResult:
+    """Load and parse recipe for refactoring, returning either recipe data or error RefactorResult."""
+    orig_path_obj = _resolve_recipe_path(req.recipe_name_or_path, req.recipes_dir)
     if not orig_path_obj or not orig_path_obj.exists():
         return RefactorResult(
             recipe_name=req.recipe_name_or_path,
@@ -222,7 +261,18 @@ def refactor_recipe(req: RefactorRequest) -> RefactorResult:
         old_version_str,
         orig_path_obj.resolve(),
     )
+    return orig_path_obj, orig_content, orig_dict, recipe_name, old_semver
 
+
+def refactor_recipe(req: RefactorRequest) -> RefactorResult:
+    """Evaluate and refactor a recipe using LLM."""
+    logging.debug("refactor_recipe start: %s", req.recipe_name_or_path)
+
+    loaded = _load_recipe_for_refactor(req)
+    if isinstance(loaded, RefactorResult):
+        return loaded
+
+    orig_path_obj, orig_content, orig_dict, recipe_name, old_semver = loaded
     val_before = validate_recipe_components(orig_dict, default_engine=req.engine)
 
     prompt = build_refactor_prompt(
@@ -232,15 +282,8 @@ def refactor_recipe(req: RefactorRequest) -> RefactorResult:
         validation_report=val_before,
     )
 
-    s = Script(
-        tools=["think", "list_tools", "list_agents"],
-        agent="orchestrator",
-        prompt=prompt,
-    )
-
-    try:
-        raw_resp = s.run(engine=req.engine, model=req.model)
-    except Exception as e:
+    review_comments, new_toml, llm_err = _run_refactor_llm(prompt, req.engine, req.model)
+    if llm_err:
         return RefactorResult(
             recipe_name=recipe_name,
             original_path=str(orig_path_obj),
@@ -251,11 +294,9 @@ def refactor_recipe(req: RefactorRequest) -> RefactorResult:
             old_version=str(old_semver),
             new_version=str(old_semver),
             success=False,
-            error_message=f"LLM execution failed: {e}",
+            error_message=llm_err,
             validation_before=val_before,
         )
-
-    review_comments, new_toml = extract_toml_and_review(raw_resp)
 
     try:
         new_dict = tomllib.loads(new_toml)
@@ -274,17 +315,9 @@ def refactor_recipe(req: RefactorRequest) -> RefactorResult:
             validation_before=val_before,
         )
 
-    new_version_str = str(new_dict.get("recipe", {}).get("version", ""))
-    new_semver = SemVer.parse(new_version_str) if new_version_str else old_semver.bump_minor()
-    if str(new_semver) == str(old_semver):
-        new_semver = old_semver.bump_minor()
-
-    if new_dict.get("recipe", {}).get("version") != str(new_semver):
-        if 'version = "' in new_toml:
-            new_toml = re.sub(r'version\s*=\s*"[^"]*"', f'version = "{new_semver}"', new_toml, count=1)
-        else:
-            new_toml = new_toml.replace("[recipe]", f'[recipe]\nversion = "{new_semver}"', 1)
-
+    new_toml, new_semver = _apply_bumped_version(new_toml, new_dict, old_semver)
+    new_dict["recipe"] = new_dict.get("recipe", {})
+    new_dict["recipe"]["version"] = str(new_semver)
     val_after = validate_recipe_components(new_dict, default_engine=req.engine)
     diff = generate_diff(orig_content, new_toml, fromfile=str(orig_path_obj.name), tofile="refactored")
 
