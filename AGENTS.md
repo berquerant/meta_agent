@@ -10,7 +10,7 @@ When you make structural changes to the project (adding/removing modules, comman
 
 **meta_agent** is a Python CLI tool that acts as a *meta-agent* — an AI-powered assistant that generates, manages, and executes AI assistant recipes using the [OpenJarvis](https://github.com/open-jarvis/OpenJarvis) framework.
 
-It exposes seven sub-commands:
+It exposes eight sub-commands:
 
 | Command    | Description                                              |
 |------------|----------------------------------------------------------|
@@ -21,6 +21,7 @@ It exposes seven sub-commands:
 | `ask`      | Ask a single question using a recipe-configured agent    |
 | `jarvis`   | Pass raw arguments directly to the underlying jarvis CLI |
 | `tui`      | Launch an interactive terminal UI (Textual-based)        |
+| `mcp`      | Run meta_agent as an MCP (Model Context Protocol) server |
 
 ## Repository Layout
 
@@ -167,9 +168,15 @@ The following tools are registered into the OpenJarvis `ToolRegistry`:
 | `inspect_recipe`     | Show detailed info about a specific recipe         |
 | `inspect_agent`      | Show detailed info about a specific agent type     |
 | `inspect_tool`       | Show detailed info about a specific tool           |
+| `inspect_engine`     | Show detailed info about a specific engine backend |
+| `inspect_model`      | Show detailed info about a specific model          |
 | `list_tools`         | List all registered tools with descriptions        |
 | `list_agents`        | List all registered agents with descriptions       |
 | `list_recipes`       | List all registered recipes with descriptions      |
+| `list_engines`       | List all registered engines with descriptions      |
+| `list_models`        | List all registered models with descriptions       |
+| `refactor_recipe`    | Evaluate and refactor an existing recipe via LLM   |
+| `ask_recipe`         | Ask a single question to a recipe-configured agent |
 
 When adding a new tool, register it with `@ToolRegistry.register("<name>")` and keep this table in sync.
 
@@ -188,6 +195,14 @@ Example `config.json`:
     }
   }
 }
+```
+
+### MCP Server Subcommand (`mcp`)
+
+`meta_agent` can run as a standalone stdio MCP server exposing all registered tools (including `generate_assistant`, `inspect_recipe`, `list_recipes`, and OpenJarvis built-ins):
+
+```shell
+meta_agent mcp
 ```
 
 ### `ask` / `chat` Dispatch

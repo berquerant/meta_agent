@@ -5,8 +5,21 @@ from openjarvis.core.registry import ToolRegistry
 from openjarvis.core.types import ToolResult
 from openjarvis.tools._stubs import BaseTool, ToolSpec
 
-from .api import list_tools, list_agents, list_recipes, inspect_tool, inspect_agent, inspect_recipe
+from .api import (
+    list_tools,
+    list_agents,
+    list_recipes,
+    inspect_tool,
+    inspect_agent,
+    inspect_recipe,
+    list_engines,
+    list_models,
+    inspect_engine,
+    inspect_model,
+)
 from .gen import generate_assistant, GenRequest
+from .refactor import RefactorRequest, refactor_recipe
+from .llm import get_llm_client
 from .utils import format_obj_list_into_text, format_obj_into_text
 
 
@@ -237,3 +250,269 @@ class ListRecipes(BaseTool):  # type: ignore[misc]
             content=format_obj_list_into_text("name", [dc_asdict(x) for x in list_recipes()]),
             success=True,
         )
+
+
+@ToolRegistry.register("inspect_engine")
+class InspectEngine(BaseTool):  # type: ignore[misc]
+    tool_id = "inspect_engine"
+
+    @property
+    def spec(self) -> ToolSpec:
+        return ToolSpec(
+            name="inspect_engine",
+            description="Show detailed information about a specific LLM engine.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the engine.",
+                    },
+                },
+                "required": ["name"],
+            },
+            category="custom",
+        )
+
+    def execute(self, **params) -> ToolResult:  # type: ignore[no-untyped-def]
+        name = params.get("name", "")
+        engine = inspect_engine(name)
+        if engine is None:
+            return ToolResult(tool_name="inspect_engine", success=False, content="Not found.")
+        return ToolResult(
+            tool_name="inspect_engine",
+            content=format_obj_into_text("name", dc_asdict(engine)),
+            success=True,
+        )
+
+
+@ToolRegistry.register("list_engines")
+class ListEngines(BaseTool):  # type: ignore[misc]
+    tool_id = "list_engines"
+
+    @property
+    def spec(self) -> ToolSpec:
+        return ToolSpec(
+            name="list_engines",
+            description="List all available LLM inference engines.",
+            parameters={
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+            category="custom",
+        )
+
+    def execute(self, **params) -> ToolResult:  # type: ignore[no-untyped-def]
+        return ToolResult(
+            tool_name="list_engines",
+            content=format_obj_list_into_text("name", [dc_asdict(x) for x in list_engines()]),
+            success=True,
+        )
+
+
+@ToolRegistry.register("inspect_model")
+class InspectModel(BaseTool):  # type: ignore[misc]
+    tool_id = "inspect_model"
+
+    @property
+    def spec(self) -> ToolSpec:
+        return ToolSpec(
+            name="inspect_model",
+            description="Show detailed information about a specific model.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the model.",
+                    },
+                    "engine": {
+                        "type": "string",
+                        "description": "The engine backend (default: ollama).",
+                    },
+                },
+                "required": ["name"],
+            },
+            category="custom",
+        )
+
+    def execute(self, **params) -> ToolResult:  # type: ignore[no-untyped-def]
+        name = params.get("name", "")
+        engine = params.get("engine", "ollama")
+        model = inspect_model(name, engine=engine)
+        if model is None:
+            return ToolResult(tool_name="inspect_model", success=False, content="Not found.")
+        return ToolResult(
+            tool_name="inspect_model",
+            content=format_obj_into_text("name", dc_asdict(model)),
+            success=True,
+        )
+
+
+@ToolRegistry.register("list_models")
+class ListModels(BaseTool):  # type: ignore[misc]
+    tool_id = "list_models"
+
+    @property
+    def spec(self) -> ToolSpec:
+        return ToolSpec(
+            name="list_models",
+            description="List available models for a given engine.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "engine": {
+                        "type": "string",
+                        "description": "Engine backend (default: ollama).",
+                    },
+                },
+                "required": [],
+            },
+            category="custom",
+        )
+
+    def execute(self, **params) -> ToolResult:  # type: ignore[no-untyped-def]
+        engine = params.get("engine", "ollama")
+        return ToolResult(
+            tool_name="list_models",
+            content=format_obj_list_into_text("name", [dc_asdict(x) for x in list_models(engine=engine)]),
+            success=True,
+        )
+
+
+@ToolRegistry.register("refactor_recipe")
+class RefactorRecipeTool(BaseTool):  # type: ignore[misc]
+    tool_id = "refactor_recipe"
+
+    def __init__(self, recipes_dir: str | None = None) -> None:
+        super().__init__()
+        self.recipes_dir = recipes_dir or expanduser("~/.openjarvis/recipes")
+
+    @property
+    def spec(self) -> ToolSpec:
+        return ToolSpec(
+            name="refactor_recipe",
+            description="Evaluate and refactor an existing recipe using LLM.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "recipe": {
+                        "type": "string",
+                        "description": "The recipe name or file path to refactor.",
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "Optional instructions or optimization goals.",
+                    },
+                    "target": {
+                        "type": "string",
+                        "description": "Refactoring target component (all, prompt, tools, agent, model).",
+                    },
+                    "engine": {
+                        "type": "string",
+                        "description": "Engine backend to use for refactoring (default: ollama).",
+                    },
+                    "model": {
+                        "type": "string",
+                        "description": "Model to use for refactoring (default: gemma4:12b).",
+                    },
+                },
+                "required": ["recipe"],
+            },
+            category="custom",
+        )
+
+    def execute(self, **params) -> ToolResult:  # type: ignore[no-untyped-def]
+        recipe_name = params.get("recipe", "")
+        if not recipe_name:
+            return ToolResult(tool_name="refactor_recipe", success=False, content="No recipe specified.")
+        query = params.get("query", "")
+        target = params.get("target", "all")
+        engine = params.get("engine", "ollama")
+        model = params.get("model", "gemma4:12b")
+
+        req = RefactorRequest(
+            recipe_name_or_path=recipe_name,
+            query=query,
+            target=target,
+            engine=engine,
+            model=model,
+            recipes_dir=self.recipes_dir,
+        )
+        res = refactor_recipe(req)
+        if not res.success:
+            return ToolResult(tool_name="refactor_recipe", success=False, content=res.error_message)
+
+        report = (
+            f"Refactored: {res.recipe_name} ({res.old_version} -> {res.new_version})\n\n"
+            f"Review comments:\n{res.review_comments}\n\n"
+            f"Diff:\n{res.diff}\n\n"
+            f"Refactored TOML:\n{res.refactored_content}"
+        )
+        return ToolResult(tool_name="refactor_recipe", content=report, success=True)
+
+
+@ToolRegistry.register("ask_recipe")
+class AskRecipeTool(BaseTool):  # type: ignore[misc]
+    tool_id = "ask_recipe"
+
+    @property
+    def spec(self) -> ToolSpec:
+        return ToolSpec(
+            name="ask_recipe",
+            description="Ask a single question to an agent configured with a specific recipe.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "recipe": {
+                        "type": "string",
+                        "description": "The name of the recipe to use.",
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "The question to ask the agent.",
+                    },
+                    "engine": {
+                        "type": "string",
+                        "description": "Override engine backend.",
+                    },
+                    "model": {
+                        "type": "string",
+                        "description": "Override model.",
+                    },
+                },
+                "required": ["recipe", "query"],
+            },
+            category="custom",
+        )
+
+    def execute(self, **params) -> ToolResult:  # type: ignore[no-untyped-def]
+        recipe_name = params.get("recipe", "")
+        query = params.get("query", "")
+        if not recipe_name or not query:
+            return ToolResult(tool_name="ask_recipe", success=False, content="Both recipe and query are required.")
+
+        r = inspect_recipe(recipe_name)
+        if r is None:
+            return ToolResult(tool_name="ask_recipe", success=False, content=f"Recipe '{recipe_name}' not found.")
+
+        engine = params.get("engine") or r.engine_key or "ollama"
+        model = params.get("model") or r.model or "gemma4:12b"
+        agent = r.agent_type or "native_react"
+        tools = r.tools or []
+        system_prompt = r.system_prompt or ""
+
+        client = get_llm_client()
+        try:
+            full_prompt = f"{system_prompt}\n\nUser Query: {query}" if system_prompt else query
+            ans = client.ask(
+                full_prompt,
+                agent=agent,
+                tools=tools,
+                engine=engine,
+                model=model,
+            )
+            return ToolResult(tool_name="ask_recipe", content=ans, success=True)
+        except Exception as exc:
+            return ToolResult(tool_name="ask_recipe", success=False, content=f"Error executing agent: {exc}")

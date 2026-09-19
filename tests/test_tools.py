@@ -7,8 +7,9 @@ from openjarvis.core.registry import ToolRegistry
 from openjarvis.tools._stubs import ToolSpec
 import pytest
 
-from meta_agent.api import Agent, Recipe, Tool
+from meta_agent.api import Agent, Recipe, Tool, Engine, Model
 from meta_agent.gen import GenResponse
+from meta_agent.refactor import RefactorResult
 
 
 @pytest.mark.parametrize(
@@ -21,6 +22,12 @@ from meta_agent.gen import GenResponse
         "list_tools",
         "list_agents",
         "list_recipes",
+        "inspect_engine",
+        "list_engines",
+        "inspect_model",
+        "list_models",
+        "refactor_recipe",
+        "ask_recipe",
     ],
 )
 def test_tool_registry_contains_custom_tools_table(tool_name: str) -> None:
@@ -99,6 +106,24 @@ def test_generate_assistant_tool_execute_table(
             True,
             "tl1",
         ),
+        ("inspect_engine", "meta_agent.tools.inspect_engine", None, "", False, ""),
+        (
+            "inspect_engine",
+            "meta_agent.tools.inspect_engine",
+            Engine(name="ollama", description="Ollama local engine"),
+            "ollama",
+            True,
+            "ollama",
+        ),
+        ("inspect_model", "meta_agent.tools.inspect_model", None, "", False, ""),
+        (
+            "inspect_model",
+            "meta_agent.tools.inspect_model",
+            Model(name="llama3", engine="ollama"),
+            "llama3",
+            True,
+            "llama3",
+        ),
     ],
 )
 def test_inspect_tools_execute_table(
@@ -139,6 +164,18 @@ def test_inspect_tools_execute_table(
             [Recipe(name="r1", description="d1", agent_type="a", tools=[], system_prompt="s")],
             "r1",
         ),
+        (
+            "list_engines",
+            "meta_agent.tools.list_engines",
+            [Engine(name="ollama"), Engine(name="anthropic")],
+            "ollama",
+        ),
+        (
+            "list_models",
+            "meta_agent.tools.list_models",
+            [Model(name="llama3", engine="ollama"), Model(name="mistral", engine="ollama")],
+            "llama3",
+        ),
     ],
 )
 def test_list_tools_execute_table(
@@ -152,4 +189,114 @@ def test_list_tools_execute_table(
     with patch(mock_target, return_value=mock_list):
         res = tool.execute(out="name")
         assert res.success
+        assert expected_snippet in res.content
+
+
+@pytest.mark.parametrize(
+    "recipe, query, target, refactor_res, expected_success, expected_snippet",
+    [
+        ("", "", "all", None, False, "No recipe specified"),
+        (
+            "my_recipe",
+            "",
+            "all",
+            RefactorResult(
+                recipe_name="my_recipe",
+                original_path="/p.toml",
+                original_content="a = 1",
+                refactored_content="a = 2",
+                diff="--- +++",
+                review_comments="ok",
+                old_version="1.0.0",
+                new_version="1.0.1",
+                success=True,
+            ),
+            True,
+            "Refactored: my_recipe (1.0.0 -> 1.0.1)",
+        ),
+        (
+            "my_recipe",
+            "optimize",
+            "tools",
+            RefactorResult(
+                recipe_name="my_recipe",
+                original_path="/p.toml",
+                original_content="",
+                refactored_content="",
+                diff="",
+                review_comments="",
+                old_version="",
+                new_version="",
+                success=False,
+                error_message="Failed to refactor",
+            ),
+            False,
+            "Failed to refactor",
+        ),
+    ],
+)
+def test_refactor_recipe_tool_execute_table(
+    recipe: str,
+    query: str,
+    target: str,
+    refactor_res: Any,
+    expected_success: bool,
+    expected_snippet: str,
+) -> None:
+    """Table-driven test for refactor_recipe execute method."""
+    tool = ToolRegistry.get("refactor_recipe")()
+    with patch("meta_agent.tools.refactor_recipe", return_value=refactor_res):
+        res = tool.execute(recipe=recipe, query=query, target=target)
+        assert res.success is expected_success
+        assert expected_snippet in res.content
+
+
+@pytest.mark.parametrize(
+    "recipe, query, inspect_res, ask_res, ask_exc, expected_success, expected_snippet",
+    [
+        ("", "hi", None, "", None, False, "Both recipe and query are required"),
+        ("rec", "", None, "", None, False, "Both recipe and query are required"),
+        ("rec", "hi", None, "", None, False, "Recipe 'rec' not found"),
+        (
+            "rec",
+            "hi",
+            Recipe(name="rec", description="d", agent_type="a", tools=[], system_prompt="s"),
+            "Answer 42",
+            None,
+            True,
+            "Answer 42",
+        ),
+        (
+            "rec",
+            "hi",
+            Recipe(name="rec", description="d", agent_type="a", tools=[], system_prompt="s"),
+            "",
+            RuntimeError("LLM error"),
+            False,
+            "Error executing agent",
+        ),
+    ],
+)
+def test_ask_recipe_tool_execute_table(
+    recipe: str,
+    query: str,
+    inspect_res: Recipe | None,
+    ask_res: str,
+    ask_exc: Exception | None,
+    expected_success: bool,
+    expected_snippet: str,
+) -> None:
+    """Table-driven test for ask_recipe execute method."""
+    tool = ToolRegistry.get("ask_recipe")()
+    with (
+        patch("meta_agent.tools.inspect_recipe", return_value=inspect_res),
+        patch("meta_agent.tools.get_llm_client") as mock_client,
+    ):
+        if ask_exc:
+            mock_client.return_value.ask.side_effect = ask_exc
+        else:
+            mock_client.return_value.ask.return_value = ask_res
+
+        res = tool.execute(recipe=recipe, query=query)
+        assert res.success is expected_success
         assert expected_snippet in res.content

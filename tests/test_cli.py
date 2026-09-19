@@ -96,6 +96,7 @@ def test_cli_refactor_cmd_dispatch_table(
         (["meta_agent", "get", "recipe"], "meta_agent.cli.get_resources"),
         (["meta_agent", "gen", "Create a bot"], "meta_agent.cli.Cmd.gen_cmd"),
         (["meta_agent", "tui"], "meta_agent.cli.run_tui"),
+        (["meta_agent", "mcp"], "meta_agent.cli.mcp_cmd"),
     ],
 )
 def test_cli_main_subcommand_routing_table(cli_args: list[str], patch_target: str) -> None:
@@ -112,3 +113,15 @@ def test_cli_main_help() -> None:
         with pytest.raises(SystemExit) as exc:
             main()
         assert exc.value.code == 0
+
+
+def test_mcp_cmd_passes_recipes_dir() -> None:
+    """Test mcp_cmd passes recipes_dir to serve_mcp_stdio."""
+    from meta_agent.cli import mcp_cmd
+
+    args = MagicMock()
+    args.recipes = "/custom/recipes"
+
+    with patch("meta_agent.mcp.serve_mcp_stdio") as mock_serve:
+        mcp_cmd(args)
+        mock_serve.assert_called_once_with(recipes_dir="/custom/recipes")
