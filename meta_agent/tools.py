@@ -1,3 +1,5 @@
+from typing import Any
+
 from dataclasses import asdict as dc_asdict
 from os.path import expanduser
 
@@ -21,6 +23,26 @@ from .gen import generate_assistant, GenRequest
 from .refactor import RefactorRequest, refactor_recipe
 from .llm import get_llm_client
 from .utils import format_obj_list_into_text, format_obj_into_text
+
+
+def _execute_inspect(tool_name: str, obj: Any) -> ToolResult:
+    """Format an inspected dataclass object into a ToolResult or return not found."""
+    if obj is None:
+        return ToolResult(tool_name=tool_name, success=False, content="Not found.")
+    return ToolResult(
+        tool_name=tool_name,
+        content=format_obj_into_text("name", dc_asdict(obj)),
+        success=True,
+    )
+
+
+def _execute_list(tool_name: str, items: list[Any]) -> ToolResult:
+    """Format a list of dataclass objects into a ToolResult."""
+    return ToolResult(
+        tool_name=tool_name,
+        content=format_obj_list_into_text("name", [dc_asdict(x) for x in items]),
+        success=True,
+    )
 
 
 @ToolRegistry.register("generate_assistant")
@@ -98,15 +120,7 @@ class InspectRecipe(BaseTool):  # type: ignore[misc]
         )
 
     def execute(self, **params) -> ToolResult:  # type: ignore[no-untyped-def]
-        name = params.get("name", "")
-        recipe = inspect_recipe(name)
-        if recipe is None:
-            return ToolResult(tool_name="inspect_recipe", success=False, content="Not found.")
-        return ToolResult(
-            tool_name="inspect_recipe",
-            content=format_obj_into_text("name", dc_asdict(recipe)),
-            success=True,
-        )
+        return _execute_inspect("inspect_recipe", inspect_recipe(params.get("name", "")))
 
 
 @ToolRegistry.register("inspect_agent")
@@ -132,15 +146,7 @@ class InspectAgent(BaseTool):  # type: ignore[misc]
         )
 
     def execute(self, **params) -> ToolResult:  # type: ignore[no-untyped-def]
-        name = params.get("name", "")
-        agent = inspect_agent(name)
-        if agent is None:
-            return ToolResult(tool_name="inspect_agent", success=False, content="Not found.")
-        return ToolResult(
-            tool_name="inspect_agent",
-            content=format_obj_into_text("name", dc_asdict(agent)),
-            success=True,
-        )
+        return _execute_inspect("inspect_agent", inspect_agent(params.get("name", "")))
 
 
 @ToolRegistry.register("inspect_tool")
@@ -166,15 +172,7 @@ class InspectTool(BaseTool):  # type: ignore[misc]
         )
 
     def execute(self, **params) -> ToolResult:  # type: ignore[no-untyped-def]
-        name = params.get("name", "")
-        tool = inspect_tool(name)
-        if tool is None:
-            return ToolResult(tool_name="inspect_tool", success=False, content="Not found.")
-        return ToolResult(
-            tool_name="inspect_tool",
-            content=format_obj_into_text("name", dc_asdict(tool)),
-            success=True,
-        )
+        return _execute_inspect("inspect_tool", inspect_tool(params.get("name", "")))
 
 
 @ToolRegistry.register("list_tools")
@@ -195,11 +193,7 @@ class ListTools(BaseTool):  # type: ignore[misc]
         )
 
     def execute(self, **params) -> ToolResult:  # type: ignore[no-untyped-def]
-        return ToolResult(
-            tool_name="list_tools",
-            content=format_obj_list_into_text("name", [dc_asdict(x) for x in list_tools()]),
-            success=True,
-        )
+        return _execute_list("list_tools", list_tools())
 
 
 @ToolRegistry.register("list_agents")
@@ -220,11 +214,7 @@ class ListAgents(BaseTool):  # type: ignore[misc]
         )
 
     def execute(self, **params) -> ToolResult:  # type: ignore[no-untyped-def]
-        return ToolResult(
-            tool_name="list_agents",
-            content=format_obj_list_into_text("name", [dc_asdict(x) for x in list_agents()]),
-            success=True,
-        )
+        return _execute_list("list_agents", list_agents())
 
 
 @ToolRegistry.register("list_recipes")
@@ -245,11 +235,7 @@ class ListRecipes(BaseTool):  # type: ignore[misc]
         )
 
     def execute(self, **params) -> ToolResult:  # type: ignore[no-untyped-def]
-        return ToolResult(
-            tool_name="list_recipes",
-            content=format_obj_list_into_text("name", [dc_asdict(x) for x in list_recipes()]),
-            success=True,
-        )
+        return _execute_list("list_recipes", list_recipes())
 
 
 @ToolRegistry.register("inspect_engine")
@@ -275,15 +261,7 @@ class InspectEngine(BaseTool):  # type: ignore[misc]
         )
 
     def execute(self, **params) -> ToolResult:  # type: ignore[no-untyped-def]
-        name = params.get("name", "")
-        engine = inspect_engine(name)
-        if engine is None:
-            return ToolResult(tool_name="inspect_engine", success=False, content="Not found.")
-        return ToolResult(
-            tool_name="inspect_engine",
-            content=format_obj_into_text("name", dc_asdict(engine)),
-            success=True,
-        )
+        return _execute_inspect("inspect_engine", inspect_engine(params.get("name", "")))
 
 
 @ToolRegistry.register("list_engines")
@@ -304,11 +282,7 @@ class ListEngines(BaseTool):  # type: ignore[misc]
         )
 
     def execute(self, **params) -> ToolResult:  # type: ignore[no-untyped-def]
-        return ToolResult(
-            tool_name="list_engines",
-            content=format_obj_list_into_text("name", [dc_asdict(x) for x in list_engines()]),
-            success=True,
-        )
+        return _execute_list("list_engines", list_engines())
 
 
 @ToolRegistry.register("inspect_model")
@@ -338,15 +312,9 @@ class InspectModel(BaseTool):  # type: ignore[misc]
         )
 
     def execute(self, **params) -> ToolResult:  # type: ignore[no-untyped-def]
-        name = params.get("name", "")
-        engine = params.get("engine", "ollama")
-        model = inspect_model(name, engine=engine)
-        if model is None:
-            return ToolResult(tool_name="inspect_model", success=False, content="Not found.")
-        return ToolResult(
-            tool_name="inspect_model",
-            content=format_obj_into_text("name", dc_asdict(model)),
-            success=True,
+        return _execute_inspect(
+            "inspect_model",
+            inspect_model(params.get("name", ""), engine=params.get("engine", "ollama")),
         )
 
 
@@ -373,12 +341,7 @@ class ListModels(BaseTool):  # type: ignore[misc]
         )
 
     def execute(self, **params) -> ToolResult:  # type: ignore[no-untyped-def]
-        engine = params.get("engine", "ollama")
-        return ToolResult(
-            tool_name="list_models",
-            content=format_obj_list_into_text("name", [dc_asdict(x) for x in list_models(engine=engine)]),
-            success=True,
-        )
+        return _execute_list("list_models", list_models(engine=params.get("engine", "ollama")))
 
 
 @ToolRegistry.register("refactor_recipe")
