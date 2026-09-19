@@ -32,8 +32,10 @@ meta_agent/
 │   ├── asking.py      # Chat/ask request building and execvp dispatch
 │   ├── cli.py         # argparse entry point
 │   ├── cmd.py         # High-level Cmd class wiring CLI args to api/gen/refactor
+│   ├── config.py      # XDG_CONFIG_HOME config resolution and loading
 │   ├── gen.py         # Recipe generation logic and meta-agent prompt
 │   ├── llm.py         # LLM client abstraction interface & OpenJarvis wrapper
+│   ├── mcp.py         # MCP server integration and dynamic tool registration
 │   ├── refactor.py    # Recipe evaluation and refactoring logic
 │   ├── tools.py       # Custom OpenJarvis tool registrations
 │   ├── tui/           # Textual-based interactive TUI (package)
@@ -170,6 +172,23 @@ The following tools are registered into the OpenJarvis `ToolRegistry`:
 | `list_recipes`       | List all registered recipes with descriptions      |
 
 When adding a new tool, register it with `@ToolRegistry.register("<name>")` and keep this table in sync.
+
+### MCP Servers Configuration (`config.json`)
+
+`meta_agent` discovers MCP (Model Context Protocol) servers configured in `$XDG_CONFIG_HOME/meta_agent/config.json` (defaults to `~/.config/meta_agent/config.json`).
+On initialization, configured stdio servers are launched, discovered tools are registered into `ToolRegistry`, and can be used in recipes, chats, or meta-agent generation.
+
+Example `config.json`:
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"]
+    }
+  }
+}
+```
 
 ### `ask` / `chat` Dispatch
 
