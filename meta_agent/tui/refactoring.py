@@ -18,6 +18,41 @@ if TYPE_CHECKING:
     from .app import MetaAgentTUI
 
 
+def _format_all_results_markdown(results: list[RefactorResult]) -> str:
+    """Format refactor results list into markdown string."""
+    if not results:
+        return "# No Refactoring Results"
+
+    parts = []
+    for res in results:
+        parts.append(f"# Refactor Report: `{res.recipe_name}`")
+        parts.append(f"- **Original File**: `{res.original_path}`")
+        parts.append(f"- **Version**: `{res.old_version}` ➔ `{res.new_version}`")
+
+        if res.review_comments:
+            parts.append("\n### 📝 Review & Evaluation:")
+            parts.append(res.review_comments)
+
+        if res.validation_before.has_issues:
+            parts.append("\n### ⚠️ Issues Before Refactoring:")
+            for w in res.validation_before.warnings:
+                parts.append(f"- {w}")
+
+        if res.validation_after.has_issues:
+            parts.append("\n### ⚠️ Issues After Refactoring:")
+            for w in res.validation_after.warnings:
+                parts.append(f"- {w}")
+
+        if res.diff:
+            parts.append("\n### 🔍 Diff Preview:")
+            parts.append("```diff\n" + res.diff + "\n```")
+        elif res.refactored_content:
+            parts.append("\n### 📄 Refactored TOML:")
+            parts.append("```toml\n" + res.refactored_content + "\n```")
+        parts.append("\n---\n")
+    return "\n".join(parts)
+
+
 class RecipeRefactorer:
     """Coordinates background recipe refactoring and UI updates."""
 
@@ -159,39 +194,6 @@ class RecipeRefactorer:
         self._last_results = []
         total = len(recipes)
 
-        def _format_all_results_markdown(results: list[RefactorResult]) -> str:
-            if not results:
-                return "# No Refactoring Results"
-
-            parts = []
-            for res in results:
-                parts.append(f"# Refactor Report: `{res.recipe_name}`")
-                parts.append(f"- **Original File**: `{res.original_path}`")
-                parts.append(f"- **Version**: `{res.old_version}` ➔ `{res.new_version}`")
-
-                if res.review_comments:
-                    parts.append("\n### 📝 Review & Evaluation:")
-                    parts.append(res.review_comments)
-
-                if res.validation_before.has_issues:
-                    parts.append("\n### ⚠️ Issues Before Refactoring:")
-                    for w in res.validation_before.warnings:
-                        parts.append(f"- {w}")
-
-                if res.validation_after.has_issues:
-                    parts.append("\n### ⚠️ Issues After Refactoring:")
-                    for w in res.validation_after.warnings:
-                        parts.append(f"- {w}")
-
-                if res.diff:
-                    parts.append("\n### 🔍 Diff Preview:")
-                    parts.append("```diff\n" + res.diff + "\n```")
-                elif res.refactored_content:
-                    parts.append("\n### 📄 Refactored TOML:")
-                    parts.append("```toml\n" + res.refactored_content + "\n```")
-                parts.append("\n---\n")
-            return "\n".join(parts)
-
         for i, recipe_name in enumerate(recipes, start=1):
             req = RefactorRequest(
                 recipe_name_or_path=recipe_name,
@@ -211,7 +213,6 @@ class RecipeRefactorer:
             try:
                 res = refactor_recipe(req)
             except Exception as e:
-                err_msg = str(e)
                 res = RefactorResult(
                     recipe_name=recipe_name,
                     original_path="",
@@ -222,7 +223,7 @@ class RecipeRefactorer:
                     old_version="0.1.0",
                     new_version="0.1.0",
                     success=False,
-                    error_message=err_msg,
+                    error_message=str(e),
                 )
 
             self._last_results.append(res)
@@ -239,7 +240,6 @@ class RecipeRefactorer:
                     f"Failed '{recipe_name}': {res.error_message}"
                 )
 
-            # Progressive UI update
             current_results = list(self._last_results)
 
             def _update_progress(step: int = i, res_list: list[RefactorResult] = current_results) -> None:

@@ -417,33 +417,14 @@ async def test_tui_textarea_focus_ignores_recipe_shortcuts() -> None:
 
 
 @pytest.mark.anyio
-async def test_tui_refactor_tab_workflow() -> None:
-    """Test RefactorTab selection, select all, clear all, and refactor submission."""
-    from unittest.mock import patch
+async def test_tui_refactor_tab_selection() -> None:
+    """Test RefactorTab recipe selection, select all, clear all, and search filtering."""
     from textual.widgets import Label, SelectionList, TabbedContent, TextArea
 
     rec1 = Recipe(name="bot1", description="bot 1", system_prompt="p1")
     rec2 = Recipe(name="bot2", description="bot 2", system_prompt="p2")
 
-    mock_llm_output = """
-- Refactored prompt
-
----TOML---
-[recipe]
-name = "bot1"
-version = "0.2.0"
-[agent]
-type = "native_react"
-tools = []
-system_prompt = "Refactored"
-"""
-
     with tempfile.TemporaryDirectory() as tmpdir:
-        recipe_file1 = Path(tmpdir) / "bot1.toml"
-        recipe_file1.write_text('[recipe]\nname = "bot1"\nversion = "0.1.0"\n', encoding="utf-8")
-        recipe_file2 = Path(tmpdir) / "bot2.toml"
-        recipe_file2.write_text('[recipe]\nname = "bot2"\nversion = "0.1.0"\n', encoding="utf-8")
-
         app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir, auto_load=False)
         async with app.run_test() as pilot:
             app._recipes = [rec1, rec2]
@@ -497,36 +478,66 @@ system_prompt = "Refactored"
             assert len(sl._options) == 2
             assert len(sl.selected) == 2
 
-            # Enter instructions in input
+
+@pytest.mark.anyio
+async def test_tui_refactor_tab_submit_and_save() -> None:
+    """Test RefactorTab submission, modal confirmation, and save/discard actions."""
+    from unittest.mock import patch
+    from textual.widgets import SelectionList, TabbedContent, TextArea
+    from meta_agent.tui.screens import ConfirmRefactorScreen
+
+    rec1 = Recipe(name="bot1", description="bot 1", system_prompt="p1")
+    mock_llm_output = """
+- Refactored prompt
+
+---TOML---
+[recipe]
+name = "bot1"
+version = "0.2.0"
+[agent]
+type = "native_react"
+tools = []
+system_prompt = "Refactored"
+"""
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        recipe_file1 = Path(tmpdir) / "bot1.toml"
+        recipe_file1.write_text('[recipe]\nname = "bot1"\nversion = "0.1.0"\n', encoding="utf-8")
+
+        app = MetaAgentTUI(engine="ollama", model="llama3", recipes_dir=tmpdir, export_dir=tmpdir, auto_load=False)
+        async with app.run_test() as pilot:
+            app._recipes = [rec1]
+            app._update_refactor_selection_list(app._recipes)
+
+            tabs = app.query_one(TabbedContent)
+            tabs.active = "tab-refactor"
+            await pilot.pause()
+
+            sl = app.query_one("#refactor-recipe-list", SelectionList)
+            sl.select("bot1")
+            app.on_refactor_selection_changed(SelectionList.SelectedChanged(sl))
+
             inp = app.query_one("#refactor-input", TextArea)
             inp.load_text("Improve prompt clarity")
 
             with patch("meta_agent.api.Script.run", return_value=mock_llm_output):
-                # Press refactor submit -> triggers ConfirmRefactorScreen modal
                 app.query_one("#refactor-submit-btn", Button).press()
                 await pilot.pause()
-
-                # Modal should be open
-                from meta_agent.tui.screens import ConfirmRefactorScreen
 
                 assert isinstance(app.screen, ConfirmRefactorScreen)
                 app.screen.action_confirm_refactor()
                 await pilot.pause()
 
-                # Action buttons should now be visible
                 assert app.query_one("#refactor-save-inplace-btn", Button).display
                 assert app.query_one("#refactor-save-new-btn", Button).display
                 assert app.query_one("#refactor-discard-btn", Button).display
 
-                # Click Save In-Place
                 app.query_one("#refactor-save-inplace-btn", Button).press()
                 await pilot.pause()
 
-                # Verify file was updated
                 content = recipe_file1.read_text(encoding="utf-8")
                 assert 'version = "0.2.0"' in content
 
-                # Test discard action
                 app.query_one("#refactor-discard-btn", Button).press()
                 await pilot.pause()
                 assert not app.query_one("#refactor-discard-btn", Button).display

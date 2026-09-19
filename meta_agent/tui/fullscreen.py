@@ -227,56 +227,33 @@ class FullscreenManager:
 
     def handle_button_press(self, button_id: str) -> bool:
         """Handle any maximize button pressed. Returns True if handled."""
-        if button_id in (
-            "recipes-detail-max-btn",
-            "agents-detail-max-btn",
-            "tools-detail-max-btn",
-        ):
+        if button_id.endswith("-detail-max-btn"):
             tid = button_id.removesuffix("-detail-max-btn")
-            if self._maximized_pane == f"{tid}-detail":
-                self.restore_fullscreen()
-            else:
-                self.maximize_resource_detail(tid)
-            return True
+            if tid in ("recipes", "agents", "tools"):
+                (
+                    self.restore_fullscreen()
+                    if self._maximized_pane == f"{tid}-detail"
+                    else self.maximize_resource_detail(tid)
+                )
+                return True
 
-        if button_id in (
-            "recipes-log-max-btn",
-            "agents-log-max-btn",
-            "tools-log-max-btn",
-        ):
+        if button_id.endswith("-log-max-btn"):
             tid = button_id.removesuffix("-log-max-btn")
-            if self._maximized_pane == f"{tid}-log":
-                self.restore_fullscreen()
-            else:
-                self.maximize_resource_log(tid)
+            if tid in ("recipes", "agents", "tools"):
+                self.restore_fullscreen() if self._maximized_pane == f"{tid}-log" else self.maximize_resource_log(tid)
+                return True
+
+        dispatch = {
+            "gen-preview-max-btn": ("gen-preview", self.maximize_gen_preview),
+            "gen-log-max-btn": ("gen-log", self.maximize_gen_log),
+            "refactor-sidebar-max-btn": ("refactor-sidebar", self.maximize_refactor_sidebar),
+            "refactor-preview-max-btn": ("refactor-preview", self.maximize_refactor_preview),
+            "refactor-log-max-btn": ("refactor-log", self.maximize_refactor_log),
+            "app-log-max-btn": ("app-log", self.maximize_app_log),
+        }
+        if button_id in dispatch:
+            pane_name, max_func = dispatch[button_id]
+            self.restore_fullscreen() if self._maximized_pane == pane_name else max_func()
             return True
 
-        match button_id:
-            case "gen-preview-max-btn":
-                self.restore_fullscreen() if self._maximized_pane == "gen-preview" else self.maximize_gen_preview()
-                return True
-            case "gen-log-max-btn":
-                self.restore_fullscreen() if self._maximized_pane == "gen-log" else self.maximize_gen_log()
-                return True
-            case "refactor-sidebar-max-btn":
-                (
-                    self.restore_fullscreen()
-                    if self._maximized_pane == "refactor-sidebar"
-                    else self.maximize_refactor_sidebar()
-                )
-                return True
-            case "refactor-preview-max-btn":
-                (
-                    self.restore_fullscreen()
-                    if self._maximized_pane == "refactor-preview"
-                    else self.maximize_refactor_preview()
-                )
-                return True
-            case "refactor-log-max-btn":
-                self.restore_fullscreen() if self._maximized_pane == "refactor-log" else self.maximize_refactor_log()
-                return True
-            case "app-log-max-btn":
-                self.restore_fullscreen() if self._maximized_pane == "app-log" else self.maximize_app_log()
-                return True
-            case _:
-                return False
+        return False
