@@ -20,10 +20,19 @@ class MCPServerConfig:
 
 
 @dataclass
+class DefaultsConfig:
+    """Default runtime options for LLM invocation."""
+
+    max_tokens: int | None = None
+    temperature: float | None = None
+
+
+@dataclass
 class MetaAgentConfig:
     """Top-level configuration for meta_agent."""
 
     mcp_servers: dict[str, MCPServerConfig] = field(default_factory=dict)
+    defaults: DefaultsConfig = field(default_factory=DefaultsConfig)
 
 
 def get_config_dir() -> Path:
@@ -41,6 +50,34 @@ def get_config_path() -> Path:
     return get_config_dir() / "config.json"
 
 
+def _parse_mcp_servers(data: dict[str, Any]) -> dict[str, MCPServerConfig]:
+    servers: dict[str, MCPServerConfig] = {}
+    raw_servers = data.get("mcpServers", {})
+    if not isinstance(raw_servers, dict):
+        return servers
+
+    for name, cfg in raw_servers.items():
+        if isinstance(cfg, dict) and "command" in cfg:
+            command = str(cfg["command"])
+            args = [str(a) for a in cfg.get("args", [])] if isinstance(cfg.get("args"), list) else []
+            env = {str(k): str(v) for k, v in cfg.get("env", {}).items()} if isinstance(cfg.get("env"), dict) else {}
+            servers[name] = MCPServerConfig(command=command, args=args, env=env)
+    return servers
+
+
+def _parse_defaults(data: dict[str, Any]) -> DefaultsConfig:
+    defaults_data = data.get("defaults", {})
+    defaults = DefaultsConfig()
+    if not isinstance(defaults_data, dict):
+        return defaults
+
+    if "max_tokens" in defaults_data and isinstance(defaults_data["max_tokens"], int):
+        defaults.max_tokens = defaults_data["max_tokens"]
+    if "temperature" in defaults_data and isinstance(defaults_data["temperature"], (int, float)):
+        defaults.temperature = float(defaults_data["temperature"])
+    return defaults
+
+
 def load_config(config_path: Path | str | None = None) -> MetaAgentConfig:
     """Load configuration from the specified path or the default location."""
     path = Path(config_path) if config_path else get_config_path()
@@ -54,16 +91,6 @@ def load_config(config_path: Path | str | None = None) -> MetaAgentConfig:
         logging.warning("Failed to load config from %s: %s", path, exc)
         return MetaAgentConfig()
 
-    servers: dict[str, MCPServerConfig] = {}
-    raw_servers = data.get("mcpServers", {})
-    if isinstance(raw_servers, dict):
-        for name, cfg in raw_servers.items():
-            if isinstance(cfg, dict) and "command" in cfg:
-                command = str(cfg["command"])
-                args = [str(a) for a in cfg.get("args", [])] if isinstance(cfg.get("args"), list) else []
-                env = (
-                    {str(k): str(v) for k, v in cfg.get("env", {}).items()} if isinstance(cfg.get("env"), dict) else {}
-                )
-                servers[name] = MCPServerConfig(command=command, args=args, env=env)
-
-    return MetaAgentConfig(mcp_servers=servers)
+    servers = _parse_mcp_servers(data)
+    defaults = _parse_defaults(data)
+    return MetaAgentConfig(mcp_servers=servers, defaults=defaults)

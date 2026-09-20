@@ -36,6 +36,7 @@ meta_agent/
 │   ├── config.py      # XDG_CONFIG_HOME config resolution and loading
 │   ├── gen.py         # Recipe generation logic and meta-agent prompt
 │   ├── llm.py         # LLM client abstraction interface & OpenJarvis wrapper
+│   ├── logging.py     # Request ID context management and unified logging setup
 │   ├── mcp.py         # MCP server integration and dynamic tool registration
 │   ├── refactor.py    # Recipe evaluation and refactoring logic
 │   ├── tools.py       # Custom OpenJarvis tool registrations
@@ -193,6 +194,10 @@ Example `config.json`:
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"]
     }
+  },
+  "defaults": {
+    "max_tokens": 8192,
+    "temperature": 0.7
   }
 }
 ```

@@ -85,6 +85,8 @@ def ask_cmd(args):  # type: ignore[no-untyped-def]
         tools=args.tools,
         system=args.system,
         jarvis=args.jarvis,
+        max_tokens=args.max_tokens,
+        temperature=args.temperature,
     )
     Cmd.ask_cmd(r, args.query)
 
@@ -99,6 +101,8 @@ def chat_cmd(args):  # type: ignore[no-untyped-def]
         tools=args.tools,
         system=args.system,
         jarvis=args.jarvis,
+        max_tokens=args.max_tokens,
+        temperature=args.temperature,
     )
     Cmd.chat_cmd(r)
 
@@ -138,6 +142,8 @@ def mcp_cmd(args: argparse.Namespace) -> None:
 def _add_chat_base_opts(x: argparse.ArgumentParser) -> None:
     x.add_argument("--engine", "-e", default="ollama", help="engine backend")
     x.add_argument("--model", "-m", default="gemma4:12b", help="model to use")
+    x.add_argument("--max-tokens", type=int, default=None, help="max tokens to generate")
+    x.add_argument("--temperature", type=float, default=None, help="sampling temperature")
 
 
 def _add_chat_opts(x: argparse.ArgumentParser) -> None:
@@ -228,6 +234,10 @@ def _setup_parsers(sp: Any) -> None:
 
 def main() -> int:
     """Entry point of CLI."""
+    from .logging import setup_logging
+
+    setup_logging()
+
     p = argparse.ArgumentParser(prog="meta_agent")
     sp = p.add_subparsers(required=True)
     _setup_parsers(sp)
@@ -239,7 +249,7 @@ def main() -> int:
 
 if __name__ == "__main__":
     import sys
-    import logging
+    from .logging import setup_logging
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(filename)s:%(lineno)d - %(message)s")
+    setup_logging()
     sys.exit(main())

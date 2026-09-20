@@ -297,6 +297,11 @@ def test_ask_recipe_tool_execute_table(
         else:
             mock_client.return_value.ask.return_value = ask_res
 
-        res = tool.execute(recipe=recipe, query=query)
+        res = tool.execute(recipe=recipe, query=query, max_tokens=1024, temperature=0.2)
         assert res.success is expected_success
         assert expected_snippet in res.content
+        if expected_success:
+            mock_client.return_value.ask.assert_called_once()
+            _, kwargs = mock_client.return_value.ask.call_args
+            assert kwargs["max_tokens"] == 1024
+            assert kwargs["temperature"] == 0.2

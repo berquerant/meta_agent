@@ -444,6 +444,14 @@ class AskRecipeTool(BaseTool):  # type: ignore[misc]
                         "type": "string",
                         "description": "Override model.",
                     },
+                    "max_tokens": {
+                        "type": "integer",
+                        "description": "Max tokens to generate.",
+                    },
+                    "temperature": {
+                        "type": "number",
+                        "description": "Sampling temperature.",
+                    },
                 },
                 "required": ["recipe", "query"],
             },
@@ -465,6 +473,8 @@ class AskRecipeTool(BaseTool):  # type: ignore[misc]
         agent = r.agent_type or "native_react"
         tools = r.tools or []
         system_prompt = r.system_prompt or ""
+        max_tokens = params.get("max_tokens")
+        temperature = params.get("temperature")
 
         client = get_llm_client()
         try:
@@ -475,6 +485,8 @@ class AskRecipeTool(BaseTool):  # type: ignore[misc]
                 tools=tools,
                 engine=engine,
                 model=model,
+                max_tokens=max_tokens,
+                temperature=temperature,
             )
             return ToolResult(tool_name="ask_recipe", content=ans, success=True)
         except Exception as exc:

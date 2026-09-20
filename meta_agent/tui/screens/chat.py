@@ -32,9 +32,13 @@ class RichLogHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         """Format and write log record to RichLog and buffer with colored level tags and timestamp."""
         try:
+            from ...logging import get_current_request_id
+
             msg = self.format(record)
             ts = now_datetime_str()
-            self._buffer.append(f"[{ts}] {record.levelname}: {record.name} - {record.getMessage()}")
+            req_id = getattr(record, "request_id", None) or get_current_request_id()
+            req_suffix = f" [{req_id}]" if req_id and req_id != "-" else ""
+            self._buffer.append(f"[{ts}] {record.levelname}{req_suffix}: {record.name} - {record.getMessage()}")
             color = "white"
             if record.levelno >= logging.ERROR:
                 color = "bold red"
@@ -48,9 +52,10 @@ class RichLogHandler(logging.Handler):
             # deadlocks on Python 3.14's RLock / ParkingLot mutex. Catch and ignore exceptions here
             # to guarantee non-blocking logging without freezing the event loop.
             try:
+                display_msg = f"[{req_id}] {msg}" if req_id and req_id != "-" else msg
                 self._rich_log.app.call_from_thread(
                     self._rich_log.write,
-                    f"[dim]{ts}[/dim] [{color}]{msg}[/{color}]",
+                    f"[dim]{ts}[/dim] [{color}]{display_msg}[/{color}]",
                 )
             except Exception:
                 pass
@@ -468,6 +473,8 @@ class ChatScreen(Screen[None]):
             tools=[],
             engine=self._opts.engine,
             model=self._opts.model,
+            max_tokens=self._opts.max_tokens,
+            temperature=self._opts.temperature,
         ):
             parts.append(token)
             curr_text = "".join(parts)
@@ -487,6 +494,8 @@ class ChatScreen(Screen[None]):
             tools=tools_list,
             engine=self._opts.engine,
             model=self._opts.model,
+            max_tokens=self._opts.max_tokens,
+            temperature=self._opts.temperature,
         )
         ts_done = now_datetime_str()
         self.app.call_from_thread(
@@ -512,14 +521,16 @@ class ChatScreen(Screen[None]):
 
         full_query = build_chat_prompt(self._opts.system, self._history, query)
         from meta_agent.llm import get_llm_client
+        from meta_agent.logging import request_context
 
         client = get_llm_client()
         content = ""
         try:
-            if not agent_mode:
-                content = self._stream_direct_response(client, full_query, log)
-            else:
-                content = self._execute_agent_mode(client, full_query, tools_list, log)
+            with request_context():
+                if not agent_mode:
+                    content = self._stream_direct_response(client, full_query, log)
+                else:
+                    content = self._execute_agent_mode(client, full_query, tools_list, log)
         except Exception as e:
             content = f"⚠️ Error: {e}"
             ts_err = now_datetime_str()
