@@ -35,6 +35,8 @@ class MockLLMClient(LLMClient):
         tools: list[str] | None = None,
         engine: str = "ollama",
         model: str = "llama3",
+        max_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> str:
         self.ask_calls.append(
             {
@@ -43,6 +45,8 @@ class MockLLMClient(LLMClient):
                 "tools": tools,
                 "engine": engine,
                 "model": model,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
             }
         )
         for key, resp in self.custom_responses.items():
@@ -58,6 +62,8 @@ class MockLLMClient(LLMClient):
         tools: list[str] | None = None,
         engine: str = "ollama",
         model: str = "llama3",
+        max_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> Iterator[str]:
         self.ask_calls.append(
             {
@@ -66,6 +72,8 @@ class MockLLMClient(LLMClient):
                 "tools": tools,
                 "engine": engine,
                 "model": model,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
                 "stream": True,
             }
         )
@@ -223,7 +231,7 @@ async def test_e2e_tui_ask_llm_action_workflow() -> None:
     mock_client = MockLLMClient(
         default_response=intent_json,
         custom_responses={
-            "あなたの役割": recipe_toml,
+            "Your Role": recipe_toml,
             "managing AI recipes": intent_json,
             "User request": intent_json,
         },

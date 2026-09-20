@@ -266,74 +266,77 @@ def _load_recipe_for_refactor(
 
 def refactor_recipe(req: RefactorRequest) -> RefactorResult:
     """Evaluate and refactor a recipe using LLM."""
-    logging.debug("refactor_recipe start: %s", req.recipe_name_or_path)
+    from .logging import request_context
 
-    loaded = _load_recipe_for_refactor(req)
-    if isinstance(loaded, RefactorResult):
-        return loaded
+    with request_context():
+        logging.debug("refactor_recipe start: %s", req.recipe_name_or_path)
 
-    orig_path_obj, orig_content, orig_dict, recipe_name, old_semver = loaded
-    val_before = validate_recipe_components(orig_dict, default_engine=req.engine)
+        loaded = _load_recipe_for_refactor(req)
+        if isinstance(loaded, RefactorResult):
+            return loaded
 
-    prompt = build_refactor_prompt(
-        recipe_content=orig_content,
-        query=req.query,
-        target=req.target,
-        validation_report=val_before,
-    )
+        orig_path_obj, orig_content, orig_dict, recipe_name, old_semver = loaded
+        val_before = validate_recipe_components(orig_dict, default_engine=req.engine)
 
-    review_comments, new_toml, llm_err = _run_refactor_llm(prompt, req.engine, req.model)
-    if llm_err:
-        return RefactorResult(
-            recipe_name=recipe_name,
-            original_path=str(orig_path_obj),
-            original_content=orig_content,
-            refactored_content="",
-            diff="",
-            review_comments="",
-            old_version=str(old_semver),
-            new_version=str(old_semver),
-            success=False,
-            error_message=llm_err,
-            validation_before=val_before,
+        prompt = build_refactor_prompt(
+            recipe_content=orig_content,
+            query=req.query,
+            target=req.target,
+            validation_report=val_before,
         )
 
-    try:
-        new_dict = tomllib.loads(new_toml)
-    except Exception as e:
+        review_comments, new_toml, llm_err = _run_refactor_llm(prompt, req.engine, req.model)
+        if llm_err:
+            return RefactorResult(
+                recipe_name=recipe_name,
+                original_path=str(orig_path_obj),
+                original_content=orig_content,
+                refactored_content="",
+                diff="",
+                review_comments="",
+                old_version=str(old_semver),
+                new_version=str(old_semver),
+                success=False,
+                error_message=llm_err,
+                validation_before=val_before,
+            )
+
+        try:
+            new_dict = tomllib.loads(new_toml)
+        except Exception as e:
+            return RefactorResult(
+                recipe_name=recipe_name,
+                original_path=str(orig_path_obj),
+                original_content=orig_content,
+                refactored_content=new_toml,
+                diff="",
+                review_comments=review_comments,
+                old_version=str(old_semver),
+                new_version=str(old_semver),
+                success=False,
+                error_message=f"Refactored TOML is invalid: {e}",
+                validation_before=val_before,
+            )
+
+        new_toml, new_semver = _apply_bumped_version(new_toml, new_dict, old_semver)
+        new_dict["recipe"] = new_dict.get("recipe", {})
+        new_dict["recipe"]["version"] = str(new_semver)
+        val_after = validate_recipe_components(new_dict, default_engine=req.engine)
+        diff = generate_diff(orig_content, new_toml, fromfile=str(orig_path_obj.name), tofile="refactored")
+
         return RefactorResult(
             recipe_name=recipe_name,
             original_path=str(orig_path_obj),
             original_content=orig_content,
             refactored_content=new_toml,
-            diff="",
+            diff=diff,
             review_comments=review_comments,
             old_version=str(old_semver),
-            new_version=str(old_semver),
-            success=False,
-            error_message=f"Refactored TOML is invalid: {e}",
+            new_version=str(new_semver),
+            success=True,
             validation_before=val_before,
+            validation_after=val_after,
         )
-
-    new_toml, new_semver = _apply_bumped_version(new_toml, new_dict, old_semver)
-    new_dict["recipe"] = new_dict.get("recipe", {})
-    new_dict["recipe"]["version"] = str(new_semver)
-    val_after = validate_recipe_components(new_dict, default_engine=req.engine)
-    diff = generate_diff(orig_content, new_toml, fromfile=str(orig_path_obj.name), tofile="refactored")
-
-    return RefactorResult(
-        recipe_name=recipe_name,
-        original_path=str(orig_path_obj),
-        original_content=orig_content,
-        refactored_content=new_toml,
-        diff=diff,
-        review_comments=review_comments,
-        old_version=str(old_semver),
-        new_version=str(new_semver),
-        success=True,
-        validation_before=val_before,
-        validation_after=val_after,
-    )
 
 
 def save_refactored_recipe(

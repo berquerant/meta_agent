@@ -234,6 +234,10 @@ def _setup_parsers(sp: Any) -> None:
 
 def main() -> int:
     """Entry point of CLI."""
+    from .logging import setup_logging
+
+    setup_logging()
+
     p = argparse.ArgumentParser(prog="meta_agent")
     sp = p.add_subparsers(required=True)
     _setup_parsers(sp)
@@ -245,7 +249,7 @@ def main() -> int:
 
 if __name__ == "__main__":
     import sys
-    import logging
+    from .logging import setup_logging
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(filename)s:%(lineno)d - %(message)s")
+    setup_logging()
     sys.exit(main())

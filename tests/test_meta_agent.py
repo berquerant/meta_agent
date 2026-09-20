@@ -72,3 +72,62 @@ def test_cmd_list_and_inspect_models_output(capsys: pytest.CaptureFixture[str]) 
         Cmd.inspect_model_cmd(InspectOpts(out="name", name="llama3", engine="ollama"))
         captured = capsys.readouterr()
         assert "llama3" in captured.out
+
+
+def test_asking_opts_ask(capsys: pytest.CaptureFixture[str]) -> None:
+    """Test AskingOpts.ask streams response to stdout."""
+    from meta_agent.asking import AskingOpts
+
+    opts = AskingOpts(
+        engine="ollama",
+        model="llama3",
+        agent="orchestrator",
+        system="You are helpful.",
+        tools="file_read",
+        max_tokens=1000,
+        temperature=0.2,
+    )
+
+    mock_client = MagicMock()
+    mock_client.ask_stream.return_value = iter(["Hello ", "world!"])
+
+    with patch("meta_agent.llm.get_llm_client", return_value=mock_client):
+        opts.ask("Hi")
+        captured = capsys.readouterr()
+        assert "Hello world!" in captured.out
+        mock_client.ask_stream.assert_called_once()
+        args, kwargs = mock_client.ask_stream.call_args
+        assert "You are helpful." in args[0]
+        assert "# Query\nHi" in args[0]
+        assert kwargs["engine"] == "ollama"
+        assert kwargs["model"] == "llama3"
+        assert kwargs["agent"] == "orchestrator"
+        assert kwargs["tools"] == ["file_read"]
+        assert kwargs["max_tokens"] == 1000
+        assert kwargs["temperature"] == 0.2
+
+
+def test_asking_opts_chat(capsys: pytest.CaptureFixture[str]) -> None:
+    """Test AskingOpts.chat executes REPL loop."""
+    from meta_agent.asking import AskingOpts
+
+    opts = AskingOpts(
+        engine="ollama",
+        model="llama3",
+        agent="orchestrator",
+        system="You are helpful.",
+        tools="",
+    )
+
+    mock_client = MagicMock()
+    mock_client.ask_stream.return_value = iter(["I am an assistant."])
+
+    # Simulate user sending "Hello" then "exit"
+    inputs = ["Hello", "exit"]
+    with patch("builtins.input", side_effect=inputs), patch("meta_agent.llm.get_llm_client", return_value=mock_client):
+        opts.chat()
+        captured = capsys.readouterr()
+        assert "Starting chat session" in captured.out
+        assert "I am an assistant." in captured.out
+        assert "Exiting chat session." in captured.out
+        mock_client.ask_stream.assert_called_once()

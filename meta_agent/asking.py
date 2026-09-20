@@ -97,7 +97,7 @@ class AskingOpts:
             cmd += ["--temperature", str(self.temperature)]
         if len(self.tools) > 0:
             cmd += ["--tools", self.tools]
-        cmd += [self.system + "\n# クエリ\n" + query]
+        cmd += [self.system + "\n# Query\n" + query]
         return cmd
 
     def as_cli_chat_opts(self) -> list[str]:
@@ -119,14 +119,73 @@ class AskingOpts:
             cmd += ["--tools", self.tools]
         return cmd
 
-    def __execvp(self, cmd: list[str]) -> None:
-        logging.info("exec: %s", json_dumps(cmd))
-        sys.stdout.flush()
-        sys.stderr.flush()
-        os.execvp(cmd[0], cmd)
-
     def ask(self, query: str) -> None:
-        self.__execvp(self.__jarvis + ["ask"] + self.as_cli_ask_opts(query))
+        """Execute a single query using LLMClient and print the response."""
+        from .llm import get_llm_client
+
+        tools_list = [t.strip() for t in self.tools.split(",") if t.strip()]
+        full_query = (self.system + "\n# Query\n" + query) if self.system else query
+        client = get_llm_client()
+
+        # Stream chunks or get full response
+        for chunk in client.ask_stream(
+            full_query,
+            agent=self.agent or "orchestrator",
+            tools=tools_list,
+            engine=self.engine,
+            model=self.model,
+            max_tokens=self.max_tokens,
+            temperature=self.temperature,
+        ):
+            print(chunk, end="", flush=True)
+        print()
 
     def chat(self) -> None:
-        self.__execvp(self.__jarvis + ["chat"] + self.as_cli_chat_opts())
+        """Run an interactive CLI chat session with request tracking."""
+        from .llm import get_llm_client
+        from .tui.helpers import build_chat_prompt
+
+        tools_list = [t.strip() for t in self.tools.split(",") if t.strip()]
+        client = get_llm_client()
+        history: list[tuple[str, str, str]] = []
+
+        print(f"Starting chat session with agent '{self.agent}' (model: {self.model}, engine: {self.engine})")
+        print("Type 'exit', 'quit', or press Ctrl+D / Ctrl+C to stop.\n")
+
+        while True:
+            try:
+                user_input = input("User > ").strip()
+            except EOFError, KeyboardInterrupt:
+                print("\nExiting chat session.")
+                break
+
+            if not user_input:
+                continue
+            if user_input.lower() in ("exit", "quit"):
+                print("Exiting chat session.")
+                break
+
+            full_query = build_chat_prompt(self.system, history, user_input)
+            print("Assistant > ", end="", flush=True)
+            chunks: list[str] = []
+            try:
+                for chunk in client.ask_stream(
+                    full_query,
+                    agent=self.agent or "orchestrator",
+                    tools=tools_list,
+                    engine=self.engine,
+                    model=self.model,
+                    max_tokens=self.max_tokens,
+                    temperature=self.temperature,
+                ):
+                    print(chunk, end="", flush=True)
+                    chunks.append(chunk)
+                print("\n")
+                assistant_response = "".join(chunks)
+                from datetime import datetime
+
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                history.append(("User", user_input, ts))
+                history.append(("Assistant", assistant_response, ts))
+            except Exception as e:
+                print(f"\n⚠️ Error: {e}\n")
