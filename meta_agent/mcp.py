@@ -11,6 +11,7 @@ from typing import Any
 from openjarvis.core.registry import ToolRegistry
 from openjarvis.core.types import ToolResult
 from openjarvis.mcp.client import MCPClient
+from openjarvis.mcp.server import MCPServer
 from openjarvis.mcp.transport import StdioTransport
 from openjarvis.tools._stubs import BaseTool, ToolSpec
 
@@ -132,3 +133,83 @@ def init_mcp_servers(config: MetaAgentConfig | None = None) -> list[str]:
 def get_mcp_manager() -> MCPManager:
     """Get the global MCP manager singleton."""
     return _GLOBAL_MCP_MANAGER
+
+
+def create_meta_agent_mcp_server(recipes_dir: str | None = None) -> MCPServer:
+    """Create an MCPServer instance exposing all tools registered in ToolRegistry."""
+    import openjarvis.tools  # noqa: F401
+    from . import tools as _tools  # noqa: F401
+
+    tools: list[BaseTool] = []
+    for key in ToolRegistry.keys():
+        try:
+            tool_entry = ToolRegistry.get(key)
+            if isinstance(tool_entry, BaseTool):
+                tools.append(tool_entry)
+            elif callable(tool_entry):
+                if key == "refactor_recipe" and recipes_dir is not None:
+                    inst = tool_entry(recipes_dir=recipes_dir)
+                else:
+                    inst = tool_entry()
+                if isinstance(inst, BaseTool):
+                    tools.append(inst)
+        except Exception as exc:
+            logging.debug("Could not instantiate tool '%s' for MCP server: %s", key, exc)
+
+    server = MCPServer(tools=tools)
+    server.SERVER_NAME = "meta_agent"
+    return server
+
+
+def serve_mcp_stdio(
+    server: MCPServer | None = None,
+    reader: Any = None,
+    writer: Any = None,
+    recipes_dir: str | None = None,
+) -> None:
+    """Run an MCP JSON-RPC server over stdio."""
+    import sys
+    from openjarvis.mcp.protocol import (
+        INTERNAL_ERROR,
+        PARSE_ERROR,
+        MCPRequest,
+        MCPResponse,
+    )
+
+    if server is None:
+        server = create_meta_agent_mcp_server(recipes_dir=recipes_dir)
+    if reader is None:
+        reader = sys.stdin
+    if writer is None:
+        writer = sys.stdout
+
+    for line in reader:
+        line_str = line.strip()
+        if not line_str:
+            continue
+
+        try:
+            parsed = json.loads(line_str)
+            req = MCPRequest(
+                method=parsed["method"],
+                params=parsed.get("params", {}),
+                id=parsed.get("id"),
+                jsonrpc=parsed.get("jsonrpc", "2.0"),
+            )
+        except Exception as exc:
+            err_resp = MCPResponse.error_response(0, PARSE_ERROR, f"Parse error: {exc}")
+            writer.write(err_resp.to_json() + "\n")
+            writer.flush()
+            continue
+
+        # JSON-RPC Notification: id is omitted or None -> do not send response
+        if req.id is None or req.method.startswith("notifications/"):
+            continue
+
+        try:
+            resp = server.handle(req)
+        except Exception as exc:
+            resp = MCPResponse.error_response(req.id, INTERNAL_ERROR, f"Server error: {exc}")
+
+        writer.write(resp.to_json() + "\n")
+        writer.flush()

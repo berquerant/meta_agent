@@ -111,3 +111,74 @@ def test_mcp_manager_register_and_collision() -> None:
 
         # Clean up
         manager.close_all()
+
+
+def test_create_meta_agent_mcp_server() -> None:
+    """Test create_meta_agent_mcp_server collects custom meta_agent tools."""
+    from meta_agent.mcp import create_meta_agent_mcp_server
+
+    server = create_meta_agent_mcp_server()
+    assert server.SERVER_NAME == "meta_agent"
+    tool_names = list(server._tools.keys())
+    # Should include meta_agent custom tools
+    assert "inspect_recipe" in tool_names
+    assert "list_tools" in tool_names
+    assert "list_agents" in tool_names
+    assert "list_recipes" in tool_names
+
+
+def test_serve_mcp_stdio_flow() -> None:
+    """Test serve_mcp_stdio handling initialize, tools/list, and tools/call JSON-RPC messages."""
+    import io
+    from meta_agent.mcp import create_meta_agent_mcp_server, serve_mcp_stdio
+
+    server = create_meta_agent_mcp_server()
+
+    # Prepare inputs: initialize -> initialized notification -> tools/list -> tools/call
+    requests = [
+        json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}),
+        json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}}),
+        json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}),
+        json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {"name": "list_tools", "arguments": {}},
+            }
+        ),
+    ]
+    input_data = "\n".join(requests) + "\n"
+    reader = io.StringIO(input_data)
+    writer = io.StringIO()
+
+    serve_mcp_stdio(server=server, reader=reader, writer=writer)
+
+    output_lines = [line for line in writer.getvalue().splitlines() if line.strip()]
+    # 3 responses expected (notification has no response)
+    assert len(output_lines) == 3
+
+    resp1 = json.loads(output_lines[0])
+    assert resp1["id"] == 1
+    assert "serverInfo" in resp1["result"]
+
+    resp2 = json.loads(output_lines[1])
+    assert resp2["id"] == 2
+    tools = resp2["result"]["tools"]
+    tool_names = [t["name"] for t in tools]
+    assert "list_tools" in tool_names
+
+    resp3 = json.loads(output_lines[2])
+    assert resp3["id"] == 3
+    assert resp3["result"]["isError"] is False
+    assert len(resp3["result"]["content"]) > 0
+
+
+def test_create_meta_agent_mcp_server_with_custom_recipes_dir() -> None:
+    """Test create_meta_agent_mcp_server propagates recipes_dir to refactor_recipe tool."""
+    from meta_agent.mcp import create_meta_agent_mcp_server
+
+    server = create_meta_agent_mcp_server(recipes_dir="/custom/recipes/dir")
+    refactor_tool = server._tools.get("refactor_recipe")
+    assert refactor_tool is not None
+    assert getattr(refactor_tool, "recipes_dir", None) == "/custom/recipes/dir"

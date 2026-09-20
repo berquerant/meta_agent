@@ -2,6 +2,7 @@
 
 import argparse
 from os.path import expanduser
+from typing import Any
 
 from .asking import AskingRequest, AskingRawRequest
 from .cmd import Cmd, ListOpts, InspectOpts, RefactorOpts
@@ -127,13 +128,28 @@ def tui_cmd(args: argparse.Namespace) -> None:
     run_tui(engine=args.engine, model=args.model, recipes_dir=args.recipes, export_dir=args.export_dir)
 
 
-def main() -> int:
-    """Entry point of CLI."""
-    p = argparse.ArgumentParser(
-        prog="meta_agent",
-    )
-    sp = p.add_subparsers(required=True)
+def mcp_cmd(args: argparse.Namespace) -> None:
+    """Run MCP server command over stdio."""
+    from .mcp import serve_mcp_stdio
 
+    serve_mcp_stdio(recipes_dir=args.recipes)
+
+
+def _add_chat_base_opts(x: argparse.ArgumentParser) -> None:
+    x.add_argument("--engine", "-e", default="ollama", help="engine backend")
+    x.add_argument("--model", "-m", default="gemma4:12b", help="model to use")
+
+
+def _add_chat_opts(x: argparse.ArgumentParser) -> None:
+    x.add_argument("--recipe", "-r", required=True, type=str, help="recipe name")
+    _add_chat_base_opts(x)
+    x.add_argument("--agent", "-a", type=str, help="agent type")
+    x.add_argument("--tools", type=str, help="comma-separated tool names")
+    x.add_argument("--system", type=str, help="custom system prompt")
+    x.add_argument("--jarvis", type=str, help="jarvis executable")
+
+
+def _setup_get_parser(sp: Any) -> None:
     get = sp.add_parser("get", help="Get resources")
     get.set_defaults(func=get_resources)
     get.add_argument("--out", "-o", choices=["json", "text", "name"], default="name", help="output format")
@@ -141,20 +157,11 @@ def main() -> int:
     get.add_argument("resource_type", choices=["recipe", "agent", "tool", "engine", "model"])
     get.add_argument("resource_name", nargs="?")
 
-    def add_chat_base_opts(x: argparse.ArgumentParser) -> None:
-        x.add_argument("--engine", "-e", default="ollama", help="engine backend")
-        x.add_argument("--model", "-m", default="gemma4:12b", help="model to use")
 
-    gen = sp.add_parser("gen", help="Generate AI assistant recipe")
-    gen.set_defaults(func=gen_cmd)
-    add_chat_base_opts(gen)
-    # https://github.com/open-jarvis/OpenJarvis/blob/main/src/openjarvis/recipes/loader.py#L282
-    gen.add_argument("--recipes", "-r", default=expanduser("~/.openjarvis/recipes"), help="recipes directory")
-    gen.add_argument("query", action=QueryAction)
-
+def _setup_refactor_parser(sp: Any) -> None:
     ref = sp.add_parser("refactor", help="Evaluate and refactor AI assistant recipes")
     ref.set_defaults(func=refactor_cmd)
-    add_chat_base_opts(ref)
+    _add_chat_base_opts(ref)
     ref.add_argument("--recipes", "-r", default=expanduser("~/.openjarvis/recipes"), help="recipes directory")
     ref.add_argument(
         "--target",
@@ -177,21 +184,25 @@ def main() -> int:
     ref.add_argument("recipe", nargs="+", help="recipe name(s) or file path(s) to refactor")
     ref.add_argument("--query", "-q", action=QueryAction, help="optional user refactoring instructions or query")
 
-    def add_chat_opts(x: argparse.ArgumentParser) -> None:
-        x.add_argument("--recipe", "-r", required=True, type=str, help="recipe name")
-        add_chat_base_opts(x)
-        x.add_argument("--agent", "-a", type=str, help="agent type")
-        x.add_argument("--tools", type=str, help="comma-separated tool names")
-        x.add_argument("--system", type=str, help="custom system prompt")
-        x.add_argument("--jarvis", type=str, help="jarvis executable")
+
+def _setup_parsers(sp: Any) -> None:
+    _setup_get_parser(sp)
+
+    gen = sp.add_parser("gen", help="Generate AI assistant recipe")
+    gen.set_defaults(func=gen_cmd)
+    _add_chat_base_opts(gen)
+    gen.add_argument("--recipes", "-r", default=expanduser("~/.openjarvis/recipes"), help="recipes directory")
+    gen.add_argument("query", action=QueryAction)
+
+    _setup_refactor_parser(sp)
 
     chat = sp.add_parser("chat", help="Start an interactive multi-turn chat session")
     chat.set_defaults(func=chat_cmd)
-    add_chat_opts(chat)
+    _add_chat_opts(chat)
 
     ask = sp.add_parser("ask", help="Ask Jarvis a question")
     ask.set_defaults(func=ask_cmd)
-    add_chat_opts(ask)
+    _add_chat_opts(ask)
     ask.add_argument("query", action=QueryAction)
 
     raw = sp.add_parser("jarvis", help="Raw jarvis command")
@@ -201,13 +212,8 @@ def main() -> int:
 
     tui = sp.add_parser("tui", help="Launch the interactive TUI")
     tui.set_defaults(func=tui_cmd)
-    add_chat_base_opts(tui)
-    tui.add_argument(
-        "--recipes",
-        "-r",
-        default=expanduser("~/.openjarvis/recipes"),
-        help="recipes directory",
-    )
+    _add_chat_base_opts(tui)
+    tui.add_argument("--recipes", "-r", default=expanduser("~/.openjarvis/recipes"), help="recipes directory")
     tui.add_argument(
         "--export-dir",
         "-d",
@@ -215,9 +221,19 @@ def main() -> int:
         help="directory to export chat sessions and logs (default: ~/Documents/meta_agent)",
     )
 
+    mcp = sp.add_parser("mcp", help="Run meta_agent as an MCP (Model Context Protocol) stdio server")
+    mcp.set_defaults(func=mcp_cmd)
+    mcp.add_argument("--recipes", "-r", default=expanduser("~/.openjarvis/recipes"), help="recipes directory")
+
+
+def main() -> int:
+    """Entry point of CLI."""
+    p = argparse.ArgumentParser(prog="meta_agent")
+    sp = p.add_subparsers(required=True)
+    _setup_parsers(sp)
+
     args = p.parse_args()
     args.func(args)
-
     return 0
 
 
