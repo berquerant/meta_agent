@@ -35,6 +35,8 @@ class AskingRequest:
     tools: str
     system: str
     jarvis: str | None = None
+    max_tokens: int | None = None
+    temperature: float | None = None
 
 
 @dataclass
@@ -45,6 +47,8 @@ class AskingOpts:
     system: str
     tools: str
     jarvis: str | None = None
+    max_tokens: int | None = None
+    temperature: float | None = None
 
     @staticmethod
     def new(req: AskingRequest) -> AskingOpts:
@@ -61,7 +65,16 @@ class AskingOpts:
         elif r.tools is not None:
             tools = ",".join(r.tools)
         system = req.system or r.system_prompt or ""
-        return AskingOpts(engine=engine, model=model, agent=agent, tools=tools, system=system, jarvis=req.jarvis)
+        return AskingOpts(
+            engine=engine,
+            model=model,
+            agent=agent,
+            tools=tools,
+            system=system,
+            jarvis=req.jarvis,
+            max_tokens=req.max_tokens,
+            temperature=req.temperature,
+        )
 
     @property
     def __jarvis(self) -> list[str]:
@@ -78,6 +91,10 @@ class AskingOpts:
             "--agent",
             self.agent,
         ]
+        if self.max_tokens is not None:
+            cmd += ["--max-tokens", str(self.max_tokens)]
+        if self.temperature is not None:
+            cmd += ["--temperature", str(self.temperature)]
         if len(self.tools) > 0:
             cmd += ["--tools", self.tools]
         cmd += [self.system + "\n# クエリ\n" + query]
@@ -94,6 +111,10 @@ class AskingOpts:
             "--system",
             self.system,
         ]
+        if self.max_tokens is not None:
+            cmd += ["--max-tokens", str(self.max_tokens)]
+        if self.temperature is not None:
+            cmd += ["--temperature", str(self.temperature)]
         if len(self.tools) > 0:
             cmd += ["--tools", self.tools]
         return cmd

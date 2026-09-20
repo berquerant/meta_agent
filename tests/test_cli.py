@@ -125,3 +125,28 @@ def test_mcp_cmd_passes_recipes_dir() -> None:
     with patch("meta_agent.mcp.serve_mcp_stdio") as mock_serve:
         mcp_cmd(args)
         mock_serve.assert_called_once_with(recipes_dir="/custom/recipes")
+
+
+def test_ask_cmd_forwards_tokens_and_temperature() -> None:
+    """Test ask_cmd propagates max_tokens and temperature."""
+    from meta_agent.cli import ask_cmd
+
+    args = MagicMock()
+    args.recipe = "rec1"
+    args.engine = "ollama"
+    args.model = "llama3"
+    args.agent = "react"
+    args.tools = "t1,t2"
+    args.system = "sys"
+    args.jarvis = None
+    args.max_tokens = 4096
+    args.temperature = 0.5
+    args.query = "hello"
+
+    with patch("meta_agent.cli.Cmd.ask_cmd") as mock_cmd:
+        ask_cmd(args)
+        mock_cmd.assert_called_once()
+        req, query = mock_cmd.call_args[0]
+        assert req.max_tokens == 4096
+        assert req.temperature == 0.5
+        assert query == "hello"

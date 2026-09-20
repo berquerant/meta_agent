@@ -193,6 +193,10 @@ Example `config.json`:
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"]
     }
+  },
+  "defaults": {
+    "max_tokens": 8192,
+    "temperature": 0.7
   }
 }
 ```

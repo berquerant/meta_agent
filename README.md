@@ -46,11 +46,43 @@ meta_agent tui --engine ollama --model llama3 --export-dir ~/Documents/meta_agen
 | Command | Description |
 |---|---|
 | `tui` | Launch the full interactive terminal user interface |
-| `get` | List or inspect recipes (`recipes`, `recipe`), agents (`agents`, `agent`), and tools (`tools`, `tool`) |
+| `get` | List or inspect recipes, agents, tools, engines, and models |
 | `gen` | Generate a new AI assistant recipe via LLM orchestrator |
+| `refactor` | Evaluate and refactor recipes via an LLM |
 | `chat` | Start an interactive multi-turn chat session with an assistant recipe |
 | `ask` | Ask a single question using a recipe-configured agent |
 | `jarvis` | Forward raw arguments directly to the underlying `jarvis` CLI |
+| `mcp` | Run meta_agent as an MCP (Model Context Protocol) server |
+
+---
+
+## ⚙️ Configuration (`config.json`)
+
+`meta_agent` loads optional configuration from `$XDG_CONFIG_HOME/meta_agent/config.json` (defaults to `~/.config/meta_agent/config.json`).
+
+### Configuration Options
+
+- **`mcpServers`**: Register external Model Context Protocol (MCP) servers. The discovered tools become available in recipe generation, refactoring, and agent execution.
+- **`defaults`**: Default LLM generation parameters across `meta_agent` (can be overridden by CLI options `--max-tokens` and `--temperature`):
+  - **`max_tokens`** (*integer*, default: `None` / model default): Maximum number of tokens to generate.
+  - **`temperature`** (*float*, default: `None` / model default): Sampling temperature.
+
+### Example `~/.config/meta_agent/config.json`
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"]
+    }
+  },
+  "defaults": {
+    "max_tokens": 8192,
+    "temperature": 0.7
+  }
+}
+```
 
 ---
 

@@ -17,6 +17,8 @@ class LLMClient(Protocol):
         tools: list[str] | None = None,
         engine: str = "ollama",
         model: str = "llama3",
+        max_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> str:
         """Query LLM agent synchronously and return full text response."""
         ...
@@ -29,6 +31,8 @@ class LLMClient(Protocol):
         tools: list[str] | None = None,
         engine: str = "ollama",
         model: str = "llama3",
+        max_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> Iterator[str]:
         """Stream chunks from LLM agent progressively."""
         ...
@@ -45,6 +49,17 @@ class LLMClient(Protocol):
 class OpenJarvisClient:
     """Default LLM client wrapping OpenJarvis."""
 
+    def _resolve_defaults(self, max_tokens: int | None, temperature: float | None) -> tuple[int | None, float | None]:
+        """Resolve max_tokens and temperature using config defaults if not provided."""
+        if max_tokens is not None and temperature is not None:
+            return max_tokens, temperature
+        from .config import load_config
+
+        cfg = load_config()
+        resolved_max_tokens = max_tokens if max_tokens is not None else cfg.defaults.max_tokens
+        resolved_temperature = temperature if temperature is not None else cfg.defaults.temperature
+        return resolved_max_tokens, resolved_temperature
+
     def ask(
         self,
         prompt: str,
@@ -53,16 +68,21 @@ class OpenJarvisClient:
         tools: list[str] | None = None,
         engine: str = "ollama",
         model: str = "llama3",
+        max_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> str:
         """Query Jarvis and return full response."""
         from openjarvis import Jarvis
 
+        eff_max_tokens, eff_temperature = self._resolve_defaults(max_tokens, temperature)
         j = Jarvis(model=model, engine_key=engine)
         try:
             res = j.ask_full(
                 prompt,
                 agent=agent,
                 tools=tools,
+                max_tokens=eff_max_tokens,
+                temperature=eff_temperature,
             )
             if isinstance(res, dict):
                 return str(res.get("content", ""))
@@ -84,21 +104,38 @@ class OpenJarvisClient:
         tools: list[str] | None = None,
         engine: str = "ollama",
         model: str = "llama3",
+        max_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> Iterator[str]:
         """Stream chunks from Jarvis."""
         import asyncio
         from openjarvis import Jarvis
 
+        eff_max_tokens, eff_temperature = self._resolve_defaults(max_tokens, temperature)
+
         # If a complex agent is requested, stream is unsupported in OpenJarvis; fallback to ask
         if agent and agent not in ("simple", "none", "direct"):
-            res = self.ask(prompt, agent=agent, tools=tools, engine=engine, model=model)
+            res = self.ask(
+                prompt,
+                agent=agent,
+                tools=tools,
+                engine=engine,
+                model=model,
+                max_tokens=eff_max_tokens,
+                temperature=eff_temperature,
+            )
             yield res
             return
 
         j = Jarvis(model=model, engine_key=engine)
         loop = asyncio.new_event_loop()
         try:
-            gen = j.ask_stream(prompt, model=model)
+            gen = j.ask_stream(
+                prompt,
+                model=model,
+                max_tokens=eff_max_tokens,
+                temperature=eff_temperature,
+            )
             while True:
                 try:
                     chunk = loop.run_until_complete(gen.__anext__())
@@ -108,7 +145,15 @@ class OpenJarvisClient:
                     break
         except Exception as exc:
             logging.warning("Stream error, falling back to ask: %s", exc)
-            res = self.ask(prompt, agent=agent, tools=tools, engine=engine, model=model)
+            res = self.ask(
+                prompt,
+                agent=agent,
+                tools=tools,
+                engine=engine,
+                model=model,
+                max_tokens=eff_max_tokens,
+                temperature=eff_temperature,
+            )
             yield res
         finally:
             try:

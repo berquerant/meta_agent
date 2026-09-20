@@ -85,6 +85,8 @@ def ask_cmd(args):  # type: ignore[no-untyped-def]
         tools=args.tools,
         system=args.system,
         jarvis=args.jarvis,
+        max_tokens=args.max_tokens,
+        temperature=args.temperature,
     )
     Cmd.ask_cmd(r, args.query)
 
@@ -99,6 +101,8 @@ def chat_cmd(args):  # type: ignore[no-untyped-def]
         tools=args.tools,
         system=args.system,
         jarvis=args.jarvis,
+        max_tokens=args.max_tokens,
+        temperature=args.temperature,
     )
     Cmd.chat_cmd(r)
 
@@ -138,6 +142,8 @@ def mcp_cmd(args: argparse.Namespace) -> None:
 def _add_chat_base_opts(x: argparse.ArgumentParser) -> None:
     x.add_argument("--engine", "-e", default="ollama", help="engine backend")
     x.add_argument("--model", "-m", default="gemma4:12b", help="model to use")
+    x.add_argument("--max-tokens", type=int, default=None, help="max tokens to generate")
+    x.add_argument("--temperature", type=float, default=None, help="sampling temperature")
 
 
 def _add_chat_opts(x: argparse.ArgumentParser) -> None:

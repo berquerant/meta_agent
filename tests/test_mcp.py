@@ -57,7 +57,11 @@ def test_load_config_valid(tmp_path: Path) -> None:
                 "args": ["-m", "test_mcp"],
                 "env": {"TEST_VAR": "1"},
             }
-        }
+        },
+        "defaults": {
+            "max_tokens": 8192,
+            "temperature": 0.7,
+        },
     }
     config_file.write_text(json.dumps(data), encoding="utf-8")
 
@@ -67,6 +71,8 @@ def test_load_config_valid(tmp_path: Path) -> None:
     assert server.command == "python"
     assert server.args == ["-m", "test_mcp"]
     assert server.env == {"TEST_VAR": "1"}
+    assert cfg.defaults.max_tokens == 8192
+    assert cfg.defaults.temperature == 0.7
 
 
 def test_mcp_proxy_tool_execute() -> None:
