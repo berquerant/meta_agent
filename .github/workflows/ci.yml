@@ -12,26 +12,18 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  test:
-    name: Test
-    timeout-minutes: 20
+  actions-lock-verify:
     permissions:
-      contents: read
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7.0.1
-        with:
-          persist-credentials: false
-      - name: Install uv
-        uses: astral-sh/setup-uv@v10.3.0
-        with:
-          enable-cache: true
-      - name: Set up Python
-        run: uv python install 3.14
-      - name: Sync
-        run: uv sync --locked --all-extras --dev
-      - name: Test
-        run: make ci
+      contents: read # checkout repository to verify actions.lock
+    uses: berquerant/reusable-workflows/.github/workflows/actions-lock-verify.yml@v0.8.0
+
+  ci:
+    permissions:
+      contents: read # checkout repository for Python uv CI
+    uses: berquerant/reusable-workflows/.github/workflows/python-uv-ci.yml@v0.8.0
+    with:
+      python-version: "3.14"
+      command: make ci
